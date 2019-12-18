@@ -52,6 +52,10 @@ int32_t r_vertexarrays = 1;
 int32_t r_yshearing;
 int32_t r_persistentStreamBuffer = 1;
 
+int32_t r_rortexture = 0;
+int32_t r_rortexturerange = 0;
+int32_t r_rorphase = 0;
+
 extern char textfont[2048], smalltextfont[2048];
 
 int32_t rendmode=0;
@@ -5495,7 +5499,17 @@ static void polymost_drawalls(int32_t const bunch)
             yax_nomaskpass==1 || !bitmap_test(yax_gotsector, sectnum))
         {
 #endif
-        if (!(globalorientation&1))
+        if (globalpicnum >= r_rortexture && globalpicnum < r_rortexture + r_rortexturerange && r_rorphase == 0)
+        {
+            xtex.d = (ryp0-ryp1)*gxyaspect / (x0-x1);
+            ytex.d = 0;
+            otex.d = ryp0*gxyaspect - xtex.d*x0;
+
+            xtex.u = ytex.u = otex.u = 0;
+            xtex.v = ytex.v = otex.v = 0;
+            polymost_domost(x0, fy0, x1, fy1);
+        }
+        else if (!(globalorientation&1))
         {
             int32_t fz = getflorzofslope(sectnum, globalposx, globalposy);
             if (globalposz <= fz)
@@ -5914,7 +5928,17 @@ static void polymost_drawalls(int32_t const bunch)
             yax_nomaskpass==1 || !bitmap_test(yax_gotsector, sectnum))
         {
 #endif
-        if (!(globalorientation&1))
+        if (globalpicnum >= r_rortexture && globalpicnum < r_rortexture + r_rortexturerange && r_rorphase == 0)
+        {
+            xtex.d = (ryp0-ryp1)*gxyaspect / (x0-x1);
+            ytex.d = 0;
+            otex.d = ryp0*gxyaspect - xtex.d*x0;
+
+            xtex.u = ytex.u = otex.u = 0;
+            xtex.v = ytex.v = otex.v = 0;
+            polymost_domost(x1, cy1, x0, cy0);
+        }
+        else if (!(globalorientation&1))
         {
             int32_t cz = getceilzofslope(sectnum, globalposx, globalposy);
             if (globalposz >= cz)

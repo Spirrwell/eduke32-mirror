@@ -1587,6 +1587,10 @@ void texcache_invalidate(void);
 
 extern int32_t mdtims, omdtims;
 extern int32_t glrendmode;
+
+extern int32_t r_rortexture;
+extern int32_t r_rortexturerange;
+extern int32_t r_rorphase;
 #endif
 
 int32_t Ptile2tile(int32_t tile, int32_t palette) ATTRIBUTE((pure));
