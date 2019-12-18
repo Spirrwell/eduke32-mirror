@@ -1000,7 +1000,7 @@ InitGame(int32_t argc, char const * const * argv)
     //_outtext("\n\n\n\n\n\n\n\n");
     //LOG_F(INFO, "Loading sound and graphics...");
     //AnimateCacheCursor();
-    LoadImages("tiles000.art");
+    LoadImages("tiles%03i.art");
 
     // Now free it up for later use
     /*

@@ -39,7 +39,8 @@ static rottile_t *g_bakRottile;
 //static int32_t artsize = 0;
 static int32_t g_vm_size = 0;
 
-static char artfilename[20];
+static char artfilename[BMAX_PATH];
+static char artfilenameformat[BMAX_PATH];
 static char mapartfilename[BMAX_PATH];  // map-specific ART file name
 static int32_t mapartfnXXofs;  // byte offset to 'XX' (the number part) in the above
 static int32_t artfilnum, artfilplc;
@@ -496,9 +497,7 @@ static const char *artGetIndexedFileName(int32_t tilefilei)
     }
     else
     {
-        artfilename[7] = '0' + tilefilei%10;
-        artfilename[6] = '0' + (tilefilei/10)%10;
-        artfilename[5] = '0' + (tilefilei/100)%10;
+        Bsnprintf(artfilename, sizeof(artfilename), artfilenameformat, tilefilei);
 
         return artfilename;
     }
@@ -596,7 +595,7 @@ static int32_t artReadIndexedFile(int32_t tilefilei)
 //
 int32_t artLoadFiles(const char *filename, int32_t askedsize)
 {
-    Bstrncpyz(artfilename, filename, sizeof(artfilename));
+    Bstrncpyz(artfilenameformat, filename, sizeof(artfilenameformat));
 
     Bmemset(&tilesiz[0], 0, sizeof(vec2_16_t) * MAXTILES);
     Bmemset(picanm, 0, sizeof(picanm));
