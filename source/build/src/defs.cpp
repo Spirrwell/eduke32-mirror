@@ -1401,6 +1401,8 @@ static int32_t defsparser(scriptfile *script)
                 break; //voxel filename
 
             // begin downstream
+            while (nextvoxid < MAXVOXELS && (voxflags[nextvoxid] & VF_RESERVE))
+                nextvoxid++;
             // end downstream
 
             if (EDUKE32_PREDICT_FALSE(nextvoxid == MAXVOXELS))
@@ -1942,6 +1944,8 @@ static int32_t defsparser(scriptfile *script)
             if (scriptfile_getbraces(script,&voxelend)) break;
 
             // begin downstream
+            while (nextvoxid < MAXVOXELS && (voxflags[nextvoxid] & VF_RESERVE))
+                nextvoxid++;
             // end downstream
 
             if (EDUKE32_PREDICT_FALSE(nextvoxid == MAXVOXELS))
