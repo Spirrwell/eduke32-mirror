@@ -34,6 +34,7 @@ float frealmaxshade;
 
 #if defined(USE_OPENGL)
 palette_t palookupfog[MAXPALOOKUPS];
+float palookupfogfactor[MAXPALOOKUPS];
 #endif
 
 // For every pal number, whether tsprite pal should not be taken over from
@@ -282,6 +283,11 @@ void paletteLoadFromDisk(void)
     }
 
     kclose(fil);
+
+#ifdef USE_OPENGL
+    for (int i = 0; i < MAXPALOOKUPS; i++)
+        palookupfogfactor[i] = 1.f;
+#endif
 }
 
 uint8_t PaletteIndexFullbright[bitmap_size(256)];

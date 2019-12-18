@@ -133,6 +133,8 @@ enum tileshademodes
     TS_TEXTURE
 };
 
+extern float fogfactor[MAXPALOOKUPS];
+
 // Compare with polymer_eligible_for_artmap()
 static FORCE_INLINE int32_t eligible_for_tileshades(int32_t const picnum, int32_t const pal)
 {
@@ -156,14 +158,14 @@ static FORCE_INLINE float polymost_getanisotropy(int filtered = 0)
     return filtered == 0 && polymost_useindexedtextures() ? 1.f : clamp<float>(glanisotropy, 1.f, glinfo.maxanisotropy);
 }
 
-static inline float getshadefactor(int32_t const shade)
+static inline float getshadefactor(int32_t const shade, int32_t const pal)
 {
     // 8-bit tiles, i.e. non-hightiles and non-models, don't get additional
     // glColor() shading with r_usetileshades!
     if (videoGetRenderMode() == REND_POLYMOST && polymost_usetileshades() != TS_NONE && eligible_for_tileshades(globalpicnum, globalpal))
         return 1.f;
 
-    float const fshade = (float)shade;
+    float const fshade = fogfactor[pal] != 0.f ? (float)shade / fogfactor[pal] : 0.f;
 
     if (r_usenewshading == 4)
         return max(min(1.f - (fshade * shadescale / frealmaxshade), 1.f), 0.f);
