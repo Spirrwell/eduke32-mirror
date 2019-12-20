@@ -125,6 +125,7 @@ enum scripttoken_t
     // begin downstream
     T_RFFDEFINEID,
     T_EXTRA,
+    T_ROTATE,
     // end downstream
 
     // stubs
@@ -1950,6 +1951,7 @@ static int32_t defsparser(scriptfile *script)
                 { "scale",   T_SCALE   },
                 { "notrans", T_NOTRANS },
                 // begin downstream
+                { "rotate",  T_ROTATE  },
                 // end downstream
             };
 
@@ -2023,6 +2025,11 @@ static int32_t defsparser(scriptfile *script)
                     break;
 
                 // begin downstream
+
+                case T_ROTATE:
+                    voxflags[lastvoxid] |= VF_ROTATE;
+                    break;
+
                 // end downstream
                 }
             }

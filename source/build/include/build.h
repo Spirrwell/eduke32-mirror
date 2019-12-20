@@ -1049,6 +1049,7 @@ enum
 {
     VF_NOTRANS = 1<<0,
     // begin downstream
+    VF_ROTATE  = 1<<6,
     VF_RESERVE = 1<<7,
     // end downstream
 };
