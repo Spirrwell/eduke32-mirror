@@ -123,6 +123,7 @@ enum scripttoken_t
     T_NOTRANS,
 
     // begin downstream
+    T_RFFDEFINEID,
     // end downstream
 
     // stubs
@@ -405,6 +406,7 @@ static int32_t defsparser(scriptfile *script)
         { "tilefont",        T_TILEFONT         },
 
         // begin downstream
+        { "rffdefineid",     T_RFFDEFINEID      },  // dummy
         // end downstream
 
         // stubs for game-side tokens
@@ -3831,6 +3833,23 @@ static int32_t defsparser(scriptfile *script)
         }
 
         // begin downstream
+
+        case T_RFFDEFINEID:
+        {
+            char *dummy;
+            int dummy2;
+
+            if (scriptfile_getstring(script, &dummy))
+                break;
+            if (scriptfile_getstring(script, &dummy))
+                break;
+            if (scriptfile_getnumber(script, &dummy2))
+                break;
+            if (scriptfile_getstring(script, &dummy))
+                break;
+        }
+        break;
+
         // end downstream
 
         // stubs
