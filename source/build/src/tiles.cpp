@@ -392,6 +392,7 @@ void tileConvertAnimFormat(int32_t const picnum, uint32_t const picanmdisk)
     thispicanm->xofs = (picanmdisk>>8)&255;
     thispicanm->yofs = (picanmdisk>>16)&255;
     thispicanm->sf = ((picanmdisk>>24)&15) | (picanmdisk&192);
+    thispicanm->extra = (picanmdisk>>28)&15;
 }
 
 void artReadManifest(buildvfs_kfd const fil, artheader_t * const local)

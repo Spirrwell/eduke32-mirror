@@ -965,6 +965,7 @@ typedef struct {
     int8_t xofs, yofs;
     uint8_t sf;  // anim. speed and flags
     uint8_t tileflags; // tile-specific flags, such as true non-power-of-2 drawing.
+    uint8_t extra;
 } picanm_t;
 EXTERN picanm_t picanm[MAXTILES];
 typedef struct { int16_t newtile; int16_t owner; } rottile_t;
