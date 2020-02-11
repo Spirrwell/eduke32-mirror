@@ -193,6 +193,8 @@ static fix16_t global100horiz;  // (-100..300)-scale horiz (the one passed to dr
 
 int32_t(*getpalookup_replace)(int32_t davis, int32_t dashade) = NULL;
 
+int32_t bloodhack = 0;
+
 #ifndef EDUKE32_STANDALONE
 int32_t enginecompatibilitymode = ENGINE_EDUKE32;
 #endif
@@ -859,7 +861,7 @@ void yax_tweakpicnums(int32_t bunchnum, int32_t cf, int32_t restore)
                 if (editstatus && showinvisibility)
                     SECTORFLD(i,picnum, cf) = MAXTILES-1;
                 else //if ((dastat&(128+256))==0)
-                    SECTORFLD(i,picnum, cf) = 13; //FOF;
+                    SECTORFLD(i,picnum, cf) = bloodhack ? MAXTILES-2 : 13; //FOF;
             }
             else
             {
@@ -5529,6 +5531,10 @@ static void classicDrawSprite(int32_t snum)
                 cstat |= 512;
             else
                 cstat &= ~512;
+
+            // Blood's transparency table is inverted
+            if (bloodhack)
+                cstat ^= 512;
         }
 
         tspr->cstat = cstat;
@@ -8080,6 +8086,10 @@ static void dorotatesprite(int32_t sx, int32_t sy, int32_t z, int16_t a, int16_t
                 dastat |= RS_TRANS2;
             else
                 dastat &= ~RS_TRANS2;
+
+            // Blood's transparency table is inverted
+            if (bloodhack)
+                dastat ^= RS_TRANS2;
         }
     }
 

@@ -742,7 +742,8 @@ int app_main(int argc, char const* const* argv)
     timerInit(CLOCKTICKSPERSECOND);
     timerSetCallback(keytimerstuff);
 
-    artLoadFiles("tiles%03i.art", g_maxCacheSize);
+    if (!bloodhack)
+        artLoadFiles("tiles%03i.art", g_maxCacheSize);
 
     Bstrcpy(kensig,"Uses BUILD technology by Ken Silverman");
 
@@ -3356,7 +3357,7 @@ int32_t select_sprite_tag(int32_t spritenum)
     return INT32_MIN;
 }
 
-static void drawlinebetween(const vec3_t *v1, const vec3_t *v2, int32_t col, uint32_t pat)
+void drawlinebetween(const vec3_t *v1, const vec3_t *v2, int32_t col, uint32_t pat)
 {
     // based on m32exec.c/drawline*
     const int32_t xofs=halfxdim16, yofs=midydim16;
@@ -3449,7 +3450,7 @@ static void drawspritelabel(int i)
     else if (i == pointhighlight - 16384)
     {
         if (spritecol >= 8 && spritecol <= 15)
-            col -= M32_THROB>>1;
+            col -= bloodhack ? M32_THROB>>2 : M32_THROB>>1;
         else col += M32_THROB>>2;
 
         if (bordercol > col && !blocking)
@@ -4031,7 +4032,7 @@ skipinput:
                 drawline16base(cx,cy, x1,j, -y1,+i, editorcolors[6]);
             }
 
-            if (keystatus[sc_LeftShift] && (pointhighlight&16384) && highlightcnt<=0)  // LShift
+            if (keystatus[sc_LeftShift] && (pointhighlight&16384) && highlightcnt<=0 && !bloodhack)  // LShift
             {
                 // draw lines to linking sprites
                 const int32_t refspritenum = pointhighlight&16383;
@@ -4640,7 +4641,21 @@ rotate_hlsect_out:
 #if 1
         if (keystatus[sc_F5])  //F5
         {
-            ExtShowSectorData(-1);
+            int found = 0;
+            if (bloodhack)
+            {
+                for (i=0; i<numsectors; i++)
+                    if (inside_editor_curpos(i) == 1)
+                    {
+                        YAX_SKIPSECTOR(i);
+
+                        ExtShowSectorData(i);
+                        found = 1;
+                        break;
+                    }
+            }
+            if (!found)
+                ExtShowSectorData(-1);
         }
         if (keystatus[sc_F6])  //F6
         {
