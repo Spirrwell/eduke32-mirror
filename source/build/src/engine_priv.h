@@ -238,6 +238,8 @@ static FORCE_INLINE int32_t bad_tspr(tspriteptr_t tspr)
 //
 static FORCE_INLINE int32_t getpalookup(int32_t davis, int32_t dashade)
 {
+    if (getpalookup_replace)
+        return getpalookup_replace(davis, dashade);
     return min(max(dashade + (davis >> 8), 0), numshades - 1);
 }
 

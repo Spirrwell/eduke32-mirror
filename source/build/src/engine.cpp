@@ -81,7 +81,7 @@ uint8_t globalr = 255, globalg = 255, globalb = 255;
 
 int16_t pskybits_override = -1;
 
-//void loadvoxel(int32_t voxindex) { UNREFERENCED_PARAMATER(voxindex); }
+void (*loadvoxel_replace)(int32_t voxindex) = NULL;
 int16_t tiletovox[MAXTILES];
 int32_t usevoxels = 1;
 #ifdef USE_OPENGL
@@ -190,6 +190,8 @@ static void draw_rainbow_background(void);
 #endif
 int16_t editstatus = 0;
 static fix16_t global100horiz;  // (-100..300)-scale horiz (the one passed to drawrooms)
+
+int32_t(*getpalookup_replace)(int32_t davis, int32_t dashade) = NULL;
 
 #ifndef EDUKE32_STANDALONE
 int32_t enginecompatibilitymode = ENGINE_EDUKE32;
@@ -2481,8 +2483,14 @@ static void prepwall(int32_t z, uwallptr_t wal)
 //
 // animateoffs (internal)
 //
+int32_t (*animateoffs_replace)(int const tilenum, int fakevar) = NULL;
 int32_t animateoffs(int const tilenum, int fakevar)
 {
+    if (animateoffs_replace)
+    {
+        return animateoffs_replace(tilenum, fakevar);
+    }
+
     int const animnum = picanm[tilenum].num;
 
     if (animnum <= 0)
@@ -5797,14 +5805,13 @@ static void classicDrawSprite(int32_t snum)
                 if (lwall[x] < swall[x]) break;
             if (x == rx) return;
         }
-/*
-        for (i=0; i<MAXVOXMIPS; i++)
-            if (!voxoff[vtilenum][i])
-            {
-                kloadvoxel(vtilenum);
-                break;
-            }
-*/
+
+        if (!voxoff[vtilenum][0])
+        {
+            if (loadvoxel_replace)
+                loadvoxel_replace(vtilenum);
+        }
+
         const int32_t *const longptr = (int32_t *)voxoff[vtilenum][0];
         if (longptr == NULL)
         {
@@ -8797,8 +8804,11 @@ LISTFN_STATIC void do_deletespritestat(int16_t deleteme)
 //
 // insertsprite
 //
+int32_t(*insertsprite_replace)(int16_t sectnum, int16_t statnum) = NULL;
 int32_t insertsprite(int16_t sectnum, int16_t statnum)
 {
+    if (insertsprite_replace)
+        return insertsprite_replace(sectnum, statnum);
     // TODO: guard against bad sectnum?
     int32_t const newspritenum = insertspritestat(statnum);
 
@@ -8817,8 +8827,11 @@ int32_t insertsprite(int16_t sectnum, int16_t statnum)
 //
 // deletesprite
 //
+int32_t (*deletesprite_replace)(int16_t spritenum) = NULL;
 int32_t deletesprite(int16_t spritenum)
 {
+    if (deletesprite_replace)
+        return deletesprite_replace(spritenum);
     Bassert((sprite[spritenum].statnum == MAXSTATUS)
             == (sprite[spritenum].sectnum == MAXSECTORS));
 
@@ -8855,8 +8868,11 @@ int32_t deletesprite(int16_t spritenum)
 //
 // changespritesect
 //
+int32_t (*changespritesect_replace)(int16_t spritenum, int16_t newsectnum) = NULL;
 int32_t changespritesect(int16_t spritenum, int16_t newsectnum)
 {
+    if (changespritesect_replace)
+        return changespritesect_replace(spritenum, newsectnum);
     // XXX: NOTE: MAXSECTORS is allowed
     if ((newsectnum < 0 || newsectnum > MAXSECTORS) || (sprite[spritenum].sectnum == MAXSECTORS))
         return -1;
@@ -8873,8 +8889,11 @@ int32_t changespritesect(int16_t spritenum, int16_t newsectnum)
 //
 // changespritestat
 //
+int32_t (*changespritestat_replace)(int16_t spritenum, int16_t newstatnum) = NULL;
 int32_t changespritestat(int16_t spritenum, int16_t newstatnum)
 {
+    if (changespritestat_replace)
+        return changespritestat_replace(spritenum, newstatnum);
     // XXX: NOTE: MAXSTATUS is allowed
     if ((newstatnum < 0 || newstatnum > MAXSTATUS) || (sprite[spritenum].statnum == MAXSTATUS))
         return -1;  // can't set the statnum of a sprite not in the world
@@ -9350,8 +9369,14 @@ void engineUnInit(void)
 //
 // initspritelists
 //
+void (*initspritelists_replace)(void) = NULL;
 void initspritelists(void)
 {
+    if (initspritelists_replace)
+    {
+        initspritelists_replace();
+        return;
+    }
     int32_t i;
 
     // initial list state for statnum lists:
@@ -11059,6 +11084,8 @@ int32_t (*loadboard_maptext)(buildvfs_kfd fil, vec3_t *dapos, int16_t *daang, in
 
 #include "md4.h"
 
+int32_t(*loadboard_replace)(const char *filename, char flags, vec3_t *dapos, int16_t *daang, int16_t *dacursectnum) = NULL;
+
 // flags: 1, 2: former parameter "fromwhere"
 //           4: don't call polymer_loadboard
 //           8: don't autoexec <mapname>.cfg
@@ -11069,6 +11096,8 @@ int32_t (*loadboard_maptext)(buildvfs_kfd fil, vec3_t *dapos, int16_t *daang, in
 //       <= -4: map-text error
 int32_t engineLoadBoard(const char *filename, char flags, vec3_t *dapos, int16_t *daang, int16_t *dacursectnum)
 {
+    if (loadboard_replace)
+        return loadboard_replace(filename, flags, dapos, daang, dacursectnum);
     int32_t i;
     int16_t numsprites;
     const char myflags = flags&(~3);
@@ -11607,8 +11636,12 @@ static int32_t get_mapversion(void)
 //
 // saveboard
 //
+int32_t(*saveboard_replace)(const char *filename, const vec3_t *dapos, int16_t daang, int16_t dacursectnum) = NULL;
 int32_t saveboard(const char *filename, const vec3_t *dapos, int16_t daang, int16_t dacursectnum)
 {
+    if (saveboard_replace)
+        return saveboard_replace(filename, dapos, daang, dacursectnum);
+
     int16_t numsprites, ts;
     int32_t i, j, tl;
 
@@ -11871,6 +11904,7 @@ static void videoAllocateBuffers(void)
 }
 
 #ifdef USE_OPENGL
+void (*PolymostProcessVoxels_Callback)(void) = NULL;
 static void PolymostProcessVoxels(void)
 {
 # ifdef USE_GLEXT
@@ -11889,7 +11923,8 @@ static void PolymostProcessVoxels(void)
         }
     }
 # endif
-
+    if (PolymostProcessVoxels_Callback)
+        PolymostProcessVoxels_Callback();
     if (g_haveVoxels != 1)
         return;
 

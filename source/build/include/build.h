@@ -1801,6 +1801,21 @@ extern int32_t rintersect(int32_t x1, int32_t y1, int32_t z1,
     int32_t x3, int32_t y3, int32_t x4, int32_t y4,
     int32_t *intx, int32_t *inty, int32_t *intz);
 
+extern int32_t(*animateoffs_replace)(int const tilenum, int fakevar);
+extern void(*paletteLoadFromDisk_replace)(void);
+extern int32_t(*getpalookup_replace)(int32_t davis, int32_t dashade);
+extern void(*initspritelists_replace)(void);
+extern int32_t(*insertsprite_replace)(int16_t sectnum, int16_t statnum);
+extern int32_t(*deletesprite_replace)(int16_t spritenum);
+extern int32_t(*changespritesect_replace)(int16_t spritenum, int16_t newsectnum);
+extern int32_t(*changespritestat_replace)(int16_t spritenum, int16_t newstatnum);
+extern void(*loadvoxel_replace)(int32_t voxel);
+extern int32_t(*loadboard_replace)(const char *filename, char flags, vec3_t *dapos, int16_t *daang, int16_t *dacursectnum);
+extern int32_t(*saveboard_replace)(const char *filename, const vec3_t *dapos, int16_t daang, int16_t dacursectnum);
+#ifdef USE_OPENGL
+extern void(*PolymostProcessVoxels_Callback)(void);
+#endif
+
 static inline int16_t tspriteGetSlope(tspriteptr_t const tspr)
 {
     if ((tspr->cstat & CSTAT_SPRITE_ALIGNMENT) != CSTAT_SPRITE_ALIGNMENT_SLOPE)
