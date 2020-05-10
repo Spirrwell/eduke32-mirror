@@ -3036,13 +3036,17 @@ enum inputlock_t
 
 static int P_CheckLockedMovement(int const playerNum)
 {
-    auto const pPlayer = g_player[playerNum].ps;
+    auto      &thisPlayer = g_player[playerNum];
+    auto const pPlayer    = thisPlayer.ps;
 
     if (pPlayer->on_crane >= 0)
         return IL_NOMOVE|IL_NOANGLE;
 
     if (pPlayer->newowner != -1)
         return IL_NOANGLE|IL_NOHORIZ;
+
+    if (pPlayer->return_to_center > 0 || thisPlayer.horizRecenter)
+        return IL_NOHORIZ;
 
     if (pPlayer->dead_flag || pPlayer->fist_incs || pPlayer->transporter_hold > 2 || pPlayer->hard_landing || pPlayer->access_incs > 0
         || pPlayer->knee_incs > 0
@@ -3332,14 +3336,14 @@ void P_GetInput(int const playerNum)
     {
         pPlayer->q16horiz = fix16_sadd(pPlayer->q16horiz, fix16_from_float(scaleAdjustmentToInterval(fix16_to_float(F16(66.666) - fix16_sdiv(pPlayer->q16horiz, F16(1.5))))));
 
-        if ((!pPlayer->return_to_center && thisPlayer.horizRecenter) || (pPlayer->q16horiz >= F16(99.9) && pPlayer->q16horiz <= F16(100.1)))
+        if (pPlayer->q16horiz >= F16(99) && pPlayer->q16horiz <= F16(101))
         {
             pPlayer->q16horiz = F16(100);
             pPlayer->return_to_center = 0;
             thisPlayer.horizRecenter = false;
         }
 
-        if (pPlayer->q16horizoff >= F16(-0.1) && pPlayer->q16horizoff <= F16(0.1))
+        if (pPlayer->q16horizoff >= F16(-1) && pPlayer->q16horizoff <= F16(1))
             pPlayer->q16horizoff = 0;
     }
 
