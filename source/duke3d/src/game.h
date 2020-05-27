@@ -414,25 +414,25 @@ static inline int32_t gameHandleEvents(void)
     return handleevents();
 }
 
-static inline int32_t calc_smoothratio_demo(ClockTicks const totalclk, ClockTicks const ototalclk)
+static inline int32_t calc_smoothratio(ClockTicks const totalclk, ClockTicks const ototalclk, int32_t ticsPerSec, int32_t gameTicsPerSec)
 {
-    int const   truncrfreq = Blrintf(floorf(refreshfreq * TICRATE / timerGetClockRate()));
+    int const   truncrfreq = Blrintf(floorf(refreshfreq * ticsPerSec / timerGetClockRate()));
     int const   clk        = (totalclk - ototalclk).toScale16();
-    float const fracTics   = clk * truncrfreq * (1.f / (65536.f * TICRATE));
+    float const fracTics   = clk * truncrfreq * (1.f / (65536.f * ticsPerSec));
 
 #if 0
-    int const   wholeTics  = tabledivide32_noinline(clk * truncrfreq, 65536 * TICRATE);
+    int const   wholeTics  = tabledivide32_noinline(clk * truncrfreq, 65536 * ticsPerSec);
     //POGO: additional debug info for testing purposes
     OSD_Printf("Elapsed tics: %d (%g), smoothratio: %d (%d)\n", wholeTics, fracTics,
-               tabledivide32_noinline(65536 * wholeTics * REALGAMETICSPERSEC, truncrfreq),
-               tabledivide32_noinline(Blrintf(65536 * fracTics * REALGAMETICSPERSEC), truncrfreq));
+               tabledivide32_noinline(65536 * wholeTics * gameTicsPerSec, truncrfreq),
+               tabledivide32_noinline(Blrintf(65536 * fracTics * gameTicsPerSec), truncrfreq));
 #endif
 
 #if 1
-    return clamp(tabledivide32_noinline(Blrintf(65536 * fracTics * REALGAMETICSPERSEC), truncrfreq), 0, 65536);
+    return clamp(tabledivide32_noinline(Blrintf(65536 * fracTics * gameTicsPerSec), truncrfreq), 0, 65536);
 #else
-    int const wholeTics = tabledivide32_noinline(clk * truncrfreq, 65536 * TICRATE);
-    return clamp(tabledivide32_noinline(65536 * wholeTics * REALGAMETICSPERSEC, truncrfreq), 0, 65536);
+    int const wholeTics = tabledivide32_noinline(clk * truncrfreq, 65536 * ticsPerSec);
+    return clamp(tabledivide32_noinline(65536 * wholeTics * gameTicsPerSec, truncrfreq), 0, 65536);
 #endif
 }
 
@@ -448,7 +448,7 @@ static inline int32_t calc_smoothratio_duke3d(ClockTicks const totalclk, ClockTi
 #endif
         return 65536;
 
-    return calc_smoothratio_demo(totalclk, ototalclk);
+    return calc_smoothratio(totalclk, ototalclk, TICRATE, REALGAMETICSPERSEC);
 }
 
 // sector effector lotags
