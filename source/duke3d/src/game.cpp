@@ -6367,7 +6367,7 @@ void G_DrawFrame(void)
         P_GetInput(myconnectindex);
     }
 
-    int const smoothRatio = calc_smoothratio(totalclock, ototalclock);
+    int const smoothRatio = calc_smoothratio_duke3d(totalclock, ototalclock);
 
     G_DrawRooms(screenpeek, smoothRatio);
     if (videoGetRenderMode() >= REND_POLYMOST)

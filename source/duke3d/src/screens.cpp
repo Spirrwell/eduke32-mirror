@@ -1075,7 +1075,7 @@ void G_DisplayRest(int32_t smoothratio)
         if (ud.overhead_on > 0)
         {
             // smoothratio = min(max(smoothratio,0),65536);
-            smoothratio = calc_smoothratio(totalclock, ototalclock);
+            smoothratio = calc_smoothratio_duke3d(totalclock, ototalclock);
             G_DoInterpolations(smoothratio);
 
             if (ud.scrollmode == 0)

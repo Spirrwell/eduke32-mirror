@@ -436,7 +436,7 @@ static inline int32_t calc_smoothratio_demo(ClockTicks const totalclk, ClockTick
 #endif
 }
 
-static inline int32_t calc_smoothratio(ClockTicks const totalclk, ClockTicks const ototalclk)
+static inline int32_t calc_smoothratio_duke3d(ClockTicks const totalclk, ClockTicks const ototalclk)
 {
 #if 0
     if (!((ud.show_help == 0 && (!g_netServer && ud.multimode < 2) && ((g_player[myconnectindex].ps->gm & MODE_MENU) == 0)) ||

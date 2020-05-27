@@ -1140,7 +1140,7 @@ static void G_ShowView(vec3_t vec, fix16_t a, fix16_t horiz, int sect, int ix1, 
 
     videoSetViewableArea(x1,y1,x2,y2);
     renderSetAspect(viewingRange, yxAspect);
-    int const smoothratio = calc_smoothratio(totalclock, ototalclock);
+    int const smoothratio = calc_smoothratio_duke3d(totalclock, ototalclock);
     G_DoInterpolations(smoothratio);
     if (!display_mirror)
         G_HandleMirror(vec.x, vec.y, vec.z, a, horiz, smoothratio);
