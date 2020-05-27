@@ -34,6 +34,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "gamevars.h"
 #include "mmulti.h"
 #include "network.h"
+#include "smoothratio.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -412,28 +413,6 @@ static inline int32_t gameHandleEvents(void)
 {
     Net_GetPackets();
     return handleevents();
-}
-
-static inline int32_t calc_smoothratio(ClockTicks const totalclk, ClockTicks const ototalclk, int32_t ticsPerSec, int32_t gameTicsPerSec)
-{
-    int const   truncrfreq = Blrintf(floorf(refreshfreq * ticsPerSec / timerGetClockRate()));
-    int const   clk        = (totalclk - ototalclk).toScale16();
-    float const fracTics   = clk * truncrfreq * (1.f / (65536.f * ticsPerSec));
-
-#if 0
-    int const   wholeTics  = tabledivide32_noinline(clk * truncrfreq, 65536 * ticsPerSec);
-    //POGO: additional debug info for testing purposes
-    OSD_Printf("Elapsed tics: %d (%g), smoothratio: %d (%d)\n", wholeTics, fracTics,
-               tabledivide32_noinline(65536 * wholeTics * gameTicsPerSec, truncrfreq),
-               tabledivide32_noinline(Blrintf(65536 * fracTics * gameTicsPerSec), truncrfreq));
-#endif
-
-#if 1
-    return clamp(tabledivide32_noinline(Blrintf(65536 * fracTics * gameTicsPerSec), truncrfreq), 0, 65536);
-#else
-    int const wholeTics = tabledivide32_noinline(clk * truncrfreq, 65536 * ticsPerSec);
-    return clamp(tabledivide32_noinline(65536 * wholeTics * gameTicsPerSec, truncrfreq), 0, 65536);
-#endif
 }
 
 static inline int32_t calc_smoothratio_duke3d(ClockTicks const totalclk, ClockTicks const ototalclk)
