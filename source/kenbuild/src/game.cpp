@@ -24,7 +24,7 @@ const char *AppTechnicalName = "ekenbuild";
 #define SETUPFILENAME "ekenbuild.cfg"
 char setupfilename[BMAX_PATH] = SETUPFILENAME;
 
-#define TIMERINTSPERSECOND 140 //280
+#define TIMERINTSPERSECOND 280
 #define MOVESPERSECOND 40
 #define TICSPERFRAME 3
 #define MOVEFIFOSIZ 256
