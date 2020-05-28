@@ -27,6 +27,7 @@ Prepared for public release: 03/28/2005 - Charlie Wiederhold, 3D Realms
 #include "build.h"
 #include "pragmas.h"
 #include "cache1d.h"
+#include "smoothratio.h"
 
 #include "keys.h"
 #include "names2.h"
@@ -2326,7 +2327,7 @@ drawscreen(PLAYERp pp)
     PreUpdatePanel();
 
 
-    smoothratio = min(max(((int32_t) totalclock - ototalclock) * (65536 / synctics),0),65536);
+    smoothratio = calc_smoothratio(totalclock, ototalclock, TICSPERSEC, TICSPERSEC/synctics);
     if (GamePaused && !ReloadPrompt) // The checks were brought over from domovethings
         smoothratio = 65536;
 

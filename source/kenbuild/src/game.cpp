@@ -12,6 +12,7 @@
 #include "game.h"
 #include "osd.h"
 #include "mmulti.h"
+#include "smoothratio.h"
 #include "common.h"
 
 #include "renderlayer.h"
@@ -729,7 +730,7 @@ int32_t app_main(int32_t argc, char const * const * argv)
                 domovethings();
             }
         }
-        i = ((int32_t) totalclock-gotlastpacketclock)*(65536/(TIMERINTSPERSECOND/MOVESPERSECOND));
+        i = calc_smoothratio(totalclock, gotlastpacketclock, TIMERINTSPERSECOND, MOVESPERSECOND);
 
         drawscreen(screenpeek,i);
     }
@@ -4824,7 +4825,7 @@ void playback(void)
             movethings(); domovethings();
             i++;
         }
-        drawscreen(screenpeek,((int32_t) totalclock-gotlastpacketclock)*(65536/(TIMERINTSPERSECOND/MOVESPERSECOND)));
+        drawscreen(screenpeek, calc_smoothratio(totalclock, gotlastpacketclock, TIMERINTSPERSECOND, MOVESPERSECOND));
 
         if (keystatus[keys[15]])
         {
