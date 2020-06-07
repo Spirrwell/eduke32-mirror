@@ -23,6 +23,7 @@ o := o
 ### Directories
 source := source
 obj := obj
+override obj := $(obj)/$(call lowercase,$(PLATFORM))-$(IMPLICIT_ARCH)
 
 ### Functions
 define parent
