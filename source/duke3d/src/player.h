@@ -216,6 +216,8 @@ typedef struct
     bool    horizRecenter;
     float   horizAngleAdjust;
     fix16_t horizSkew;
+    bool    lookLeft;
+    bool    lookRight;
 
     int32_t netsynctime;
     int32_t pcolor, pteam;

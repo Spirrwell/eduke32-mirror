@@ -163,6 +163,7 @@ G_EXTERN double g_gameUpdateTime;
 G_EXTERN double g_gameUpdateAndDrawTime;
 #define GAMEUPDATEAVGTIMENUMSAMPLES 100
 extern double g_gameUpdateAvgTime;
+G_EXTERN double g_lastInputTicks;
 
 #ifndef global_c_
 extern char CheatKeys[2];

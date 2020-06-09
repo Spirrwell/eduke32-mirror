@@ -844,6 +844,8 @@ void P_ResetPlayer(int playerNum)
     thisPlayer.horizSkew        = 0;
     thisPlayer.horizAngleAdjust = 0;
 
+    g_lastInputTicks = 0;
+
     P_UpdateScreenPal(&p);
     VM_OnEvent(EVENT_RESETPLAYER, p.i, playerNum);
 }
