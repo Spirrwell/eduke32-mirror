@@ -4651,7 +4651,7 @@ void P_UpdatePosWhenViewingCam(DukePlayer_t *pPlayer)
     pPlayer->vel.y          = 0;
     sprite[pPlayer->i].xvel = 0;
     pPlayer->look_ang       = 0;
-    pPlayer->rotscrnang     = 0;
+    pPlayer->q16rotscrnang  = 0;
 }
 
 static void P_DoWater(int const playerNum, int const playerBits, int const floorZ, int const ceilZ)
@@ -4817,7 +4817,7 @@ static void P_Dead(int const playerNum, int const sectorLotag, int const floorZ,
     pushmove(&pPlayer->pos, &pPlayer->cursectnum, 128L, (4L<<8), (20L<<8), CLIPMASK0);
 
     if (floorZ > ceilZ + ZOFFSET2 && pSprite->pal != 1)
-        pPlayer->rotscrnang = (pPlayer->dead_flag + ((floorZ+pPlayer->pos.z)>>7))&2047;
+        pPlayer->q16rotscrnang = fix16_from_int((pPlayer->dead_flag + ((floorZ+pPlayer->pos.z)>>7))) & 0x7FFFFFF;
 
     pPlayer->on_warping_sector = 0;
 }
@@ -5047,10 +5047,10 @@ void P_ProcessInput(int playerNum)
         return;
     }
 
-    pPlayer->rotscrnang -= (pPlayer->rotscrnang >> 1);
+    pPlayer->q16rotscrnang = fix16_ssub(pPlayer->q16rotscrnang, fix16_sdiv(pPlayer->q16rotscrnang, fix16_from_int(2)));
 
-    if (pPlayer->rotscrnang && !(pPlayer->rotscrnang >> 1))
-        pPlayer->rotscrnang -= ksgn(pPlayer->rotscrnang);
+    if (pPlayer->q16rotscrnang && !fix16_sdiv(pPlayer->q16rotscrnang, fix16_from_int(2)))
+        pPlayer->q16rotscrnang = fix16_ssub(pPlayer->q16rotscrnang, fix16_from_int(ksgn(fix16_to_int(pPlayer->q16rotscrnang))));
 
     pPlayer->look_ang -= (pPlayer->look_ang >> 2);
 
@@ -5063,7 +5063,7 @@ void P_ProcessInput(int playerNum)
         if (VM_OnEvent(EVENT_LOOKLEFT,pPlayer->i,playerNum) == 0)
         {
             pPlayer->look_ang -= 152;
-            pPlayer->rotscrnang += 24;
+            pPlayer->q16rotscrnang = fix16_sadd(pPlayer->q16rotscrnang, fix16_from_int(24));
         }
     }
 
@@ -5073,7 +5073,7 @@ void P_ProcessInput(int playerNum)
         if (VM_OnEvent(EVENT_LOOKRIGHT,pPlayer->i,playerNum) == 0)
         {
             pPlayer->look_ang += 152;
-            pPlayer->rotscrnang -= 24;
+            pPlayer->q16rotscrnang = fix16_ssub(pPlayer->q16rotscrnang, fix16_from_int(24));
         }
     }
 

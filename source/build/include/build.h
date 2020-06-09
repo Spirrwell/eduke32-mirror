@@ -1438,7 +1438,7 @@ void   editorDraw2dCircle(int32_t x1, int32_t y1, int32_t r, int32_t eccen, char
 int32_t   videoSetRenderMode(int32_t renderer);
 
 #ifdef USE_OPENGL
-void    renderSetRollAngle(int32_t rolla);
+void    renderSetRollAngle(float rolla);
 #endif
 
 //  pal: pass -1 to invalidate all palettes for the tile, or >=0 for a particular palette

@@ -146,6 +146,7 @@ typedef struct {
 
     fix16_t q16horiz, q16horizoff, oq16horiz, oq16horizoff;
     fix16_t q16ang, oq16ang, q16angvel;
+    fix16_t oq16rotscrnang, q16rotscrnang;   // JBF 20031220: added orotscrnang
 
     int32_t truefz, truecz, player_par;
     int32_t runspeed, max_player_health, max_shield_amount;
@@ -171,7 +172,7 @@ typedef struct {
 
     int16_t weaprecs[MAX_WEAPONS], weapon_sway, crack_time, bobcounter;
 
-    int16_t orotscrnang, rotscrnang, dead_flag;   // JBF 20031220: added orotscrnang
+    int16_t dead_flag;
     int16_t holoduke_on, pycount;
     int16_t transporter_hold, clipdist;
 

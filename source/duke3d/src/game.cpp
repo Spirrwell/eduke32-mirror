@@ -830,7 +830,7 @@ void G_DrawRooms(int32_t playerNum, int32_t smoothRatio)
 
         int vr            = divscale22(1, sprite[pPlayer->i].yrepeat + 28);
         int screenTilting = (videoGetRenderMode() == REND_CLASSIC
-                             && ((ud.screen_tilting && pPlayer->rotscrnang
+                             && ((ud.screen_tilting && fix16_to_int(pPlayer->q16rotscrnang)
 
 #ifdef SPLITSCREEN_MOD_HACKS
                                   && !g_fakeMultiMode
@@ -857,7 +857,7 @@ void G_DrawRooms(int32_t playerNum, int32_t smoothRatio)
         else if (screenTilting)
         {
             int32_t oviewingrange = viewingrange;  // save it from renderSetAspect()
-            const int16_t tang = (ud.screen_tilting) ? pPlayer->rotscrnang : 0;
+            const int16_t tang = (ud.screen_tilting) ? fix16_to_int(pPlayer->q16rotscrnang) : 0;
 
             if (tang == 1024)
                 screenTilting = 2;
@@ -944,9 +944,9 @@ void G_DrawRooms(int32_t playerNum, int32_t smoothRatio)
             )
             {
 #ifdef USE_OPENGL
-                renderSetRollAngle(pPlayer->orotscrnang + mulscale16(((pPlayer->rotscrnang - pPlayer->orotscrnang + 1024)&2047)-1024, smoothRatio));
+                renderSetRollAngle(fix16_to_float(pPlayer->oq16rotscrnang + mulscale16(((pPlayer->q16rotscrnang - pPlayer->oq16rotscrnang + fix16_from_int(1024))&0x7FFFFFF)-fix16_from_int(1024), smoothRatio)));
 #endif
-                pPlayer->orotscrnang = pPlayer->rotscrnang;
+                pPlayer->oq16rotscrnang = pPlayer->q16rotscrnang;
             }
 #ifdef USE_OPENGL
             else
@@ -1126,7 +1126,7 @@ void G_DrawRooms(int32_t playerNum, int32_t smoothRatio)
         }
         else if (screenTilting)
         {
-            const int16_t tang = (ud.screen_tilting) ? pPlayer->rotscrnang : 0;
+            const int16_t tang = (ud.screen_tilting) ? fix16_to_int(pPlayer->q16rotscrnang) : 0;
 
             if (screenTilting == 2)  // tang == 1024
             {
