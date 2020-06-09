@@ -21,6 +21,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 //-------------------------------------------------------------------------
 
 #include "duke3d.h"
+#include "gameexec.h"
 #include "demo.h"
 #include "enet.h"
 
@@ -2985,14 +2986,15 @@ enddisplayweapon:
     P_DisplaySpit();
 }
 
-#define TURBOTURNTIME (TICRATE/8) // 7
-#define NORMALTURN    15
-#define PREAMBLETURN  5
-#define NORMALKEYMOVE 40
-#define MAXVEL        ((NORMALKEYMOVE*2)+10)
-#define MAXSVEL       ((NORMALKEYMOVE*2)+10)
-#define MAXANGVEL     1024
-#define MAXHORIZVEL   256
+#define TURBOTURNTIME  (TICRATE/8) // 7
+#define NORMALTURN     15
+#define PREAMBLETURN   5
+#define NORMALKEYMOVE  40
+#define MAXVEL         ((NORMALKEYMOVE*2)+10)
+#define MAXSVEL        ((NORMALKEYMOVE*2)+10)
+#define MAXANGVEL      1024
+#define MAXHORIZVEL    256
+#define ONEEIGHTYSCALE 4
 
 int32_t g_myAimMode = 0, g_myAimStat = 0, g_oldAimStat = 0;
 int32_t mouseyaxismode = -1;
@@ -3290,6 +3292,11 @@ void P_GetInput(int const playerNum)
         {
             localInput.q16avel = fix16_sadd(localInput.q16avel, input.q16avel);
             pPlayer->q16ang    = fix16_sadd(pPlayer->q16ang, input.q16avel) & 0x7FFFFFF;
+
+            if (input.q16avel)
+            {
+                pPlayer->one_eighty_count = 0;
+            }
         }
 
         if (!(movementLocked & IL_NOHORIZ))
@@ -3321,6 +3328,12 @@ void P_GetInput(int const playerNum)
         {
             pPlayer->q16look_ang = fix16_sadd(pPlayer->q16look_ang, fix16_from_dbl(scaleAdjustmentToInterval(152)));
             pPlayer->q16rotscrnang = fix16_ssub(pPlayer->q16rotscrnang, fix16_from_dbl(scaleAdjustmentToInterval(24)));
+        }
+
+        if (pPlayer->one_eighty_count < 0)
+        {
+            pPlayer->one_eighty_count = -fix16_to_int(fix16_abs(G_GetQ16AngleDelta(pPlayer->one_eighty_target, pPlayer->q16ang)));
+            pPlayer->q16ang = fix16_sadd(pPlayer->q16ang, fix16_max(fix16_one, fix16_from_dbl(scaleAdjustmentToInterval(-pPlayer->one_eighty_count / ONEEIGHTYSCALE)))) & 0x7FFFFFF;
         }
     }
 

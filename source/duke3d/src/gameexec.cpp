@@ -469,6 +469,20 @@ int __fastcall G_GetAngleDelta(int currAngle, int newAngle)
     return newAngle-currAngle;
 }
 
+fix16_t __fastcall G_GetQ16AngleDelta(fix16_t currAngle, fix16_t newAngle)
+{
+    if (fix16_abs(fix16_sub(currAngle, newAngle)) < F16(1024))
+        return fix16_sub(newAngle, currAngle);
+
+    if (newAngle > F16(1024))
+        newAngle = fix16_sub(newAngle, F16(2048));
+
+    if (currAngle > F16(1024))
+        currAngle = fix16_sub(currAngle, F16(2048));
+
+    return fix16_sub(newAngle, currAngle);
+}
+
 GAMEEXEC_STATIC void VM_AlterAng(int32_t const moveFlags)
 {
     int const elapsedTics = (AC_COUNT(vm.pData))&31;
