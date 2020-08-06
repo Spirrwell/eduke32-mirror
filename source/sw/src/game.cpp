@@ -920,7 +920,7 @@ InitGame(int32_t argc, char const * const * argv)
 
     InitAutoNet();
 
-    timerInit(120);
+    timerInit(TICSPERSEC);
 
     CON_InitConsole();  // Init console command list
 

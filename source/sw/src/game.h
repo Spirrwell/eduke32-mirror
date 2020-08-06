@@ -530,7 +530,7 @@ int StdRandomRange(int range);
 #define LOW_TAG_WALL(wallnum) ( wall[(wallnum)].lotag )
 #define HIGH_TAG_WALL(wallnum) ( wall[(wallnum)].hitag )
 
-#define SEC(value) ((value)*120)
+#define SEC(value) ((value)*TICSPERSEC)
 
 #define CEILING_DIST (Z(4))
 #define FLOOR_DIST (Z(4))
