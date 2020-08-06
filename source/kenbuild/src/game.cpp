@@ -730,7 +730,7 @@ int32_t app_main(int32_t argc, char const * const * argv)
                 domovethings();
             }
         }
-        i = calc_smoothratio(totalclock, gotlastpacketclock, TIMERINTSPERSECOND, MOVESPERSECOND);
+        i = calc_smoothratio(totalclock, ototalclock, TIMERINTSPERSECOND, MOVESPERSECOND);
 
         drawscreen(screenpeek,i);
     }
@@ -4828,7 +4828,7 @@ void playback(void)
             movethings(); domovethings();
             i++;
         }
-        drawscreen(screenpeek, calc_smoothratio(totalclock, gotlastpacketclock, TIMERINTSPERSECOND, MOVESPERSECOND));
+        drawscreen(screenpeek, calc_smoothratio(totalclock, ototalclock, TIMERINTSPERSECOND, MOVESPERSECOND));
 
         if (keystatus[keys[15]])
         {
