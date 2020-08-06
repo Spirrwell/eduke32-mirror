@@ -3712,6 +3712,9 @@ void drawscreen(short snum, int dasmoothratio)
 
     int32_t const viewingRange = viewingrange;
 
+    if (!engineFPSLimit())
+        return;
+
     smoothratio = max(min(dasmoothratio,65536),0);
 
     dointerpolations();

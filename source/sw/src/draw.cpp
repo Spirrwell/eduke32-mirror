@@ -2278,6 +2278,9 @@ drawscreen(PLAYERp pp)
 
     int const viewingRange = viewingrange;
 
+    if (!engineFPSLimit())
+        return;
+
     if (HelpInputMode)
     {
         renderFlushPerms();
