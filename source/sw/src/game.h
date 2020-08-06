@@ -2225,6 +2225,7 @@ extern short snum;
 
 extern int lockspeed,totalsynctics;
 
+#define TICSPERSEC 120
 #define synctics 3
 #define ACTORMOVETICS (synctics<<1)
 #define TICSPERMOVEMENT synctics
