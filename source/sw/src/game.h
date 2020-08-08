@@ -2281,7 +2281,7 @@ void sendlogoff(void);
 //
 ///////////////////////////
 
-extern int ototalclock, save_totalclock, gotlastpacketclock,smoothratio;
+extern int ototalclock, save_totalclock, smoothratio;
 extern SWBOOL ready2send;
 extern SWBOOL GamePaused;
 
