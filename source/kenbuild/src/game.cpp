@@ -217,7 +217,7 @@ static char syncstat, syncval[MOVEFIFOSIZ], othersyncval[MOVEFIFOSIZ];
 static int syncvaltottail, syncvalhead, othersyncvalhead, syncvaltail;
 
 static char detailmode = 0, ready2send = 0;
-static int ototalclock = 0, gotlastpacketclock = 0, smoothratio;
+static int ototalclock = 0, smoothratio;
 static vec3_t opos[MAXPLAYERS];
 static int ohoriz[MAXPLAYERS], ozoom[MAXPLAYERS];
 static short oang[MAXPLAYERS];
@@ -424,7 +424,7 @@ static int osdcmd_map(const osdfuncparm_t *parm)
     for (i=connecthead; i>=0; i=connectpoint2[i]) initplayersprite((short)i);
 
     waitforeverybody();
-    totalclock = ototalclock = 0; gotlastpacketclock = 0; nummoves = 0;
+    totalclock = ototalclock = 0; nummoves = 0;
 
     ready2send = 1;
     drawscreen(screenpeek,65536L);
@@ -657,7 +657,7 @@ int32_t app_main(int32_t argc, char const * const * argv)
     for (i=connecthead; i>=0; i=connectpoint2[i]) initplayersprite((short)i);
 
     waitforeverybody();
-    totalclock = ototalclock = 0; gotlastpacketclock = 0; nummoves = 0;
+    totalclock = ototalclock = 0; nummoves = 0;
 
     ready2send = 1;
     drawscreen(screenpeek,65536L);
@@ -1607,7 +1607,6 @@ void prepareboard(char *daboardfilename)
 
     lockclock = 0;
     ototalclock = 0;
-    gotlastpacketclock = 0;
 
     screensize = xdim;
     dax = ((xdim-screensize)>>1);
@@ -4354,7 +4353,6 @@ void movethings(void)
 {
     int i;
 
-    gotlastpacketclock = (int32_t) totalclock;
     for (i=connecthead; i>=0; i=connectpoint2[i])
     {
         copybufbyte(&ffsync[i],&baksync[movefifoend[i]][i],sizeof(input));
@@ -5263,7 +5261,7 @@ void checkmasterslaveswitch(void)
             }
 
             syncvalhead = othersyncvalhead = syncvaltail = 0L;
-            totalclock = ototalclock = gotlastpacketclock = lockclock;
+            totalclock = ototalclock = lockclock;
 
             j = 1;
             for (i=connecthead; i>=0; i=connectpoint2[i])
@@ -5730,7 +5728,6 @@ void faketimerhandler(void)
                 j = k;
             }
 
-        gotlastpacketclock = (int32_t) totalclock;
         return;
     }
 
