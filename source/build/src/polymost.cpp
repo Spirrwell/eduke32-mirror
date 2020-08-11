@@ -52,6 +52,7 @@ int32_t r_vertexarrays = 1;
 int32_t r_yshearing;
 int32_t r_persistentStreamBuffer = 1;
 
+int32_t r_brightnesshack = 0;
 int32_t r_rortexture = 0;
 int32_t r_rortexturerange = 0;
 int32_t r_rorphase = 0;
@@ -218,6 +219,8 @@ static GLint polymost1UseGlowMappingLoc = -1;
 static float polymost1UseGlowMapping = 0.f;
 static GLint polymost1NPOTEmulationLoc = -1;
 static vec4f_t polymost1NPOTEmulation = { 0.f, 1.f, 0.f, 1.f };
+static GLint polymost1BrightnessLoc = -1;
+static float polymost1Brightness = 1.f;
 static GLint polymost1RotMatrixLoc = -1;
 static float polymost1RotMatrix[16] = { 1.f, 0.f, 0.f, 0.f,
                                         0.f, 1.f, 0.f, 0.f,
@@ -449,7 +452,7 @@ static void calcmat(vec3f_t a0, const vec2f_t *offset, float f, float mat[16], i
 }
 #endif // POLYMOST2
 
-static GLuint polymost2_compileShader(GLenum shaderType, const char* const source, int * pLength = nullptr)
+GLuint polymost2_compileShader(GLenum shaderType, const char* const source, int * pLength)
 {
     GLuint shaderID = glCreateShader(shaderType);
     if (shaderID == 0)
@@ -652,6 +655,7 @@ static void polymost_setCurrentShaderProgram(uint32_t programID)
     polymost1UseDetailMappingLoc = glGetUniformLocation(polymost1CurrentShaderProgramID, "u_useDetailMapping");
     polymost1UseGlowMappingLoc = glGetUniformLocation(polymost1CurrentShaderProgramID, "u_useGlowMapping");
     polymost1NPOTEmulationLoc = glGetUniformLocation(polymost1CurrentShaderProgramID, "u_npotEmulation");
+    polymost1BrightnessLoc = glGetUniformLocation(polymost1CurrentShaderProgramID, "u_brightness");
     polymost1RotMatrixLoc = glGetUniformLocation(polymost1CurrentShaderProgramID, "u_rotMatrix");
     polymost1ShadeInterpolateLoc = glGetUniformLocation(polymost1CurrentShaderProgramID, "u_shadeInterpolate");
     polymost1ColorCorrectionLoc = glGetUniformLocation(polymost1CurrentShaderProgramID, "u_colorCorrection");
@@ -671,6 +675,7 @@ static void polymost_setCurrentShaderProgram(uint32_t programID)
     glUniform1f(polymost1UseDetailMappingLoc, polymost1UseDetailMapping);
     glUniform1f(polymost1UseGlowMappingLoc, polymost1UseGlowMapping);
     glUniform4f(polymost1NPOTEmulationLoc, polymost1NPOTEmulation.x, polymost1NPOTEmulation.y, polymost1NPOTEmulation.z, polymost1NPOTEmulation.w);
+    glUniform1f(polymost1BrightnessLoc, polymost1Brightness);
     glUniformMatrix4fv(polymost1RotMatrixLoc, 1, false, polymost1RotMatrix);
     glUniform1f(polymost1ShadeInterpolateLoc, polymost1ShadeInterpolate);
     glUniform4f(polymost1ColorCorrectionLoc, g_glColorCorrection.x, g_glColorCorrection.y, g_glColorCorrection.z, g_glColorCorrection.w);
@@ -856,6 +861,15 @@ void polymost_shadeInterpolate(int32_t shadeInterpolate)
 
     polymost1ShadeInterpolate = shadeInterpolate;
     glUniform1f(polymost1ShadeInterpolateLoc, polymost1ShadeInterpolate);
+}
+
+void polymost_setBrightness(int brightness)
+{
+    if (gl.currentShaderProgramID == polymost1CurrentShaderProgramID)
+    {
+        polymost1Brightness = 8.f / (brightness + 8.f);
+        glUniform1f(polymost1BrightnessLoc, polymost1Brightness);
+    }
 }
 
 static void polymost_bindPth(pthtyp const * const pPth)
@@ -1993,7 +2007,7 @@ static int32_t tile_is_sky(int32_t tilenum)
 #endif
 
 
-static void polymost_setuptexture(const int32_t dameth, int filter)
+void polymost_setuptexture(const int32_t dameth, int filter)
 {
     gltexfiltermode = clamp(gltexfiltermode, 0, NUMGLFILTERMODES-1);
 
@@ -6877,6 +6891,8 @@ void polymost_drawrooms()
     buildgl_setEnabled(GL_DEPTH_TEST);
     buildgl_setDepthFunc(GL_ALWAYS); //NEVER,LESS,(,L)EQUAL,GREATER,(NOT,G)EQUAL,ALWAYS
 //        glDepthRange(0.0, 1.0); //<- this is more widely supported than glPolygonOffset
+
+    polymost_setBrightness(r_brightnesshack);
 
     gvrcorrection = viewingrange*(1.f/65536.f);
     if (glprojectionhacks == 2)

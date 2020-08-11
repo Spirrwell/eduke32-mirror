@@ -27,6 +27,7 @@ extern void Polymost_prepare_loadboard(void);
 
 
 //void phex(char v, char *s);
+void polymost_setuptexture(const int32_t dameth, int filter);
 void uploadtexture(int32_t doalloc, vec2_t siz, int32_t texfmt, coltype *pic, vec2_t tsiz, int32_t dameth);
 void uploadtextureindexed(int32_t doalloc, vec2_t offset, vec2_t siz, intptr_t tile);
 void uploadbasepalette(int32_t basepalnum);
@@ -66,6 +67,8 @@ void polymost_usePaletteIndexing(char usePaletteIndexing);
 void polymost_setColorCorrection(vec4f_t const& colorCorrection);
 
 extern vec4f_t g_glColorCorrection;
+
+GLuint polymost2_compileShader(GLenum shaderType, const char* const source, int* pLength = nullptr);
 
 float* multiplyMatrix4f(float m0[4*4], const float m1[4*4]);
 
@@ -123,6 +126,8 @@ extern int32_t r_vertexarrays;
 extern int32_t r_yshearing;
 extern int32_t r_persistentStreamBuffer;
 
+extern int32_t r_brightnesshack;
+
 extern int32_t polymostcenterhoriz;
 extern GLuint drawpolyVertsID;
 
@@ -143,7 +148,7 @@ static FORCE_INLINE int32_t eligible_for_tileshades(int32_t const picnum, int32_
 
 static FORCE_INLINE int polymost_useindexedtextures(void)
 {
-    return videoGetRenderMode() == REND_POLYMOST && r_useindexedcolortextures && gltexfiltermode == 0;
+    return videoGetRenderMode() == REND_POLYMOST && r_useindexedcolortextures && gltexfiltermode == 0 && !duke64;
 }
 
 static FORCE_INLINE int polymost_usetileshades(void)
@@ -230,6 +235,10 @@ enum {
 
     DAMETH_INDEXED = 512,
 
+    DAMETH_N64 = 1024,
+    DAMETH_N64_INTENSIVITY = 2048,
+    DAMETH_N64_SCALED = 2097152,
+
     // used internally by polymost_domost
     DAMETH_BACKFACECULL = -1,
 
@@ -294,6 +303,10 @@ enum pthtyp_flags {
     PTH_INDEXED = 512,
     PTH_ONEBITALPHA = 1024,
 
+    PTH_N64 = 2048,
+    PTH_N64_INTENSIVITY = 4096,
+    PTH_N64_SCALED = 8192,
+
     // temporary until I create separate flags for samplers
     PTH_DEPTH_SAMPLER = 16384,
     PTH_TEMP_SKY_HACK = 32768
@@ -327,6 +340,12 @@ EDUKE32_STATIC_ASSERT(TO_PTH_NOTRANSFIX(DAMETH_TRANS1) == 0);
 EDUKE32_STATIC_ASSERT(TO_PTH_NOTRANSFIX(DAMETH_MASKPROPS) == 0);
 #define TO_PTH_INDEXED(dameth) ((dameth)&DAMETH_INDEXED)
 EDUKE32_STATIC_ASSERT(TO_PTH_INDEXED(DAMETH_INDEXED) == PTH_INDEXED);
+#define TO_PTH_N64(dameth) (((dameth)&DAMETH_N64)<<1)
+EDUKE32_STATIC_ASSERT(TO_PTH_N64(DAMETH_N64) == PTH_N64);
+#define TO_PTH_N64_INTENSIVITY(dameth) (((dameth)&DAMETH_N64_INTENSIVITY)<<1)
+EDUKE32_STATIC_ASSERT(TO_PTH_N64_INTENSIVITY(DAMETH_N64_INTENSIVITY) == PTH_N64_INTENSIVITY);
+#define TO_PTH_N64_SCALED(dameth) (((dameth)&DAMETH_N64_SCALED)>>8)
+EDUKE32_STATIC_ASSERT(TO_PTH_N64_SCALED(DAMETH_N64_SCALED) == PTH_N64_SCALED);
 
 extern void gloadtile_art(int32_t,int32_t,int32_t,int32_t,int32_t,pthtyp *,int32_t);
 extern int32_t gloadtile_hi(int32_t,int32_t,int32_t,hicreplctyp *,int32_t,pthtyp *,int32_t,polytintflags_t);

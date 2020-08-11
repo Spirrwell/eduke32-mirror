@@ -366,6 +366,7 @@ void palettePostLoadTables(void)
     redcol = paletteGetClosestColor(255, 0, 0);
 
     // Bmemset(PaletteIndexFullbright, 0, sizeof(PaletteIndexFullbright));
+    if (!duke64)
     for (bssize_t c = 0; c < 255; ++c) // skipping transparent color
     {
         uint8_t const index = palookup0[c];
@@ -745,7 +746,7 @@ void videoSetPalette(char dabrightness, uint8_t dapalid, uint8_t flags)
     }
 
     videoSetGamma();
-    j = !gammabrightness ? curbrightness : 0;
+    j = (!gammabrightness || ((flags & 32) != 0 && videoGetRenderMode() != REND_POLYMOST))?curbrightness:0;
 
     for (i=0; i<256; i++)
     {
@@ -761,6 +762,13 @@ void videoSetPalette(char dabrightness, uint8_t dapalid, uint8_t flags)
         curpalettefaded[i].r = britable[j][curpalette[i].r];
         curpalettefaded[i].f = 0;
     }
+
+#ifdef USE_OPENGL
+    if ((flags & 32) != 0 && videoGetRenderMode() == REND_POLYMOST)
+        r_brightnesshack = curbrightness;
+    else
+        r_brightnesshack = 0;
+#endif
 
     if ((flags&16) && palfadedelta)  // keep the fade
         paletteSetFade(palfadedelta>>2);

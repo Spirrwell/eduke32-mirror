@@ -32,6 +32,7 @@ uniform float u_fogEnabled;
 uniform float u_useColorOnly;
 uniform float u_usePalette;
 uniform vec4 u_npotEmulation;
+uniform float u_brightness;
 uniform float u_shadeInterpolate;
 
 #ifdef POLYMOST1_EXTENDED
@@ -105,11 +106,17 @@ void main()
     color.rgb = mix(gl_Fog.color.rgb, color.rgb, fogFactor);
 
 #ifdef POLYMOST1_EXTENDED
-    vec4 glowColor = texture2D(s_glow, gl_TexCoord[4].xy);
+    coord = mix(gl_TexCoord[4].xy,gl_TexCoord[4].yx,u_usePalette);
+    modCoordYnpotEmulationFactor = mod(coord.y,u_npotEmulation.y);
+    coord.xy = vec2(floor(modCoordYnpotEmulationFactor)*u_npotEmulation.x+coord.x, floor(coord.y*u_npotEmulation.w)+modCoordYnpotEmulationFactor);
+    newCoord = mix(gl_TexCoord[4].xy,mix(coord.xy,coord.yx,u_usePalette),u_npotEmulation.z);
+    vec4 glowColor = texture2D(s_glow, newCoord);
     color.rgb = mix(color.rgb, glowColor.rgb, u_useGlowMapping * glowColor.a * -(u_useColorOnly-c_one));
 #endif
 
     color.a *= v_color.a;
+
+    color.rgb = pow(color.rgb, vec3(u_brightness));
 
     vec4 v_cc = vec4(u_colorCorrection.x - c_one, 0.5 * -(u_colorCorrection.y-c_one), -(u_colorCorrection.z-c_one), 1.0);
     gl_FragData[0] = mat4(c_vec2_zero_one.yxxx, c_vec2_zero_one.xyxx, c_vec2_zero_one.xxyx, v_cc.xxxw)

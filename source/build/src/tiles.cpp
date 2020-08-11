@@ -630,6 +630,8 @@ int32_t artLoadFiles(const char *filename, int32_t askedsize)
 //
 static void tilePostLoad(int16_t tilenume);
 
+bool (*rt_tileload_callback)(int16_t tileNum) = nullptr;
+
 bool tileLoad(int16_t tileNum)
 {
     if ((unsigned) tileNum >= (unsigned) MAXTILES) return 0;
@@ -643,7 +645,8 @@ bool tileLoad(int16_t tileNum)
         g_cache.allocateBlock(&waloff[tileNum], dasiz, &walock[tileNum]);
     }
 
-    tileLoadData(tileNum, dasiz, (char *) waloff[tileNum]);
+    if (!duke64 || !rt_tileload_callback || !rt_tileload_callback(tileNum))
+        tileLoadData(tileNum, dasiz, (char *) waloff[tileNum]);
 
 #ifdef USE_OPENGL
     if (videoGetRenderMode() >= REND_POLYMOST &&
@@ -725,8 +728,7 @@ void tileLoadData(int16_t tilenume, int32_t dasiz, char *buffer)
         if (artfil == buildvfs_kfd_invalid)
         {
             LOG_F(ERROR, "Failed opening .art file %s!", fn);
-            engineUnInit();
-            Bexit(EXIT_FAILURE);
+            return;
         }
 
         artfilnum = tfn;
