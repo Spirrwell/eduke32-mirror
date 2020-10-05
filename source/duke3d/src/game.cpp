@@ -971,7 +971,8 @@ void G_DrawRooms(int32_t playerNum, int32_t smoothRatio)
 
             static vec3_t v3;
 
-            if (Bmemcmp(&pPlayer->pos, &pPlayer->opos, sizeof(vec3_t)))
+            if (Bmemcmp(&pPlayer->pos, &pPlayer->opos, sizeof(vec3_t))
+                    && (klabs(camVect.x - v3.x) < 512) && (klabs(camVect.y - v3.y) < 512))
                 camVect = { v3.x + ((camVect.x - v3.x) >> 1), v3.y + ((camVect.y - v3.y) >> 1), v3.z + ((camVect.z - v3.z) >> 1) };
 
             v3 = camVect;
