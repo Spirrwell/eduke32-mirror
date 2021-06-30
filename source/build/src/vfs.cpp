@@ -702,24 +702,6 @@ static int32_t check_filename_mismatch(const char * const filename, int ofs)
     if (!Bstrncmp(fnbuf+ofs, fn, len))
         return 0;
 
-    char * const tfn = Bstrtolower(Xstrdup(fn));
-
-    if (!Bstrncmp(fnbuf+ofs, tfn, len))
-    {
-        Xfree(tfn);
-        return 0;
-    }
-
-    Bstrupr(tfn);
-
-    if (!Bstrncmp(fnbuf+ofs, tfn, len))
-    {
-        Xfree(tfn);
-        return 0;
-    }
-
-    Xfree(tfn);
-
     return 1;
 }
 #endif
