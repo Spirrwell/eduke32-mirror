@@ -883,7 +883,7 @@ void polymost_shadeInterpolate(int32_t shadeInterpolate)
 void polymost_activeTexture(GLenum texture)
 {
     currentActiveTexture = texture;
-    glActiveTexture(texture);
+    glad_glActiveTexture(texture);
 }
 
 //POGOTODO: replace this and polymost_activeTexture with proper draw call organization
@@ -894,7 +894,7 @@ void polymost_bindTexture(GLenum target, uint32_t textureID)
         currentActiveTexture != GL_TEXTURE0 ||
         videoGetRenderMode() != REND_POLYMOST)
     {
-        glBindTexture(target, textureID);
+        glad_glBindTexture(target, textureID);
         if (currentActiveTexture == GL_TEXTURE0)
         {
             currentTextureID = textureID;

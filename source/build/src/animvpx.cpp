@@ -458,10 +458,10 @@ void animvpx_setup_glstate(int32_t animvpx_flags)
     glDisable(GL_CULL_FACE);
 
 #ifdef USE_GLEXT
-    glActiveTexture(GL_TEXTURE0);
+    polymost_activeTexture(GL_TEXTURE0);
 #endif
     glGenTextures(1, &texname);
-    glBindTexture(GL_TEXTURE_2D, texname);
+    polymost_bindTexture(GL_TEXTURE_2D, texname);
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, glinfo.clamptoedge?GL_CLAMP_TO_EDGE:GL_CLAMP);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, glinfo.clamptoedge?GL_CLAMP_TO_EDGE:GL_CLAMP);
