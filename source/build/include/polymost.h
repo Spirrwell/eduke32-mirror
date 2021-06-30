@@ -73,6 +73,9 @@ void polymost_useShaderProgram(uint32_t shaderID);
 
 float* multiplyMatrix4f(float m0[4*4], const float m1[4*4]);
 
+#undef glActiveTexture
+#undef glBindTexture
+
 void polymost_glinit(void);
 void polymost_glreset(void);
 

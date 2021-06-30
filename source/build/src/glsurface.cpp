@@ -90,9 +90,9 @@ bool glsurface_initialize(vec2_t bufferResolution)
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
 
-    glActiveTexture(GL_TEXTURE0);
+    polymost_activeTexture(GL_TEXTURE0);
     glGenTextures(1, &bufferTexID);
-    glBindTexture(GL_TEXTURE_2D, bufferTexID);
+    polymost_bindTexture(GL_TEXTURE_2D, bufferTexID);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -197,7 +197,7 @@ void glsurface_setPalette(void* pPalette)
     if (!pPalette)
         return;
 
-    glActiveTexture(GL_TEXTURE1);
+    polymost_activeTexture(GL_TEXTURE1);
     if (paletteTexID)
     {
         // assume the texture is already bound to GL_TEXTURE1
@@ -206,7 +206,7 @@ void glsurface_setPalette(void* pPalette)
     else
     {
         glGenTextures(1, &paletteTexID);
-        glBindTexture(GL_TEXTURE_2D, paletteTexID);
+        polymost_bindTexture(GL_TEXTURE_2D, paletteTexID);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -233,7 +233,7 @@ void glsurface_blitBuffer()
     if (!buffer)
         return;
 
-    glActiveTexture(GL_TEXTURE0);
+    polymost_activeTexture(GL_TEXTURE0);
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, bufferRes.x, bufferRes.y, GL_RED, GL_UNSIGNED_BYTE, (void*) buffer);
 
     glDrawArrays(GL_TRIANGLE_STRIP,
@@ -243,6 +243,6 @@ void glsurface_blitBuffer()
 
 void glsurface_refresh()
 {
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, bufferTexID);
+    polymost_activeTexture(GL_TEXTURE0);
+    polymost_bindTexture(GL_TEXTURE_2D, bufferTexID);
 }
