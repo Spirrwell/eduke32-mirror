@@ -15,6 +15,7 @@
 #include "mouse.h"
 #include "osd.h"
 #include "pragmas.h"
+#include "common.h"
 
 #ifdef __ANDROID__
 #include "android.h"
@@ -47,6 +48,9 @@ static controlaxistype    CONTROL_JoyAxes[MAXJOYAXES];
 static controlaxistype    CONTROL_LastJoyAxes[MAXJOYAXES];
 static int32_t            CONTROL_JoyAxesScale[MAXJOYAXES];
 static int8_t             CONTROL_JoyAxesInvert[MAXJOYAXES];
+
+uint16_t                  CONTROL_JoyDeadZone[MAXJOYAXES];
+uint16_t                  CONTROL_JoySaturation[MAXJOYAXES];
 
 static controlbuttontype CONTROL_MouseButtonMapping[MAXMOUSEBUTTONS];
 
@@ -627,7 +631,18 @@ static void CONTROL_PollDevices(ControlInfo *info)
 
         for (int i=joystick.numAxes-1; i>=0; i--)
         {
-            CONTROL_JoyAxes[i].analog = joystick.pAxis[i];
+            auto &axis = CONTROL_JoyAxes[i];
+
+            axis.analog = joystick.pAxis[i];
+
+            int const scaledAbs = klabs(axis.analog * 10000 / 32767);
+
+            if (scaledAbs < CONTROL_JoyDeadZone[i])
+                axis.analog = 0;
+            else if (scaledAbs >= CONTROL_JoySaturation[i])
+                axis.analog = 32767 * ksgn(axis.analog);
+            else
+                axis.analog = axis.analog * 10000 / CONTROL_JoySaturation[i];
 
             if (CONTROL_DigitizeAxis(i, controldevice_joystick))
                 CONTROL_LastSeenInput = LastSeenInput::Joystick;

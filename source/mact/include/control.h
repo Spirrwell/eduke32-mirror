@@ -40,6 +40,7 @@ extern "C" {
 #endif
 
 #include "mouse.h"
+#include "joystick.h"
 
 #define MAXGAMEBUTTONS      64
 
