@@ -421,22 +421,19 @@ static inline int32_t calc_smoothratio_demo(ClockTicks const totalclk, ClockTick
 {
     int const   truncrfreq = Blrintf(floorf(refreshfreq * TICRATE / timerGetClockRate()));
     int const   clk        = (totalclk - ototalclk).toScale16();
-    float const fracTics   = clk * truncrfreq * (1.f / (65536.f * TICRATE));
+
+    int const wholeTics  = tabledivide32_noinline(clk * truncrfreq, 65536 * TICRATE);
+    int const wholeRatio = tabledivide32_noinline(65536 * wholeTics * ticrate, truncrfreq);
 
 #if 0
-    int const   wholeTics  = tabledivide32_noinline(clk * truncrfreq, 65536 * TICRATE);
-    //POGO: additional debug info for testing purposes
-    OSD_Printf("Elapsed tics: %d (%g), smoothratio: %d (%d)\n", wholeTics, fracTics,
-               tabledivide32_noinline(65536 * wholeTics * ticrate, truncrfreq),
-               tabledivide32_noinline(Blrintf(65536 * fracTics * ticrate), truncrfreq));
+    float const fracTics  = clk * truncrfreq * (1.f / (65536.f * TICRATE));
+    int const   fracRatio = Blrintf(65536 * fracTics * ticrate / truncrfreq);
+
+    if ((unsigned)fracRatio > 65536)
+        OSD_Printf("calc_smoothratio: tics: %d (%g), ratio: %d (%d)\n", wholeTics, fracTics, wholeRatio, fracRatio);
 #endif
 
-#if 1
-    return clamp(tabledivide32_noinline(Blrintf(65536 * fracTics * ticrate), truncrfreq), 0, 65536);
-#else
-    int const wholeTics = tabledivide32_noinline(clk * truncrfreq, 65536 * TICRATE);
-    return clamp(tabledivide32_noinline(65536 * wholeTics * ticrate, truncrfreq), 0, 65536);
-#endif
+    return clamp(wholeRatio, 0, 65536);
 }
 
 static inline int32_t calc_smoothratio(ClockTicks const totalclk, ClockTicks const ototalclk)
