@@ -671,6 +671,10 @@ void CONFIG_SetGameControllerDefaults()
 
     for (auto const & digitalAxis : digitalAxes)
         digitalAxis.apply();
+
+    ud.config.JoystickAimAssist     = 1;
+    ud.config.JoystickAimWeight     = 5;
+    ud.config.JoystickViewCentering = 3;
 }
 
 void CONFIG_SetGameControllerDefaultsClear()
