@@ -6858,7 +6858,7 @@ MAIN_LOOP_RESTART:
         bool gameUpdate = false;
         double gameUpdateStartTime = timerGetHiTicks();
 
-        if (((g_netClient || g_netServer) || (myplayer.gm & (MODE_MENU|MODE_DEMO)) == 0) && totalclock >= ototalclock+TICSPERFRAME)
+        if (((g_netClient || g_netServer) || (myplayer.gm & (MODE_MENU|MODE_DEMO)) == 0) && (int32_t)(totalclock - ototalclock) >= TICSPERFRAME)
         {
             do 
             {
@@ -6903,7 +6903,7 @@ MAIN_LOOP_RESTART:
                         G_DoMoveThings();
                     }
                 }
-                while (((g_netClient || g_netServer) || (myplayer.gm & (MODE_MENU | MODE_DEMO)) == 0) && (int)(totalclock - ototalclock) >= (TICSPERFRAME<<1));
+                while (((g_netClient || g_netServer) || (myplayer.gm & (MODE_MENU | MODE_DEMO)) == 0) && (int32_t)(totalclock - ototalclock) >= TICSPERFRAME+1);
 
                 gameUpdate = true;
                 g_gameUpdateTime = timerGetHiTicks() - gameUpdateStartTime;
