@@ -2,6 +2,8 @@
 #ifndef __joystick_h
 #define __joystick_h
 
+#include "compat.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
