@@ -265,8 +265,8 @@ void CONFIG_SetDefaults(void)
     ud.config.AutoAim         = 1;
     ud.config.CheckForUpdates = 1;
     ud.config.FXVolume        = 255;
-    ud.config.JoystickAimWeight = 5;
-    ud.config.JoystickViewCentering = 3;
+    ud.config.JoystickAimWeight = 4;
+    ud.config.JoystickViewCentering = 4;
     ud.config.JoystickAimAssist = 1;
     ud.config.MouseBias       = 0;
     ud.config.MusicDevice     = ASS_AutoDetect;
@@ -675,8 +675,8 @@ void CONFIG_SetGameControllerDefaults()
         digitalAxis.apply();
 
     ud.config.JoystickAimAssist     = 1;
-    ud.config.JoystickAimWeight     = 5;
-    ud.config.JoystickViewCentering = 3;
+    ud.config.JoystickAimWeight     = 4;
+    ud.config.JoystickViewCentering = 4;
 }
 
 void CONFIG_SetGameControllerDefaultsClear()
