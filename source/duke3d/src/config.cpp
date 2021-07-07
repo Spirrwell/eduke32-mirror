@@ -610,8 +610,8 @@ static void CONFIG_SetGameControllerAxesModern()
         { GAMECONTROLLER_AXIS_RIGHTY, analog_lookingupanddown },
     };
 
-    CONFIG_SetJoystickAnalogAxisScale(GAMECONTROLLER_AXIS_RIGHTX, 65536);
-    CONFIG_SetJoystickAnalogAxisScale(GAMECONTROLLER_AXIS_RIGHTY, 65536);
+    CONFIG_SetJoystickAnalogAxisScale(GAMECONTROLLER_AXIS_RIGHTX, DEFAULTJOYSTICKANALOGUESCALE);
+    CONFIG_SetJoystickAnalogAxisScale(GAMECONTROLLER_AXIS_RIGHTY, DEFAULTJOYSTICKANALOGUESCALE);
 
     for (auto const & analogAxis : analogAxes)
         analogAxis.apply();
