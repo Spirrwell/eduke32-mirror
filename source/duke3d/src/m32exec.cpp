@@ -2592,7 +2592,7 @@ badindex:
                     }
                     else if (tw==CON_PRINTEXT256)
                     {
-                        if (in3dmode())
+                        //if (in3dmode())
                         {
                             if (col>=256)
                                 col=0;
