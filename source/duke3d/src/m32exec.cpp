@@ -3149,7 +3149,9 @@ dodefault:
         case CON_IFIN3DMODE:
             VM_DoConditional(in3dmode());
             continue;
-
+        case CON_IFIN2D3DMODE:
+            VM_DoConditional(m32_is2d3dmode());
+            continue;
         // ifaimingsprite and -wall also work in 2d mode, but you must "and" with 16383 yourself
         case CON_IFAIMINGSPRITE:
             VM_DoConditional(AIMING_AT_SPRITE || (!in3dmode() && pointhighlight>=16384));
