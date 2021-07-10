@@ -444,8 +444,12 @@ void A_GetZLimits(int const spriteNum)
         florhit &= (MAXSPRITES-1);
 
         // If a non-projectile would fall onto non-frozen enemy OR an enemy onto a player...
-        if ((A_CheckEnemySprite(hitspr) && hitspr->pal != 1 && pSprite->statnum != STAT_PROJECTILE)
-                || (hitspr->picnum == APLAYER && A_CheckEnemySprite(pSprite)))
+        if ((A_CheckEnemySprite(hitspr) && hitspr->pal != 1 && pSprite->statnum != STAT_PROJECTILE
+#ifndef EDUKE32_STANDALONE
+                // prevent actors from pushing turrets away
+                && (FURY || pSprite->picnum != ROTATEGUN)
+#endif
+           ) || (hitspr->picnum == APLAYER && A_CheckEnemySprite(pSprite)))
         {
             pActor->flags |= SFLAG_NOFLOORSHADOW;  // No shadows on actors
             pSprite->xvel = -256;  // SLIDE_ABOVE_ENEMY
