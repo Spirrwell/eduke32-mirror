@@ -5421,10 +5421,15 @@ repeatcase:
 
             g_skillNames[j][i] = '\0';
 
-            for (i=0; i<MAXSKILLS; i++)
-                if (g_skillNames[i][0] == 0)
+            g_skillCnt = 0;
+            for (bssize_t i = MAXSKILLS-1; i >= 0; i--)
+            {
+                if (g_skillNames[i][0])
+                {
+                    g_skillCnt = i+1;
                     break;
-            g_skillCnt = i;
+                }
+            }
 
             continue;
 
