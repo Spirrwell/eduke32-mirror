@@ -8399,7 +8399,17 @@ int32_t ExtPreInit(int32_t argc,char const * const * argv)
 
     G_CheckCommandLine(argc,argv);
 
-    return 0;
+    bpp = 32;
+
+    if (Bstrcmp(setupfilename, SETUPFILENAME))
+        initprintf("Using config file \"%s\".\n",setupfilename);
+
+    int dosetup = 0;
+
+    if (loadsetup(setupfilename) < 0)
+        initprintf("Configuration file not found, using defaults.\n"), dosetup = 1;
+
+    return dosetup;
 }
 
 static int osdcmd_quit(osdcmdptr_t UNUSED(parm))
@@ -10002,15 +10012,6 @@ int32_t ExtInit(void)
 
     G_ExtInit();
 
-    bpp = 32;
-
-//#ifdef USE_OPENGL
-    if (Bstrcmp(setupfilename, SETUPFILENAME))
-        initprintf("Using config file \"%s\".\n",setupfilename);
-
-    if (loadsetup(setupfilename) < 0)
-        initprintf("Configuration file not found, using defaults.\n"), rv = 1;
-//#endif
     Bmemcpy(buildkeys, default_buildkeys, NUMBUILDKEYS);   //Trick to make build use setup.dat keys
 
     kensplayerheight = 40; //32
@@ -10052,10 +10053,10 @@ int32_t ExtInit(void)
 
 int32_t ExtPostStartupWindow(void)
 {
-    G_LoadGroups(!NoAutoLoad);
-
     if (!g_useCwd)
         G_CleanupSearchPaths();
+
+    G_LoadGroups(!NoAutoLoad);
 
     if (engineInit())
     {
