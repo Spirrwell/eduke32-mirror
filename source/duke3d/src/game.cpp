@@ -4594,6 +4594,7 @@ extern int G_StartRTS(int lumpNum, int localPlayer)
 void G_PrintCurrentMusic(void)
 {
     Bsnprintf(apStrings[QUOTE_MUSIC], MAXQUOTELEN, "Playing %s", g_mapInfo[g_musicIndex].musicfn);
+    g_lastQuoteLogged = -1;
     P_DoQuote(QUOTE_MUSIC, g_player[myconnectindex].ps);
 }
 
