@@ -1986,29 +1986,59 @@ void Menu_Init(void)
         Menu_PopulateNewGameCustom();
     }
 
+    // get max defined skill level
+    char maxDefinedSkill = 0;
+    for (i = MAXSKILLS - 1; i >= 0; --i)
+        if (g_skillNames[i][0])
+        {
+            maxDefinedSkill = (char) (i + 1);
+            break;
+        }
+
     // prepare skills
-    // k = -1;
-    for (i = 0; i < g_skillCnt && g_skillNames[i][0]; ++i)
+    for (i = 0; i < maxDefinedSkill; ++i)
     {
         MEL_SKILL[i] = &ME_SKILL[i];
         ME_SKILL[i] = ME_SKILL_TEMPLATE;
-        ME_SKILL[i].name = g_skillNames[i];
 
-        MEOSN_NetSkills[i] = g_skillNames[i];
-
-        // k = i;
+        if (g_skillNames[i][0])
+        {
+            ME_SKILL[i].name = g_skillNames[i];
+            MEOSN_NetSkills[i] = g_skillNames[i];
+        }
+        else
+        {
+            ME_SKILL[i].name = g_undefinedSkillName;
+            MEOSN_NetSkills[i] = g_undefinedSkillName;
+            ME_SKILL[i].flags |= MEF_Hidden;
+        }
     }
-    // ++k;
-    M_SKILL.numEntries = g_skillCnt; // k;
-    MEOS_NETOPTIONS_MONSTERS.numOptions = g_skillCnt + 1; // k+1;
-    MEOSN_NetSkills[g_skillCnt] = MenuSkillNone;
-    MMF_Top_Skill.pos.y = (58 + (4-g_skillCnt)*6)<<16;
-    M_SKILL.currentEntry = ud.default_skill;
+    M_SKILL.numEntries = maxDefinedSkill;
+    MEOS_NETOPTIONS_MONSTERS.numOptions = maxDefinedSkill + 1;
+    MEOSN_NetSkills[maxDefinedSkill] = MenuSkillNone;
+    MMF_Top_Skill.pos.y = (58 + (4 - maxDefinedSkill)*6)<<16;
 
-    if (M_SKILL.currentEntry >= M_SKILL.numEntries-1)
-        M_SKILL.currentEntry = 0;
+    // If no skills defined, skill menu will be skipped and default skill is used.
+    if (!maxDefinedSkill)
+        M_SKILL.currentEntry = ud.default_skill;
+    else
+    {
+        // Otherwise, check if the default skill is out of range or undefined.
+        k = min(MAXSKILLS - 1, ud.default_skill);
+        if (g_skillNames[k][0])
+            M_SKILL.currentEntry = k;
+        else
+        {
+            for (i = 0; i < MAXSKILLS; ++i)
+                if (g_skillNames[i][0])
+                {
+                    M_SKILL.currentEntry = i;
+                    break;
+                }
+        }
 
-    Menu_AdjustForCurrentEntryAssignmentBlind(&M_SKILL);
+        Menu_AdjustForCurrentEntryAssignmentBlind(&M_SKILL);
+    }
 
     // prepare multiplayer gametypes
     k = -1;

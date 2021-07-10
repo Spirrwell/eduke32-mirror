@@ -27,6 +27,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 user_defs ud;
 
 const char *s_buildDate = "20120522";
+const char *g_undefinedSkillName = "Undefined";
 
 #ifdef __cplusplus
 extern "C" {

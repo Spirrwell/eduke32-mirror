@@ -197,6 +197,7 @@ extern int32_t g_gametypeFlags[MAXGAMETYPES];
 extern int32_t g_volumeFlags[MAXVOLUMES];
 
 extern const char *s_buildDate;
+extern const char *g_undefinedSkillName;
 #endif
 
 enum
