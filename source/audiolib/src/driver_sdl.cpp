@@ -193,6 +193,11 @@ int SDLDrv_PCM_Init(int *mixrate, int *numchannels, void * initdata)
     spec.callback = fillData;
     spec.userdata = nullptr;
 
+    // Mix buffer to be a power of 2, min 512 samples, and 4096 samples at 48kHz.
+    spec.samples = chunksize;
+    while (spec.samples < (4096u * *mixrate / 48000u))
+        spec.samples += spec.samples;
+
     SDL_AudioSpec actual = {};
 
 #if (SDL_MAJOR_VERSION >= 2)

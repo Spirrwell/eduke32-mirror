@@ -236,9 +236,13 @@ int DirectSoundDrv_PCM_Init(int *mixrate, int *numchannels, void * initdata)
     if (FAILED(err = IDirectSoundBuffer_SetFormat(lpdsbprimary, &wfex)))
         return DirectSound_Error(err, DSErr_SetFormat);
 
-    bufdesc.dwFlags = DSBCAPS_LOCSOFTWARE | DSBCAPS_CTRLPOSITIONNOTIFY | DSBCAPS_GETCURRENTPOSITION2 | DSBCAPS_STICKYFOCUS;
+    // Mix buffer to be a power of 2, min 512 samples, and 4096 samples at 48kHz.
+    bufdesc.dwBufferBytes = 512;
+    while (bufdesc.dwBufferBytes < (4096u * *mixrate / 48000u))
+        bufdesc.dwBufferBytes += bufdesc.dwBufferBytes;
+    bufdesc.dwBufferBytes *= wfex.nBlockAlign * 2;
 
-    bufdesc.dwBufferBytes = wfex.nBlockAlign * 2048 * 2;
+    bufdesc.dwFlags = DSBCAPS_LOCSOFTWARE | DSBCAPS_CTRLPOSITIONNOTIFY | DSBCAPS_GETCURRENTPOSITION2 | DSBCAPS_STICKYFOCUS;
     bufdesc.lpwfxFormat = &wfex;
 
     if (FAILED(err = IDirectSound_CreateSoundBuffer(lpds, &bufdesc, &lpdsbsec, 0)))
