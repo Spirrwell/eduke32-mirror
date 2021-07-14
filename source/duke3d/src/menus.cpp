@@ -1223,7 +1223,7 @@ static int32_t alsadevice;
 static std::vector<alsa_mididevinfo_t> alsadevices;
 #endif
 
-static int32_t soundrate, soundvoices, musicdevice, opl3stereo;
+static int32_t soundrate, soundvoices, musicdevice, opl3stereo, upgradeformats;
 static char sf2bankfile[BMAX_PATH];
 static MenuOption_t MEO_SOUND = MAKE_MENUOPTION( &MF_Redfont, &MEOS_OffOn, &ud.config.SoundToggle );
 static MenuEntry_t ME_SOUND = MAKE_MENUENTRY( "Sound:", &MF_Redfont, &MEF_BigOptionsRt, &MEO_SOUND, Option );
@@ -1254,6 +1254,9 @@ static MenuOption_t MEO_SOUND_SAMPLINGRATE = MAKE_MENUOPTION( &MF_Redfont, &MEOS
 static MenuEntry_t ME_SOUND_SAMPLINGRATE = MAKE_MENUENTRY( "Sample rate:", &MF_Redfont, &MEF_BigOptionsRt, &MEO_SOUND_SAMPLINGRATE, Option );
 
 #ifndef EDUKE32_RETAIL_MENU
+static MenuOption_t MEO_SOUND_UPGRADEFORMATS = MAKE_MENUOPTION( &MF_Redfont, &MEOS_NoYes, &upgradeformats );
+static MenuEntry_t ME_SOUND_UPGRADEFORMATS = MAKE_MENUENTRY( "Upgrade formats:", &MF_Redfont, &MEF_BigOptionsRt, &MEO_SOUND_UPGRADEFORMATS, Option );
+
 static MenuOption_t MEO_SOUND_OPL3STEREO = MAKE_MENUOPTION(&MF_Redfont, &MEOS_NoYes, &opl3stereo);
 static MenuEntry_t ME_SOUND_OPL3STEREO = MAKE_MENUENTRY( "OPL3 stereo mode:", &MF_Redfont, &MEF_BigOptionsRtSections, &MEO_SOUND_OPL3STEREO, Option );
 
@@ -1317,6 +1320,7 @@ static MenuEntry_t *MEL_SOUND_DEVSETUP[] = {
     &ME_SOUND_SAMPLINGRATE,
 #ifndef EDUKE32_RETAIL_MENU
     &ME_SOUND_NUMVOICES,
+    &ME_SOUND_UPGRADEFORMATS,
     &ME_SOUND_MIDIDRIVER,
 #ifdef __linux__
     &ME_SOUND_ALSADEVICE,
@@ -2323,6 +2327,7 @@ static void Menu_Pre(MenuID_t cm)
         MenuEntry_DisableOnCondition(&ME_SOUND_MIDIDRIVER, !ud.config.MusicToggle);
 #ifndef EDUKE32_RETAIL_MENU
         MenuEntry_DisableOnCondition(&ME_SOUND_NUMVOICES, !ud.config.SoundToggle);
+        MenuEntry_DisableOnCondition(&ME_SOUND_UPGRADEFORMATS, !ud.config.MusicToggle);
 #ifdef __linux__
         MenuEntry_DisableOnCondition(&ME_SOUND_ALSADEVICE, !ud.config.MusicToggle);
         MenuEntry_HideOnCondition(&ME_SOUND_ALSADEVICE, musicdevice != ASS_ALSA);
@@ -2335,6 +2340,7 @@ static void Menu_Pre(MenuID_t cm)
 #endif
         MenuEntry_DisableOnCondition(&ME_SOUND_RESTART, soundrate == ud.config.MixRate &&
                                                         soundvoices == ud.config.NumVoices &&
+                                                        upgradeformats == g_maybeUpgradeSoundFormats &&
                                                         musicdevice == ud.config.MusicDevice &&
                                                         opl3stereo == AL_Stereo &&
                                                         !Bstrcmp(sf2bankfile, SF2_BankFile)
@@ -3370,10 +3376,11 @@ static void Menu_RefreshSoundProperties()
         MEOS_SOUND_ALSADEVICE.numOptions += 1;
     }
 #endif
-    soundrate    = ud.config.MixRate;
-    soundvoices  = ud.config.NumVoices;
-    musicdevice  = ud.config.MusicDevice;
-    opl3stereo   = AL_Stereo;
+    soundrate      = ud.config.MixRate;
+    soundvoices    = ud.config.NumVoices;
+    upgradeformats = g_maybeUpgradeSoundFormats;
+    musicdevice    = ud.config.MusicDevice;
+    opl3stereo     = AL_Stereo;
 }
 
 /*
@@ -3553,6 +3560,8 @@ static void Menu_EntryLinkActivate(MenuEntry_t *entry)
                     (ALSA_ClientID != alsadevices[alsadevice].clntid || ALSA_PortID != alsadevices[alsadevice].portid))
 #endif
             );
+
+            g_maybeUpgradeSoundFormats = upgradeformats;
 
             AL_Stereo = opl3stereo;
             Bstrcpy(SF2_BankFile, sf2bankfile);
