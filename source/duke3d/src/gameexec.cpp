@@ -5120,8 +5120,9 @@ badindex:
                 dispatch();
 
             vInstruction(CON_SAVEMAPSTATE):
-                G_SaveMapState();
                 insptr++;
+                VM_ASSERT((g_player[myconnectindex].ps->gm & (MODE_EOL | MODE_RESTART)) == 0, "attempted to save state during end of level!\n");
+                G_SaveMapState();
                 dispatch();
 
             vInstruction(CON_LOADMAPSTATE):
