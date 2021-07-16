@@ -2889,6 +2889,9 @@ badindex:
                     int const strIndex  = *insptr++;
                     int const XstrIndex = *insptr++;
 
+                    if (g_lastQuoteLogged == strIndex)
+                        g_lastQuoteLogged = -1;
+
                     Bstrcpy(apStrings[strIndex], apXStrings[XstrIndex]);
                     dispatch();
                 }
@@ -3804,6 +3807,9 @@ badindex:
                     if (*tempbuf)
                         Bstrcpy(apStrings[quoteIndex], tempbuf);
 
+                    if (g_lastQuoteLogged == quoteIndex)
+                        g_lastQuoteLogged = -1;
+
                     dispatch();
                 }
 
@@ -3819,6 +3825,9 @@ badindex:
                     static char const s_KeyboardFormat[] = "[%s]";
                     static char const s_JoystickFormat[] = "(%s)";
                     static char const s_Unbound[] = "UNBOUND";
+
+                    if (g_lastQuoteLogged == quoteIndex)
+                        g_lastQuoteLogged = -1;
 
                     if (CONTROL_LastSeenInput == LastSeenInput::Joystick)
                     {
@@ -3886,6 +3895,9 @@ badindex:
                         pInput++;
                     }
                     *pOutput = '\0';
+
+                    if (g_lastQuoteLogged == v.outputQuote)
+                        g_lastQuoteLogged = -1;
 
                     dispatch();
                 }
@@ -4007,6 +4019,10 @@ badindex:
                             CON_ERRPRINTF("invalid quote %d\n", apStrings[q] ? j : q);
                             abort_after_error();
                     }
+
+                    if (g_lastQuoteLogged == q)
+                        g_lastQuoteLogged = -1;
+
                     dispatch();
                 }
 
@@ -5297,6 +5313,10 @@ badindex:
                 finish_qsprintf:
                     outBuf[outputPos] = '\0';
                     Bstrncpyz(apStrings[outputQuote], outBuf, MAXQUOTELEN);
+
+                    if (g_lastQuoteLogged == outputQuote)
+                        g_lastQuoteLogged = -1;
+
                     dispatch();
                 }
 

@@ -30,6 +30,7 @@ extern "C" {
 #endif
 
 extern int32_t g_textstat;
+extern int32_t g_lastQuoteLogged;
 
 #define MAXUSERQUOTES 6
 

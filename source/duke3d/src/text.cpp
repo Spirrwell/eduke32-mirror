@@ -26,6 +26,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "menus.h"
 
 int32_t g_textstat = RS_AUTO | RS_NOCLIP | RS_TOPLEFT;
+int32_t g_lastQuoteLogged = -1;
 
 size_t g_screentextbufcount = 256;
 ScreenTextGlyph_t * g_screentextbuf;
@@ -553,14 +554,14 @@ void P_DoQuote(int32_t q, DukePlayer_t *p)
     if (p->fta > 0 && q != QUOTE_RESERVED && q != QUOTE_RESERVED2)
         if (p->ftq == QUOTE_RESERVED || p->ftq == QUOTE_RESERVED2) return;
 
+    p->ftq = q;
     p->fta = 100;
 
-    if (p->ftq != q)
+    if ((g_lastQuoteLogged != q || (q >= QUOTE_RESERVED && q <= QUOTE_RESERVED3) || q == QUOTE_RESERVED4)
+            && (p == g_player[screenpeek].ps && apStrings[q][0] != '\0'))
     {
-        if (p == g_player[screenpeek].ps && apStrings[q][0] != '\0')
-            OSD_Printf(cq ? OSDTEXT_DEFAULT "%s\n" : "%s\n", apStrings[q]);
-
-        p->ftq = q;
+        OSD_Printf(cq ? OSDTEXT_DEFAULT "%s\n" : "%s\n", apStrings[q]);
+        g_lastQuoteLogged = q;
     }
 
     pub = NUMPAGES;
