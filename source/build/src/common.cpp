@@ -52,7 +52,10 @@ void PrintBuildInfo(void)
 #endif
         "-bit "
 #if B_BIG_ENDIAN == 1
-        "big-endian"
+        "big-endian "
+#endif
+#ifdef DEBUGGINGAIDS
+        "(debug) "
 #endif
         "\n");
 
