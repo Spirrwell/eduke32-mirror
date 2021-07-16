@@ -410,6 +410,8 @@ MenuEntry_t ME_NEWGAMECUSTOMSUBENTRIES[MAXMENUGAMEPLAYENTRIES][MAXMENUGAMEPLAYEN
 static MenuEntry_t *MEL_NEWGAMECUSTOM[MAXMENUGAMEPLAYENTRIES];
 static MenuEntry_t *MEL_NEWGAMECUSTOMSUB[MAXMENUGAMEPLAYENTRIES];
 
+static char const s_Undefined[] = "Undefined";
+
 static MenuEntry_t ME_SKILL_TEMPLATE = MAKE_MENUENTRY( NULL, &MF_Redfont, &MEF_CenterMenu, &MEO_NULL, Link );
 static MenuEntry_t ME_SKILL[MAXSKILLS];
 static MenuEntry_t *MEL_SKILL[MAXSKILLS];
@@ -1926,7 +1928,7 @@ void Menu_Init(void)
     MEOS_NETOPTIONS_EPISODE.numOptions = k + 1;
     NetEpisode = MEOSV_NetEpisodes[0];
     MMF_Top_Episode.pos.y = (58 + (3-k)*6)<<16;
-    if (g_skillCnt == 0)
+    if (g_definedSkillUpper == 0)
         MEO_EPISODE.linkID = MENU_NULL;
     M_EPISODE.currentEntry = ud.default_volume;
 
@@ -1986,17 +1988,8 @@ void Menu_Init(void)
         Menu_PopulateNewGameCustom();
     }
 
-    // get max defined skill level
-    char maxDefinedSkill = 0;
-    for (i = MAXSKILLS - 1; i >= 0; --i)
-        if (g_skillNames[i][0])
-        {
-            maxDefinedSkill = (char) (i + 1);
-            break;
-        }
-
     // prepare skills
-    for (i = 0; i < maxDefinedSkill; ++i)
+    for (i = 0; i < g_definedSkillUpper; ++i)
     {
         MEL_SKILL[i] = &ME_SKILL[i];
         ME_SKILL[i] = ME_SKILL_TEMPLATE;
@@ -2008,18 +2001,18 @@ void Menu_Init(void)
         }
         else
         {
-            ME_SKILL[i].name = g_undefinedSkillName;
-            MEOSN_NetSkills[i] = g_undefinedSkillName;
+            ME_SKILL[i].name = s_Undefined;
+            MEOSN_NetSkills[i] = s_Undefined;
             ME_SKILL[i].flags |= MEF_Hidden;
         }
     }
-    M_SKILL.numEntries = maxDefinedSkill;
-    MEOS_NETOPTIONS_MONSTERS.numOptions = maxDefinedSkill + 1;
-    MEOSN_NetSkills[maxDefinedSkill] = MenuSkillNone;
-    MMF_Top_Skill.pos.y = (58 + (4 - maxDefinedSkill)*6)<<16;
+    M_SKILL.numEntries = g_definedSkillUpper;
+    MEOS_NETOPTIONS_MONSTERS.numOptions = g_definedSkillUpper + 1;
+    MEOSN_NetSkills[g_definedSkillUpper] = MenuSkillNone;
+    MMF_Top_Skill.pos.y = (58 + (4 - g_definedSkillUpper)*6)<<16;
 
     // If no skills defined, skill menu will be skipped and default skill is used.
-    if (!maxDefinedSkill)
+    if (!g_definedSkillUpper)
         M_SKILL.currentEntry = ud.default_skill;
     else
     {
@@ -3420,7 +3413,7 @@ static void Menu_EntryLinkActivate(MenuEntry_t *entry)
             ud.m_volume_number = M_EPISODE.currentEntry;
             ud.m_level_number = 0;
 
-            if (g_skillCnt == 0)
+            if (g_definedSkillUpper == 0)
                 Menu_StartGameWithoutSkill();
         }
         break;
@@ -3693,8 +3686,8 @@ static int32_t Menu_EntryOptionModify(MenuEntry_t *entry, int32_t newOption)
     }
     else if (entry == &ME_NETOPTIONS_MONSTERS)
     {
-        ud.m_monsters_off = (newOption == g_skillCnt);
-        if (newOption < g_skillCnt)
+        ud.m_monsters_off = (newOption == g_definedSkillUpper);
+        if (newOption < g_definedSkillUpper)
             ud.m_player_skill = newOption;
     }
     else if (entry == &ME_ADULTMODE)
@@ -3987,7 +3980,7 @@ static int32_t Menu_EntryOptionSource(MenuEntry_t *entry, int32_t currentValue)
     else if (entry == &ME_SOUND_DUKETALK)
         return ud.config.VoiceToggle & 1;
     else if (entry == &ME_NETOPTIONS_MONSTERS)
-        return (ud.m_monsters_off ? g_skillCnt : ud.m_player_skill);
+        return (ud.m_monsters_off ? g_definedSkillUpper : ud.m_player_skill);
 
     return currentValue;
 }
@@ -4347,7 +4340,7 @@ static void Menu_FileSelect(int32_t input)
             ud.m_volume_number = 0;
             ud.m_level_number = 7;
 
-            if (g_skillCnt > 0)
+            if (g_definedSkillUpper > 0)
                 Menu_AnimateChange(MENU_SKILL, MA_Advance);
             else
                 Menu_StartGameWithoutSkill();

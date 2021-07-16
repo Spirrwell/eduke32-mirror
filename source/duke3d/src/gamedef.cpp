@@ -2153,12 +2153,12 @@ void C_UndefineSkill(int32_t skill)
 
     g_skillNames[skill][0] = '\0';
 
-    g_skillCnt = 0;
+    g_definedSkillUpper = 0;
     for (bssize_t i = MAXSKILLS-1; i >= 0; i--)
     {
         if (g_skillNames[i][0])
         {
-            g_skillCnt = i+1;
+            g_definedSkillUpper = i + 1;
             break;
         }
     }
@@ -5421,12 +5421,12 @@ repeatcase:
 
             g_skillNames[j][i] = '\0';
 
-            g_skillCnt = 0;
+            g_definedSkillUpper = 0;
             for (bssize_t i = MAXSKILLS-1; i >= 0; i--)
             {
                 if (g_skillNames[i][0])
                 {
-                    g_skillCnt = i+1;
+                    g_definedSkillUpper = i + 1;
                     break;
                 }
             }
