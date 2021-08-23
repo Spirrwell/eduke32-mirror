@@ -124,6 +124,7 @@ enum scripttoken_t
 
     // begin downstream
     T_RFFDEFINEID,
+    T_EXTRA,
     // end downstream
 
     // stubs
@@ -820,6 +821,8 @@ static int32_t defsparser(scriptfile *script)
             uint8_t have_size = 0;
             uint8_t tile_flags = 0;
             // begin downstream
+            int32_t haveextra = 0;
+            int32_t extra = 0;
             // end downstream
 
             static const tokenlist tilefromtexturetokens[] =
@@ -838,6 +841,7 @@ static int32_t defsparser(scriptfile *script)
                 { "ifmatch",         T_IFMATCH },
                 { "truenpot",        T_TRUENPOT },
                 // begin downstream
+                { "extra",           T_EXTRA },
                 // end downstream
             };
 
@@ -913,6 +917,10 @@ static int32_t defsparser(scriptfile *script)
                     istexture = 1;
                     break;
                 // begin downstream
+                case T_EXTRA:
+                    haveextra = 1;
+                    scriptfile_getsymbol(script, &extra);
+                    break;
                 // end downstream
                 default:
                     break;
@@ -968,6 +976,9 @@ static int32_t defsparser(scriptfile *script)
                 if (haveyoffset)
                     picanm[tile].yofs = yoffset;
                 // begin downstream
+                havemodifier |= haveextra;
+                if (haveextra)
+                    picanm[tile].extra = extra;
                 // end downstream
 
                 if (EDUKE32_PREDICT_FALSE(flags == 0 && !havemodifier))
@@ -1001,6 +1012,8 @@ static int32_t defsparser(scriptfile *script)
                 picanm[tile].yofs = 0;
 
             // begin downstream
+            if (haveextra)
+                picanm[tile].extra = extra;
             // end downstream
         }
         break;
