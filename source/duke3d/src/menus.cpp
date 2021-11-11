@@ -1253,7 +1253,7 @@ static int32_t alsadevice;
 static std::vector<alsa_mididevinfo_t> alsadevices;
 #endif
 
-static int32_t soundrate, soundvoices, musicdevice, opl3stereo;
+static int32_t soundrate, soundvoices, musicdevice, opl3stereo, musicdirs;
 static char sf2bankfile[BMAX_PATH];
 static MenuOption_t MEO_SOUND = MAKE_MENUOPTION( &MF_Redfont, &MEOS_OffOn, &ud.config.SoundToggle );
 static MenuEntry_t ME_SOUND = MAKE_MENUENTRY( "Sound:", &MF_Redfont, &MEF_BigOptionsRt, &MEO_SOUND, Option );
@@ -1286,6 +1286,9 @@ static MenuEntry_t ME_SOUND_SAMPLINGRATE = MAKE_MENUENTRY( "Sample rate:", &MF_R
 #ifndef EDUKE32_RETAIL_MENU
 static MenuOption_t MEO_SOUND_OPL3STEREO = MAKE_MENUOPTION(&MF_Redfont, &MEOS_NoYes, &opl3stereo);
 static MenuEntry_t ME_SOUND_OPL3STEREO = MAKE_MENUENTRY( "OPL3 stereo mode:", &MF_Redfont, &MEF_BigOptionsRtSections, &MEO_SOUND_OPL3STEREO, Option );
+
+static MenuOption_t MEO_SOUND_MUSICDIRS = MAKE_MENUOPTION(&MF_Redfont, &MEOS_NoYes, &musicdirs);
+static MenuEntry_t ME_SOUND_MUSICDIRS = MAKE_MENUENTRY( "Use music dirs:", &MF_Redfont, &MEF_BigOptionsRtSections, &MEO_SOUND_MUSICDIRS, Option );
 
 static MenuRangeInt32_t MEO_SOUND_NUMVOICES = MAKE_MENURANGE( &soundvoices, &MF_Redfont, 16, 128, 0, 8, DisplayTypeInteger );
 static MenuEntry_t ME_SOUND_NUMVOICES = MAKE_MENUENTRY( "Voices:", &MF_Redfont, &MEF_BigOptionsRt, &MEO_SOUND_NUMVOICES, RangeInt32 );
@@ -1353,6 +1356,7 @@ static MenuEntry_t *MEL_SOUND_DEVSETUP[] = {
 #endif
     &ME_SOUND_OPL3STEREO,
     &ME_SOUND_SF2,
+    &ME_SOUND_MUSICDIRS,
 #endif
     &ME_Space4_Redfont,
     &ME_SOUND_RESTART,
@@ -2494,6 +2498,7 @@ static void Menu_Pre(MenuID_t cm)
 #endif
         MenuEntry_DisableOnCondition(&ME_SOUND_OPL3STEREO, !ud.config.MusicToggle);
         MenuEntry_DisableOnCondition(&ME_SOUND_SF2, !ud.config.MusicToggle);
+        MenuEntry_DisableOnCondition(&ME_SOUND_MUSICDIRS, !ud.config.MusicToggle);
 
         MenuEntry_HideOnCondition(&ME_SOUND_OPL3STEREO, musicdevice != ASS_OPL3);
         MenuEntry_HideOnCondition(&ME_SOUND_SF2, musicdevice != ASS_SF2);
@@ -2501,6 +2506,7 @@ static void Menu_Pre(MenuID_t cm)
         MenuEntry_DisableOnCondition(&ME_SOUND_RESTART, soundrate == ud.config.MixRate &&
                                                         soundvoices == ud.config.NumVoices &&
                                                         musicdevice == ud.config.MusicDevice &&
+                                                        musicdirs == ASS_MusicDirs &&
                                                         opl3stereo == AL_Stereo &&
                                                         !Bstrcmp(sf2bankfile, SF2_BankFile)
 #ifdef __linux__
@@ -3597,6 +3603,7 @@ static void Menu_RefreshSoundProperties()
     soundrate    = ud.config.MixRate;
     soundvoices  = ud.config.NumVoices;
     musicdevice  = ud.config.MusicDevice;
+    musicdirs    = ASS_MusicDirs;
     opl3stereo   = AL_Stereo;
 }
 
@@ -3789,13 +3796,17 @@ static void Menu_EntryLinkActivate(MenuEntry_t *entry)
 
         if (ud.config.MusicToggle)
         {
-            int const needsReInit = (ud.config.MusicDevice != musicdevice || (musicdevice == ASS_SF2 && Bstrcmp(SF2_BankFile, sf2bankfile))
+            int const musicdirsToggleUsed = (musicdirs != ASS_MusicDirs);
+            int const needsReInit =
+               (ud.config.MusicDevice != musicdevice || (musicdevice == ASS_SF2 && Bstrcmp(SF2_BankFile, sf2bankfile))
+                || musicdirsToggleUsed
 #ifdef __linux__
                 || (musicdevice == ASS_ALSA && (size_t)alsadevice < alsadevices.size() &&
                     (ALSA_ClientID != alsadevices[alsadevice].clntid || ALSA_PortID != alsadevices[alsadevice].portid))
 #endif
             );
 
+            ASS_MusicDirs = musicdirs;
             AL_Stereo = opl3stereo;
             Bstrcpy(SF2_BankFile, sf2bankfile);
 
@@ -3808,10 +3819,13 @@ static void Menu_EntryLinkActivate(MenuEntry_t *entry)
 
             S_RestartMusic();
 
-            if (MusicIsWaveform)
-                MV_SetPosition(MusicVoice, (int)pos.tick);
-            else
-                MUSIC_SetSongPosition(pos.measure, pos.beat, pos.tick);
+            if (!musicdirsToggleUsed)
+            {
+                if (MusicIsWaveform)
+                    MV_SetPosition(MusicVoice, (int)pos.tick);
+                else
+                    MUSIC_SetSongPosition(pos.measure, pos.beat, pos.tick);
+            }
         }
 
         Menu_RefreshSoundProperties();

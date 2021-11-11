@@ -10,6 +10,7 @@
 #include "compat.h"
 #include "grpscan.h"
 #include "palette.h"
+#include "sndcards.h"
 #include "texcache.h"
 #include "vfs.h"
 
@@ -1023,27 +1024,32 @@ buildvfs_kfd S_OpenAudio(const char *fn, char searchfirst, uint8_t const ismusic
     if (fp != buildvfs_kfd_invalid)
         goto success;
 
-#ifndef USE_PHYSFS
-    // look in ./music/<file's parent GRP name>/
-    // ex: ./music/duke3d/grabbag.mid
-    // ex: ./music/nwinter/grabbag.mid
-    if (origparent != NULL)
+#ifdef USE_PHYSFS
+    EDUKE32_UNREACHABLE_SECTION();
+#else
+    if (ASS_MusicDirs)
     {
-        char const * const parentextension = Bstrrchr(origparent, '.');
-        uint32_t const namelength = parentextension != NULL ? (unsigned)(parentextension - origparent) : parentlength;
+        // look in ./music/<file's parent GRP name>/
+        // ex: ./music/duke3d/grabbag.mid
+        // ex: ./music/nwinter/grabbag.mid
+        if (origparent != NULL)
+        {
+            char const * const parentextension = Bstrrchr(origparent, '.');
+            uint32_t const namelength = parentextension != NULL ? (unsigned)(parentextension - origparent) : parentlength;
 
-        Bsprintf(testfn, "music/%.*s/%s", namelength, origparent, fn);
+            Bsprintf(testfn, "music/%.*s/%s", namelength, origparent, fn);
+            fp = S_TryExtensionReplacements(testfn, searchfirst, ismusic);
+            if (fp != buildvfs_kfd_invalid)
+                goto success;
+        }
+
+        // look in ./music/
+        // ex: ./music/grabbag.mid
+        Bsprintf(testfn, "music/%s", fn);
         fp = S_TryExtensionReplacements(testfn, searchfirst, ismusic);
         if (fp != buildvfs_kfd_invalid)
             goto success;
     }
-
-    // look in ./music/
-    // ex: ./music/grabbag.mid
-    Bsprintf(testfn, "music/%s", fn);
-    fp = S_TryExtensionReplacements(testfn, searchfirst, ismusic);
-    if (fp != buildvfs_kfd_invalid)
-        goto success;
 #endif
 
     Xfree(testfn);
