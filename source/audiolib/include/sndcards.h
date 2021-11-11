@@ -34,6 +34,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern int ASS_PCMSoundDriver;
 extern int ASS_MIDISoundDriver;
 extern int ASS_EMIDICard;
+extern int ASS_MusicDirs;
 
 typedef enum
 {

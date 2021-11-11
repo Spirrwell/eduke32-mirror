@@ -127,6 +127,7 @@ void FX_InitCvars(void)
         { "mus_al_additivemode", "enable/disable alternate additive AdLib timbre mode", (void*) &AL_AdditiveMode, CVAR_BOOL, 0, 1 },
         { "mus_al_postamp", "controls post-synthesization OPL3 volume amplification", (void*) &AL_PostAmp, CVAR_FLOAT, 1, 6 },
         { "mus_al_stereo", "enable/disable OPL3 stereo mode", (void*) &AL_Stereo, CVAR_BOOL | CVAR_FUNCPTR, 0, 1 },
+        { "mus_dirs", "enable/disable loading from separate music dirs", (void*) &ASS_MusicDirs, CVAR_BOOL | CVAR_FUNCPTR, 0, 1},
         { "mus_sf2_bank", "SoundFont 2 (.sf2) bank filename",  (void*) SF2_BankFile, CVAR_STRING | CVAR_FUNCPTR, 0, sizeof(SF2_BankFile) - 1 },
         { "mus_sf2_sampleblocksize", "number of samples per effect processing block", (void*) &SF2_EffectSampleBlockSize, CVAR_INT | CVAR_FUNCPTR, 1, 64 },
 #ifdef _WIN32

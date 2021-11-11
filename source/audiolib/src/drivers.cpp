@@ -46,6 +46,7 @@
 int ASS_PCMSoundDriver  = ASS_AutoDetect;
 int ASS_MIDISoundDriver = ASS_AutoDetect;
 int ASS_EMIDICard = -1;
+int ASS_MusicDirs = 1;
 
 #define UNSUPPORTED_PCM          nullptr,nullptr,nullptr,nullptr,nullptr,nullptr
 #define UNSUPPORTED_MIDI         EMIDI_GeneralMIDI,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr
