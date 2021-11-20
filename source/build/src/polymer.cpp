@@ -1030,7 +1030,7 @@ void                polymer_resetlights(void)
     lightcount = 0;
 
     if (!engineLoadMHK(NULL))
-        OSD_Printf("polymer_resetlights: reloaded maphack\n");
+        OSD_Printf("polymer_resetlights: reapplied maphack\n");
 }
 
 void                polymer_loadboard(void)
