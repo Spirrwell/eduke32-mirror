@@ -950,6 +950,14 @@ void joyScanDevices()
                             joystick.numButtons = j + 1;
                             joystick.validButtons |= (1 << j);
                         }
+                    
+                    if (SDL_GameControllerHasSensor(controller, SDL_SENSOR_ACCEL))
+                        if (SDL_GameControllerSetSensorEnabled(controller, SDL_SENSOR_ACCEL, SDL_TRUE) != -1)
+                            joystick.hasAccel = 1;
+
+                    if (SDL_GameControllerHasSensor(controller, SDL_SENSOR_GYRO))
+                        if (SDL_GameControllerSetSensorEnabled(controller, SDL_SENSOR_GYRO, SDL_TRUE) != -1)
+                            joystick.hasGyro = 1;
                 }
 #endif
                 joystick.isGameController = 1;
@@ -1085,14 +1093,32 @@ int32_t initinput(void(*hotplugCallback)(void) /*= nullptr*/)
 #if SDL_MAJOR_VERSION >= 2 && (SDL_MINOR_VERSION > 0 || SDL_PATCHLEVEL >= 9)
     if (EDUKE32_SDL_LINKED_PREREQ(linked, 2, 0, 9))
     {
-        if (joystick.flags & JOY_RUMBLE)
+        if (joystick.flags & (JOY_RUMBLE|JOY_ACCEL|JOY_GYRO))
         {
             initputs("Controller supports ");
 
-            switch (joystick.flags & JOY_RUMBLE)
+            switch (joystick.flags & (JOY_RUMBLE|JOY_ACCEL|JOY_GYRO))
             {
             case JOY_RUMBLE:
                 initputs("rumble.\n");
+                break;
+            case JOY_ACCEL:
+                initputs("accelerometer.\n");
+                break;
+            case JOY_GYRO:
+                initputs("gyro.\n");
+                break;
+            case JOY_RUMBLE|JOY_ACCEL:
+                initputs("rumble and accelerometer.\n");
+                break;
+            case JOY_RUMBLE|JOY_GYRO:
+                initputs("rumble and gyro.\n");
+                break;
+            case JOY_ACCEL|JOY_GYRO:
+                initputs("accelerometer and gyro.\n");
+                break;
+            case JOY_RUMBLE|JOY_ACCEL|JOY_GYRO:
+                initputs("rumble, accelerometer, and gyro.\n");
                 break;
             }
         }
@@ -2212,6 +2238,27 @@ int32_t handleevents_sdlcommon(SDL_Event *ev)
 # endif
 #endif
 #if SDL_MAJOR_VERSION >= 2
+#if SDL_MINOR_VERSION > 0 || SDL_PATCHLEVEL >= 14
+        case SDL_CONTROLLERSENSORUPDATE:
+            if (EDUKE32_SDL_LINKED_PREREQ(linked, 2, 0, 14))
+            {
+                switch (ev->csensor.sensor)
+                {
+                    case SDL_SENSOR_ACCEL:
+                        joystick.accel = { ev->csensor.data[0] / SDL_STANDARD_GRAVITY,
+                                          -ev->csensor.data[1] / SDL_STANDARD_GRAVITY,
+                                           ev->csensor.data[2] / SDL_STANDARD_GRAVITY };
+                        break;
+                    case SDL_SENSOR_GYRO:
+                        joystick.gyro =  {-ev->csensor.data[0] * (180.0f / fPI),
+                                           ev->csensor.data[1] * (180.0f / fPI),
+                                          -ev->csensor.data[2] * (180.0f / fPI) };
+                        break;
+                }
+            }
+            break;
+
+#endif
         case SDL_CONTROLLERDEVICEADDED:
         case SDL_CONTROLLERDEVICEREMOVED:
             if (g_controllerHotplugCallback && SDL_NumJoysticks() != numjoysticks)

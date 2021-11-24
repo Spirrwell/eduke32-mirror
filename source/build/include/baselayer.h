@@ -218,6 +218,8 @@ typedef struct
     int32_t *pAxis;
     int32_t *pHat;
     void (*pCallback)(int32_t, int32_t);
+    vec3f_t  accel;
+    vec3f_t  gyro;
     int32_t  bits;
     int32_t  numAxes;
     int32_t  numBalls;
@@ -234,6 +236,8 @@ typedef struct
         {
             int isGameController : 1;
             int hasRumble        : 1;
+            int hasGyro          : 1;
+            int hasAccel         : 1;
         };
     };
 } controllerinput_t;
@@ -242,6 +246,8 @@ enum
 {
     JOY_CONTROLLER = 0x1,
     JOY_RUMBLE     = 0x2,
+    JOY_GYRO       = 0x4,
+    JOY_ACCEL      = 0x8,
 };
 
 extern controllerinput_t joystick;
