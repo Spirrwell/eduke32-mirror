@@ -2642,19 +2642,30 @@ int32_t handleevents(void)
     if (!nogl && glinfo.reset_notification)
     {
         static const auto glGetGraphicsReset = glGetGraphicsResetStatusKHR ? glGetGraphicsResetStatusKHR : glGetGraphicsResetStatus;
-
-        if (glGetGraphicsReset() != GL_NO_ERROR)
+        auto status = glGetGraphicsReset();
+        if (status != GL_NO_ERROR)
         {
             do
-            {
-                initputs("GL CONTEXT LOST!\n");
-            } while (glGetGraphicsReset() != GL_NO_ERROR);
+            { 
+                switch (status)
+                {
+                    case GL_GUILTY_CONTEXT_RESET:
+                        initputs("GL CONTEXT LOST! We are guilty.\n");
+                        break;
+                    case GL_INNOCENT_CONTEXT_RESET:
+                        initputs("GL CONTEXT LOST! If the glove doesn't fit, you must acquit.\n");
+                        break;
+                    case GL_UNKNOWN_CONTEXT_RESET:
+                        initputs("GL CONTEXT LOST!\n");
+                        break;
+                }
+            } while ((status = glGetGraphicsReset()) != GL_NO_ERROR);
 
             videoResetMode();
 
             if (videoSetGameMode(fullscreen,xres,yres,bpp,upscalefactor))
             {
-                initputs("Video reset failed. Terminating.\n");
+                initputs("Unable to recover from lost OpenGL context. Terminating.\n");
                 Bexit(EXIT_FAILURE);
             }
         }
