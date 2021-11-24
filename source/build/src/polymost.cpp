@@ -4632,7 +4632,7 @@ static int32_t should_clip_cfwall(float x0, float y0, float x1, float y1)
         if ((scnt >= 2) && (spx[scnt-1] < spx[scnt-2]))
         {
             swapfloat(&spx[scnt-1], &spx[scnt-2]);
-            swaplong(&spx[scnt-1], &spx[scnt-2]);
+            swaplong(&spt[scnt-1], &spt[scnt-2]);
         }
 
         //Test if right edge requires split
