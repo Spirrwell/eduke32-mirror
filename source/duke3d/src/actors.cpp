@@ -7362,7 +7362,22 @@ ACTOR_STATIC void G_MoveEffectors(void)   //STATNUM 3
                 }
 
                 if (pData[3] == 1)
+                {
+                    for (int nextj, SPRITES_OF_SECT_SAFE(SECT(spriteNum), j, nextj))
+                        if ((SLT(j) == SE_49_POINT_LIGHT || SLT(j) == SE_50_SPOT_LIGHT) && (CS(j) & 12) == 12)
+                        {
+                            int flicker = -1;
+
+                            for (int SPRITES_OF_SECT(sprite[spriteNum].sectnum, jj))
+                                if (SLT(jj) == SE_3_RANDOM_LIGHTS_AFTER_SHOT_OUT && actor[jj].t_data[4])
+                                    flicker = jj;
+
+                            if (flicker == -1)
+                                A_DeleteSprite(j);
+                        }
+
                     DELETE_SPRITE_AND_CONTINUE(spriteNum);
+                }
             }
 
             if (pData[0] == 1)   //Lights flickering on
@@ -8589,6 +8604,18 @@ static void G_DoEffectorLights(void)  // STATNUM 14
     for (SPRITES_OF(STAT_LIGHT, i))
     {
 in:
+        int16_t flicker = -1;
+
+        for (int SPRITES_OF_SECT(sprite[i].sectnum, j))
+            if (SLT(j) == SE_3_RANDOM_LIGHTS_AFTER_SHOT_OUT && actor[j].t_data[4])
+                flicker = j;
+
+        if ((flicker != -1 && actor[flicker].t_data[2]) || (A_CheckSpriteFlags(i, SFLAG_USEACTIVATOR) && sector[sprite[i].sectnum].lotag & 16384))
+        {
+            A_DeleteLight(i);
+            continue;
+        }
+
         if ((int32_t)(totalclock - ototalclock) >= TICSPERFRAME || dukeMaybeDrawFrame())
         {
             lasti = i;
@@ -8599,8 +8626,7 @@ in:
         {
         case SE_49_POINT_LIGHT:
         {
-            if (!A_CheckSpriteFlags(i, SFLAG_NOLIGHT) && videoGetRenderMode() == REND_POLYMER &&
-                    !(A_CheckSpriteFlags(i, SFLAG_USEACTIVATOR) && sector[sprite[i].sectnum].lotag & 16384))
+            if (!A_CheckSpriteFlags(i, SFLAG_NOLIGHT) && videoGetRenderMode() == REND_POLYMER)
             {
                 if (practor[i].lightptr == NULL)
                 {
@@ -8643,11 +8669,19 @@ in:
                     break;
                 }
 
-                if (SHT(i) != practor[i].lightptr->range)
+                practor[i].olightrange = practor[i].lightrange;
+
+                if (flicker != -1)
                 {
-                    practor[i].lightptr->range = SHT(i);
+                    practor[i].lightrange = practor[i].lightptr->range = (SHT(i) >> 4) * actor[flicker].t_data[0];
                     practor[i].lightptr->flags.invalidate = 1;
                 }
+                else if (SHT(i) != practor[i].lightptr->range)
+                {
+                    practor[i].lightrange = practor[i].lightptr->range = SHT(i);
+                    practor[i].lightptr->flags.invalidate = 1;
+                }
+
                 if ((sprite[i].xvel != practor[i].lightptr->color[0]) ||
                         (sprite[i].yvel != practor[i].lightptr->color[1]) ||
                         (sprite[i].zvel != practor[i].lightptr->color[2]))
@@ -8713,11 +8747,17 @@ in:
                     break;
                 }
 
-                if (SHT(i) != practor[i].lightptr->range)
+                if (flicker != -1)
                 {
-                    practor[i].lightptr->range = SHT(i);
+                    practor[i].lightrange = practor[i].lightptr->range = (SHT(i) >> 4) * actor[flicker].t_data[0];
                     practor[i].lightptr->flags.invalidate = 1;
                 }
+                else if (SHT(i) != practor[i].lightptr->range)
+                {
+                    practor[i].lightrange = practor[i].lightptr->range = SHT(i);
+                    practor[i].lightptr->flags.invalidate = 1;
+                }
+
                 if ((sprite[i].xvel != practor[i].lightptr->color[0]) ||
                         (sprite[i].yvel != practor[i].lightptr->color[1]) ||
                         (sprite[i].zvel != practor[i].lightptr->color[2]))
