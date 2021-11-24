@@ -18,6 +18,7 @@ Ken Silverman's official web site: http://www.advsys.net/ken
 #include "tilepacker.h"
 #include "texcache.h"
 #include "hash.h"
+#include "libasync_config.h"
 
 #ifdef POLYMOST2
 int32_t r_enablepolymost2 = 0;
@@ -2411,11 +2412,10 @@ coltype *gloadtile_mdloadskin_shared(char *fn, int32_t picfillen, vec2_t *const 
         }
     }
 
-    char* cptr = britable[gammabrightness ? 0 : curbrightness];
-
-    for (bssize_t y = 0, j = 0; y < tsiz->y; ++y, j += siz->x)
+    async::parallel_for(auto_partitioner(async::irange(0, tsiz->y)), [pic, tsiz, effect, dapalnum, &al, &onebitalpha](int y)
     {
-        coltype tcol, * rpptr = &pic[j];
+        char* cptr = britable[gammabrightness ? 0 : curbrightness];
+        coltype tcol, * rpptr = &pic[y * tsiz->x];
 
         for (bssize_t x = 0; x < tsiz->x; ++x)
         {
@@ -2430,7 +2430,7 @@ coltype *gloadtile_mdloadskin_shared(char *fn, int32_t picfillen, vec2_t *const 
 
             rpptr[x] = tcol;
         }
-    }
+    });
 
     return pic;
 }
