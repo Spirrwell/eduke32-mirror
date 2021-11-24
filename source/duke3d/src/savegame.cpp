@@ -503,7 +503,7 @@ int32_t G_LoadPlayer(savebrief_t & sv)
             ud.m_level_number = level;
             ud.m_player_skill = skill;
 
-            boardfilename[0] = '\0';
+            currentboardfilename[0] = '\0';
 
             int const mapIdx = volume*MAXLEVELS + level;
 
