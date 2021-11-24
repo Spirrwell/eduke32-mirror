@@ -1480,12 +1480,13 @@ static void fixtransparency(coltype *dapic, vec2_t dasiz, vec2_t dasiz2, int32_t
     else  dasiz = dasiz2; //Make repeating textures duplicate top/left parts
 
     dasiz.x--; dasiz.y--; //Hacks for optimization inside loop
-    int32_t const naxsiz2 = -dasiz2.x;
 
     //Set transparent pixels to average color of neighboring opaque pixels
     //Doing this makes bilinear filtering look much better for masked textures (I.E. sprites)
-    for (bssize_t y=doxy.y; y>=0; y--)
+
+    async::parallel_for(auto_partitioner(async::irange(0, doxy.y)), [dapic, dasiz, dasiz2, doxy](int y)
     {
+        int32_t const naxsiz2 = -dasiz2.x;
         coltype * wpptr = &dapic[y*dasiz2.x+doxy.x];
 
         for (bssize_t x=doxy.x; x>=0; x--,wpptr--)
@@ -1511,7 +1512,7 @@ static void fixtransparency(coltype *dapic, vec2_t dasiz, vec2_t dasiz2, int32_t
                 wpptr->r = ((r   +  2)>>2); wpptr->g = ((g   +  2)>>2); wpptr->b = ((b   +  2)>>2); break;
             }
         }
-    }
+    });
 }
 
 #if defined EDUKE32_GLES
