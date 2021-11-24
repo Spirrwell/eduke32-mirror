@@ -9294,7 +9294,7 @@ void G_MoveWorld(void)
     }
 
     double actorsTime = timerGetFractionalTicks();
-    auto framecnt2 = framecnt;
+    auto framecnt2 = g_frameCounter;
 
     {
         MICROPROFILE_SCOPEI("MoveWorld", "MoveActors", MP_YELLOW4);
@@ -9303,7 +9303,7 @@ void G_MoveWorld(void)
 
     actorsTime = timerGetFractionalTicks() - actorsTime;
 
-    if (framecnt2 != framecnt)
+    if (framecnt2 != g_frameCounter)
         actorsTime -= (double)g_lastFrameDuration2 * 1000.0 / (double)timerGetNanoTickRate();
 
     g_moveActorsTime = (1-0.033)*g_moveActorsTime + 0.033*actorsTime;
