@@ -861,13 +861,14 @@ static void polymost_bindPth(pthtyp const * const pPth)
 
     vec4f_t texturePosSize = { 0.f, 0.f, 1.f, 1.f };
     vec2f_t halfTexelSize = { 0.f, 0.f };
-    if ((pPth->flags & PTH_INDEXED) &&
-        !(pPth->flags & PTH_HIGHTILE))
+
+    if ((pPth->flags & (PTH_INDEXED|PTH_HIGHTILE)) == PTH_INDEXED)
     {
         Tile tile;
         char tileIsPacked = tilepacker_getTile(waloff[pPth->picnum] ? pPth->picnum+1 : 0, &tile);
         //POGO: check the width and height to ensure that the tile hasn't been changed for a user tile that has different dimensions
         if (tileIsPacked &&
+            (!pPth->glpic || pPth->glpic == tilesheetTexIDs[tile.tilesheetID]) &&
             (!waloff[pPth->picnum] ||
              (tile.rect.width >= (uint32_t) tilesiz[pPth->picnum].y &&
               tile.rect.height >= (uint32_t) tilesiz[pPth->picnum].x)))
@@ -879,6 +880,7 @@ static void polymost_bindPth(pthtyp const * const pPth)
             halfTexelSize = tilesheetHalfTexelSize;
         }
     }
+
     polymost_setTexturePosSize(texturePosSize);
     polymost_setHalfTexelSize(halfTexelSize);
     buildgl_bindTexture(GL_TEXTURE_2D, pPth->glpic);
@@ -2035,12 +2037,21 @@ static void gloadtile_art_indexed(int32_t dapic, int32_t dameth, pthtyp *pth, in
                 }
                 pth->glpic = tilesheetTexIDs[tile.tilesheetID];
                 doalloc = false;
-            } else if (pth->glpic == tilesheetTexIDs[tile.tilesheetID])
+            }
+            else if (pth->glpic == tilesheetTexIDs[tile.tilesheetID])
             {
                 //POGO: we're reloading an invalidated art tile that has changed dimensions and no longer fits into our original tilesheet
                 doalloc = true;
             }
-        } else
+            else if (pth->glpic)
+            {
+                // we're reloading an invalidated art tile that has changed dimensions but it doesn't fit into the tilesheet,
+                // AND we already have a separate texture allocated (mapart, etc)
+                doalloc = false;
+            }
+            else doalloc = true;
+        }
+        else
         {
             Tile blankTile = {};
             tilepacker_getTile(0, &blankTile);
