@@ -37,6 +37,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "music.h"
 #include "sbar.h"
 #include "joystick.h"
+#include "addons.h"
 
 #ifndef __ANDROID__
 droidinput_t droidinput;
@@ -192,9 +193,6 @@ static void Menu_DrawCursorText(int32_t x, int32_t y, int32_t h, int32_t ydim_up
 
 static uint16_t g_oldSaveCnt;
 
-
-
-
 /*
 All MAKE_* macros are generally for the purpose of keeping state initialization
 separate from actual data. Alternatively, they can serve to factor out repetitive
@@ -206,7 +204,6 @@ when the codebase still used C89.
 Note that I prefer to include a space on the inside of the macro parentheses, since
 they effectively stand in for curly braces as struct initializers.
 */
-
 
 MenuGameplayEntry g_MenuGameplayEntries[MAXMENUGAMEPLAYENTRIES];
 
@@ -250,6 +247,7 @@ static MenuMenuFormat_t MMF_LoadSave =             { {                 200<<16, 
 static MenuMenuFormat_t MMF_NetSetup =             { {                  36<<16, 38<<16, },    190<<16 };
 static MenuMenuFormat_t MMF_FileSelectLeft =       { {                  40<<16, 45<<16, },    162<<16 };
 static MenuMenuFormat_t MMF_FileSelectRight =      { {                 164<<16, 45<<16, },    162<<16 };
+static MenuMenuFormat_t MMF_Addons =               { {                 164<<16, 40<<16, },    112<<16 };
 
 static MenuEntryFormat_t MEF_Null =             {     0,      0,          0 };
 static MenuEntryFormat_t MEF_MainMenu =         { 4<<16,      0,          0 };
@@ -274,6 +272,7 @@ static MenuEntryFormat_t MEF_BigSliders =       { 2<<16,      0, -(260<<16) };
 static MenuEntryFormat_t MEF_LoadSave =         { 2<<16,     -1,     78<<16 };
 static MenuEntryFormat_t MEF_NetSetup =         { 4<<16,      0,    112<<16 };
 static MenuEntryFormat_t MEF_NetSetup_Confirm = { 4<<16, 16<<16,    112<<16 };
+static MenuEntryFormat_t MEF_Addons =           { 2<<16,     -1,     78<<16 };
 
 // common menu option sets
 #define MAKE_MENUOPTIONSET(optionNames, optionValues, features) { optionNames, optionValues, &MMF_FuncList, &MEF_FuncList, &MF_Minifont, ARRAY_SIZE(optionNames), -1, 0, features }
@@ -348,6 +347,7 @@ static char const s_LoadGame[] = "Load Game";
 static char const s_Continue[] = "Continue";
 static char const s_Options[] = "Options";
 static char const s_Credits[] = "Credits";
+static char const s_Addons[] = "Addons";
 
 MAKE_MENU_TOP_ENTRYLINK( s_NewGame, MEF_MainMenu, MAIN_NEWGAME, MENU_EPISODE );
 #ifdef EDUKE32_RETAIL_MENU
@@ -357,6 +357,7 @@ MAKE_MENU_TOP_ENTRYLINK( s_NewGame, MEF_MainMenu, MAIN_NEWGAME_INGAME, MENU_NEWV
 static MenuLink_t MEO_MAIN_NEWGAME_NETWORK = { MENU_NETWORK, MA_Advance, };
 MAKE_MENU_TOP_ENTRYLINK( s_SaveGame, MEF_MainMenu, MAIN_SAVEGAME, MENU_SAVE );
 MAKE_MENU_TOP_ENTRYLINK( s_LoadGame, MEF_MainMenu, MAIN_LOADGAME, MENU_LOAD );
+MAKE_MENU_TOP_ENTRYLINK( s_Addons, MEF_MainMenu, MAIN_ADDONS, MENU_ADDONS );
 MAKE_MENU_TOP_ENTRYLINK( s_Options, MEF_MainMenu, MAIN_OPTIONS, MENU_OPTIONS );
 #ifdef EDUKE32_STANDALONE
 MAKE_MENU_TOP_ENTRYLINK( "Read me!", MEF_MainMenu, MAIN_HELP, MENU_STORY );
@@ -375,6 +376,7 @@ MAKE_MENU_TOP_ENTRYLINK( "Quit Game", MEF_MainMenu, MAIN_QUITGAME, MENU_QUIT );
 static MenuEntry_t *MEL_MAIN[] = {
     &ME_MAIN_NEWGAME,
     &ME_MAIN_LOADGAME,
+    &ME_MAIN_ADDONS,
     &ME_MAIN_OPTIONS,
     &ME_MAIN_HELP,
 #ifndef EDUKE32_RETAIL_MENU
@@ -1220,6 +1222,13 @@ static MenuEntry_t ME_SAVE_NEW = MAKE_MENUENTRY( s_NewSaveGame, &MF_Minifont, &M
 static MenuEntry_t *ME_SAVE;
 static MenuEntry_t **MEL_SAVE;
 
+// addons are filled in a similar manner to the save/load menu
+static MenuLink_t MEO_ADDONS = { MENU_ADDONSVERIFY, MA_None, };
+static MenuEntry_t ME_ADDONS_TEMPLATE = MAKE_MENUENTRY( NULL, &MF_Minifont, &MEF_Addons, &MEO_ADDONS, Link );
+static MenuEntry_t ME_ADDONS_EMPTY = MAKE_MENUENTRY( NULL, &MF_Minifont, &MEF_Addons, nullptr, Dummy );
+static MenuEntry_t *ME_ADDONS;
+static MenuEntry_t **MEL_ADDONS;
+
 #ifdef __linux__
 static int32_t alsadevice;
 static std::vector<alsa_mididevinfo_t> alsadevices;
@@ -1533,6 +1542,7 @@ static MenuMenu_t M_MACROS = MAKE_MENUMENU( "Multiplayer Macros", &MMF_Macros, M
 static MenuMenu_t M_NETHOST = MAKE_MENUMENU( "Host Network Game", &MMF_SmallOptionsNarrow, MEL_NETHOST );
 static MenuMenu_t M_NETOPTIONS = MAKE_MENUMENU( "Net Game Options", &MMF_NetSetup, MEL_NETOPTIONS );
 static MenuMenu_t M_NETJOIN = MAKE_MENUMENU( "Join Network Game", &MMF_SmallOptionsNarrow, MEL_NETJOIN );
+static MenuMenu_t M_ADDONS = MAKE_MENUMENU_CUSTOMSIZE( s_Addons, &MMF_Addons, MEL_ADDONS );
 
 #ifdef EDUKE32_RETAIL_MENU
 static MenuPanel_t M_STORY = { NoTitle, MENU_STORY, MA_Return, MENU_STORY, MA_Advance, };
@@ -1567,6 +1577,7 @@ static MenuVerify_t M_KEYSRESETVERIFY = { CURSOR_CENTER_2LINE, MENU_KEYBOARDSETU
 static MenuVerify_t M_KEYSCLASSICVERIFY = { CURSOR_CENTER_2LINE, MENU_KEYBOARDSETUP, MA_None, };
 static MenuVerify_t M_JOYSTANDARDVERIFY = { CURSOR_CENTER_2LINE, MENU_JOYSTICKSETUP, MA_None, };
 static MenuVerify_t M_KEYOVERRIDEVERIFY = { CURSOR_BOTTOMRIGHT, MENU_KEYBOARDKEYS, MA_None, };
+static MenuVerify_t M_ADDONSVERIFY = { CURSOR_CENTER_2LINE, MENU_ADDONS, MA_None, };
 
 static MenuMessage_t M_NETWAITMASTER = { CURSOR_BOTTOMRIGHT, MENU_NULL, MA_None, };
 static MenuMessage_t M_NETWAITVOTES = { CURSOR_BOTTOMRIGHT, MENU_NULL, MA_None, };
@@ -1669,6 +1680,8 @@ static Menu_t Menus[] = {
     { &M_KEYSCLASSICVERIFY, MENU_KEYSCLASSICVERIFY, MENU_KEYBOARDSETUP, MA_None, Verify },
     { &M_JOYSTANDARDVERIFY, MENU_JOYDEFAULTVERIFY, MENU_JOYSTICKSETUP, MA_None, Verify },
     { &M_KEYOVERRIDEVERIFY, MENU_KEYOVERRIDEVERIFY, MENU_KEYBOARDKEYS, MA_None, Verify },
+    { &M_ADDONS, MENU_ADDONS, MENU_MAIN, MA_Return, List },
+    { &M_ADDONSVERIFY, MENU_ADDONSVERIFY, MENU_ADDONS, MA_None, Verify },
     { &M_ADULTPASSWORD, MENU_ADULTPASSWORD, MENU_GAMESETUP, MA_None, TextForm },
     { &M_RESETPLAYER, MENU_RESETPLAYER, MENU_CLOSE, MA_None, Verify },
     { &M_BUYDUKE, MENU_BUYDUKE, MENU_EPISODE, MA_Return, Message },
@@ -2844,6 +2857,7 @@ static void Menu_PreDrawBackground(MenuID_t cm, const vec2_t origin)
 
     case MENU_LOAD:
     case MENU_SAVE:
+    case MENU_ADDONS:
         if (FURY)
             break;
         fallthrough__;
@@ -3128,6 +3142,74 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
         break;
     }
 
+    case MENU_ADDONS:
+    {
+        // addon list background
+        Menu_BlackRectangle(origin.x + (164<<16), origin.y + (34<<16), 130<<16, 94<<16, 1);
+
+        // author & version background
+        Menu_BlackRectangle(origin.x + (22<<16), origin.y + (113<<16), 128<<16, 17<<16, 1);
+
+        // addon description background
+        Menu_BlackRectangle(origin.x + (22<<16), origin.y + (132<<16), 271<<16, 58<<16, 1);
+
+        // addon shot borders
+        rotatesprite_fs(origin.x + (23<<16), origin.y + (73<<16), (65536L >> 1) + (65536L >> 2) + 1024, 0,WINDOWBORDER2,24,0,10);
+        rotatesprite_fs(origin.x + (143<<16), origin.y + (73<<16), (65536L >> 1) + (65536L >> 2) + 1024,1024,WINDOWBORDER2,24,0,10);
+        rotatesprite_fs(origin.x + (81<<16), origin.y + (37<<16), (65536L >> 1) + (65536L >> 2) + 1024,512,WINDOWBORDER1,24,0,10);
+        rotatesprite_fs(origin.x + (85<<16), origin.y + (109<<16), (65536L >> 1) + (65536L >> 2) + 1024,1024+512,WINDOWBORDER1,24,0,10);
+
+        mminitext(origin.x + (26<<16), origin.y + (115<<16), "Author:", MF_Minifont.pal_deselected_right);
+        mminitext(origin.x + (26<<16), origin.y + (123<<16), "Version:", MF_Minifont.pal_deselected_right);
+
+        // no addons, display N/A, stop here
+        if (M_ADDONS.currentEntry >= (int32_t)g_nummenuaddons)
+        {
+            menutext_centeralign(origin.x + (82<<16), origin.y + (86<<16), "N/A");
+            break;
+        }
+
+        // display addon content
+        menuaddon_t & madd = g_menuaddons[M_ADDONS.currentEntry];
+        if (madd.brief.isValid())
+        {
+            // title text
+            G_ScreenText(MF_Bluefont.tilenum, origin.x + (26<<16), origin.y + (135<<16), (65536L >> 1) + (65536L >> 2),
+                        0, 0, m_addontitlebuf, 0, MF_Bluefont.pal, g_textstat, 0,
+                        MF_Bluefont.emptychar.x, MF_Bluefont.emptychar.y, MF_Bluefont.between.x,
+                        MF_Bluefont.between.y, MF_Bluefont.textflags, 0, 0, xdim-1, ydim-1);
+
+            const char * mockuptext = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Duis bibendum fringilla imperdiet. Etiam ut ligula et purus sodales commodo non eu dui. Ut finibus egestas quam, ac porta erat dapibus nec. Morbi vitae nibh in eros vehicula rhoncus vel in diam. Suspendisse malesuada elit ac ipsum ultricies, et sollicitudin lorem lobortis. Maecenas nisi eros, fringilla a libero eget, mollis commodo nisi. Mauris posuere vitae justo varius dictum. Nulla a est quis turpis mollis rutrum at non dui. Vivamus in posuere augue. Aenean dignissim sapien convallis ipsum laoreet, vel fringilla erat molestie. Nam placerat dui est, sed pellentesque odio accumsan sed. Fusce eget lacus justo.\
+Nulla iaculis leo sit amet purus placerat cursus. Quisque est metus, elementum a ex et, vulputate dignissim ante. Curabitur ultrices purus sed diam interdum, a blandit est iaculis. Donec in molestie nisi. Vivamus pellentesque odio ac lacus hendrerit, nec cursus lorem faucibus. Suspendisse ut scelerisque nibh, at ultricies massa. Curabitur commodo, nunc et placerat commodo, lorem libero aliquet erat, laoreet laoreet elit risus ut elit. Ut tempus tincidunt lacus ut malesuada.\
+Nam at tincidunt tellus, auctor commodo ante. Sed at ultrices ligula, sed lobortis nunc. Interdum et malesuada fames ac ante ipsum primis in faucibus. Etiam pharetra ut leo id luctus. Morbi vehicula odio dolor, et luctus diam pellentesque a. Duis consequat semper purus eget elementum. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Praesent id bibendum mi. Donec ac bibendum sapien, sit amet ullamcorper odio. Etiam a interdum erat. In metus lorem, placerat eu lobortis eget, condimentum id mi. Aenean sed mi tortor. Integer eleifend quam ac pharetra congue. Pellentesque odio ante, vestibulum ac erat sit amet, venenatis fringilla sapien.\
+Integer ullamcorper varius aliquet. Vestibulum feugiat est in justo condimentum, et faucibus tortor ultricies. Sed non magna in odio gravida eleifend. Vivamus laoreet eleifend dapibus. Etiam varius turpis nisi. Praesent imperdiet imperdiet arcu, ac tristique est vulputate et. Quisque commodo neque sit amet ante accumsan sodales. Phasellus tristique eros et ex aliquet, in feugiat urna facilisis. Aliquam scelerisque aliquam purus in pharetra. Nullam pulvinar libero at felis pretium, a rhoncus arcu volutpat. Mauris auctor ullamcorper leo, nec tincidunt dolor.\
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras rhoncus id leo quis varius. Donec ex leo, sollicitudin id purus a, vestibulum dictum neque. Sed dapibus lorem ut consequat hendrerit. Ut ac condimentum diam. Donec sed orci eget metus fringilla ornare id a lacus. Aliquam dapibus metus urna, et imperdiet tortor pretium eget. Nunc dignissim nibh et gravida consequat. Duis at diam augue. Nulla id dapibus magna. Phasellus urna turpis, iaculis eu augue vel, congue scelerisque ex. Duis nec purus sed magna molestie mattis. Donec et purus iaculis libero sollicitudin tempus. Pellentesque vel orci tincidunt, iaculis enim vel, interdum eros.";
+//        const char * mockuptext = "For all Duke fans who want to play the game again in a modern\nWindows environment with 3D accelerated graphics, the Duke 3D\ncommunity has created the High Resolution Pack (HRP).\n\nUtilizing the amazing skills of various texturing and modelling\nartists, the project's goal is to replace textures and sprites\nwith high-res versions, optimizing it for latest OpenGL ports.\nThis line be cutoff.\n\n\n\n This is hidden text, spooky aint it?";
+
+            addontextwrap(mockuptext, 64);
+
+
+            // description
+            G_ScreenText(MF_Minifont.tilenum, origin.x + (26<<16), origin.y + (144<<16) + m_addondesc_shift, MF_Minifont.zoom,
+                    0, 0, m_addondescbuf, 0, MF_Minifont.pal, g_textstat, 0,
+                    MF_Minifont.emptychar.x, MF_Minifont.emptychar.y, MF_Minifont.between.x,
+                    MF_Minifont.between.y, MF_Minifont.textflags, 0, (ydim * 23 / 32), xdim-1, (ydim * 15 / 16) -1);
+
+            // author
+            mminitext(origin.x + (54<<16), origin.y + (115<<16), m_addonauthorbuf, MF_Minifont.pal_selected_right);
+
+            // version
+            mminitext(origin.x + (58<<16), origin.y + (123<<16), m_addonversionbuf, MF_Minifont.pal_selected_right);
+        }
+
+        // display addon shot if found, else N/A
+        if (waloff[TILE_ADDONSHOT])
+            rotatesprite_fs(origin.x + (101<<16), origin.y + (97<<16), 65536>>1,512, TILE_ADDONSHOT, -32, 0, 4+10+64 );
+        else
+            menutext_centeralign(origin.x + (82<<16), origin.y + (86<<16), "N/A");
+
+        break;
+    }
 #ifdef EDUKE32_ANDROID_MENU
     case MENU_SKILL:
     {
@@ -3162,6 +3244,12 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
         else
             mgametextcenter(origin.x, origin.y + (90<<16), "No data found!");
 
+        break;
+
+    case MENU_ADDONSVERIFY:
+        videoFadeToBlack(1);
+        Bsprintf(tempbuf, "Load addon: \"%s\"?\nThis will restart the current game.",  "placeholder");
+        Menu_DrawVerifyPrompt(origin.x, origin.y, tempbuf, 2);
         break;
 
     case MENU_LOADVERIFY:
@@ -3581,6 +3669,9 @@ static void Menu_PreInput(MenuEntry_t *entry)
                 Menu_Change(MENU_LOADDELVERIFY);
         }
         break;
+    case MENU_ADDONS:
+        // stub
+        break;
     case MENU_SAVE:
         if (KB_KeyPressed(sc_Delete))
         {
@@ -3708,7 +3799,9 @@ static void Menu_EntryFocus(/*MenuEntry_t *entry*/)
                 G_LoadSaveHeaderNew(sv.path, &savehead);
         }
         break;
-
+    case MENU_ADDONS:
+        //stub
+        break;
     default:
         break;
     }
@@ -4549,6 +4642,13 @@ static void Menu_Verify(int32_t input)
         }
         break;
 
+    case MENU_ADDONSVERIFY:
+        if (input)
+        {
+            // stub
+            OSD_Printf("Addon loaded.");
+        }
+        break;
     case MENU_COLCORRRESETVERIFY:
         if (input)
         {
@@ -5027,6 +5127,44 @@ static void Menu_ReadSaveGameHeaders()
     // lexicographical sorting?
 }
 
+
+static void Menu_LoadAddonPackages()
+{
+    ReadSaveGameHeaders();
+
+    int const numloaditems = max<int>(g_nummenusaves, 1), numsaveitems = g_nummenusaves+1;
+    ME_LOAD = (MenuEntry_t *)Xrealloc(ME_LOAD, g_nummenusaves * sizeof(MenuEntry_t));
+    MEL_LOAD = (MenuEntry_t **)Xrealloc(MEL_LOAD, numloaditems * sizeof(MenuEntry_t *));
+    MEO_SAVE = (MenuString_t *)Xrealloc(MEO_SAVE, g_nummenusaves * sizeof(MenuString_t));
+    ME_SAVE = (MenuEntry_t *)Xrealloc(ME_SAVE, g_nummenusaves * sizeof(MenuEntry_t));
+    MEL_SAVE = (MenuEntry_t **)Xrealloc(MEL_SAVE, numsaveitems * sizeof(MenuEntry_t *));
+
+    MEL_SAVE[0] = &ME_SAVE_NEW;
+    ME_SAVE_NEW.name = s_NewSaveGame;
+    for (int i = 0; i < g_nummenusaves; ++i)
+    {
+        MEL_LOAD[i] = &ME_LOAD[i];
+        MEL_SAVE[i+1] = &ME_SAVE[i];
+        ME_LOAD[i] = ME_LOAD_TEMPLATE;
+        ME_SAVE[i] = ME_SAVE_TEMPLATE;
+        ME_SAVE[i].entry = &MEO_SAVE[i];
+        MEO_SAVE[i] = MEO_SAVE_TEMPLATE;
+
+        ME_LOAD[i].name = g_menusaves[i].brief.name;
+        MEO_SAVE[i].variable = g_menusaves[i].brief.name;
+    }
+
+    if (g_nummenusaves == 0)
+        MEL_LOAD[0] = &ME_LOAD_EMPTY;
+
+    M_LOAD.entrylist = MEL_LOAD;
+    M_LOAD.numEntries = numloaditems;
+    M_SAVE.entrylist = MEL_SAVE;
+    M_SAVE.numEntries = numsaveitems;
+
+    // lexicographical sorting?
+}
+
 static inline int Menu_IsEntryActive(MenuEntry_t const * pEntry)
 {
     return pEntry != nullptr && !(pEntry->flags & MEF_Hidden) && pEntry->type != Spacer;
@@ -5132,6 +5270,20 @@ static void Menu_AboutToStartDisplaying(Menu_t * m)
             G_DrawRooms(myconnectindex,65536);
             g_screenCapture = 0;
         }
+        break;
+
+    case MENU_ADDONS:
+        if (g_previousMenu == MENU_ADDONSVERIFY)
+            break;
+
+        //ME_ADDONS = (MenuEntry_t *)Xrealloc(ME_ADDONS, 1 * sizeof(MenuEntry_t));
+        MEL_ADDONS = (MenuEntry_t **)Xrealloc(MEL_ADDONS, 1 * sizeof(MenuEntry_t *));
+        MEL_ADDONS[0] = &ME_ADDONS_EMPTY;
+
+        M_ADDONS.entrylist = MEL_ADDONS;
+        M_ADDONS.numEntries = 1;
+
+        // stub
         break;
 
     case MENU_JOYSTICKSETUP:
@@ -5429,6 +5581,7 @@ static inline int32_t Menu_UpdateScreenOK(MenuID_t cm)
         case MENU_LOADDELVERIFY:
         case MENU_SAVEVERIFY:
         case MENU_SAVEDELVERIFY:
+        case MENU_ADDONS:
             return 0;
             break;
         default:
@@ -6609,6 +6762,7 @@ static void Menu_Recurse(MenuID_t cm, const vec2_t origin)
     case MENU_CHEATENTRY:
     case MENU_CHEAT_WARP:
     case MENU_CHEAT_SKILL:
+    case MENU_ADDONSVERIFY:
         Menu_Run(m_previousMenu, origin);
         break;
     default:
@@ -7888,14 +8042,22 @@ static void Menu_RunInput(Menu_t *cm)
                     KB_ClearKeyDown(sc_PgUp);
                     MOUSE_ClearButton(M_WHEELUP);
 
-                    menu->currentEntry -= 6;
+                    if (g_currentMenu == MENU_ADDONS)
+                    {
+                        if (m_addondesc_lbcount > 7)
+                            m_addondesc_shift = min(0, m_addondesc_shift + (4<<16));
+                    }
+                    else
+                    {
+                        menu->currentEntry -= 6;
 
-                    if (menu->currentEntry < 0)
-                        menu->currentEntry = 0;
+                        if (menu->currentEntry < 0)
+                            menu->currentEntry = 0;
 
-                    S_PlaySound(KICK_HIT);
+                        S_PlaySound(KICK_HIT);
 
-                    Menu_RunInput_Menu_MovementVerify(menu);
+                        Menu_RunInput_Menu_MovementVerify(menu);
+                    }
                 }
                 else if (KB_KeyPressed(sc_PgDn) || MOUSE_GetButtons() & M_WHEELDOWN)
                 {
@@ -7905,14 +8067,22 @@ static void Menu_RunInput(Menu_t *cm)
                     KB_ClearKeyDown(sc_PgDn);
                     MOUSE_ClearButton(M_WHEELDOWN);
 
-                    menu->currentEntry += 6;
+                    if (g_currentMenu == MENU_ADDONS)
+                    {
+                        if (m_addondesc_lbcount > 7)
+                            m_addondesc_shift = max((-m_addondesc_lbcount) * (6<<16), m_addondesc_shift - (4<<16));
+                    }
+                    else
+                    {
+                        menu->currentEntry += 6;
 
-                    if (menu->currentEntry > menu->numEntries - 1)
-                        menu->currentEntry = menu->numEntries - 1;
+                        if (menu->currentEntry > menu->numEntries - 1)
+                            menu->currentEntry = menu->numEntries - 1;
 
-                    S_PlaySound(KICK_HIT);
+                        S_PlaySound(KICK_HIT);
 
-                    Menu_RunInput_Menu_MovementVerify(menu);
+                        Menu_RunInput_Menu_MovementVerify(menu);
+                    }
                 }
                 else if (KB_KeyWaiting() && KB_KeyPressed(KB_GetLastScanCode()))
                 {

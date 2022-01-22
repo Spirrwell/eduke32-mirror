@@ -104,9 +104,10 @@ enum {
 #define TILE_LOADSHOT       (MAXTILES-3)
 #define TILE_TILT           (MAXTILES-2)
 #define TILE_ANIM           (MAXTILES-4)
-#define TILE_VIEWSCR        (MAXTILES-5)
-// Reserved: TILE_VIEWSCR_1 (MAXTILES-6)
-// Reserved: TILE_VIEWSCR_2 (MAXTILES-7)
+#define TILE_ADDONSHOT      (MAXTILES-5)
+#define TILE_VIEWSCR        (MAXTILES-6)
+// Reserved: TILE_VIEWSCR_1 (MAXTILES-7)
+// Reserved: TILE_VIEWSCR_2 (MAXTILES-8)
 // Reserved: (MAXTILES-8) to (MAXTILES-196) for additional Viewscreen tilespace
 EDUKE32_STATIC_ASSERT(4 + (3 * MAX_ACTIVE_VIEWSCREENS) <= MAXTILES-MAXUSERTILES);
 
