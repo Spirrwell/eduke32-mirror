@@ -1232,6 +1232,13 @@ static MenuEntry_t **MEL_SAVE;
 static int32_t m_addondesc_linecount = 0;
 static int32_t m_addondesc_shift = 0;
 
+static char m_addonmenu_defaulttitle[] = "HOW TO USE";
+static char m_addonmenu_defaultdesc[] = "\
+- Select addons to enable them, then confirm the selection.\n\n\
+- PgUp/PgDn/Mousewheel: Scroll addon description up/down.\n\n\
+- Shift + Arrow Keys: Change the load order of the addons.\n\n\
+";
+
 // addon/user content menu
 static MenuEntry_t **MEL_ADDONS;
 static MenuEntry_t *ME_ADDONS;
@@ -1239,7 +1246,7 @@ static int16_t * ADDONS_L2EMAP;
 
 static MenuLink_t MEO_ADDONS_ACCEPT = { MENU_ADDONSVERIFY, MA_None, };
 static MenuLink_t MEO_ADDONS_SELECT = { MENU_NULL, MA_None, };
-static MenuEntry_t ME_ADDONS_ACCEPT = MAKE_MENUENTRY( NULL, &MF_Minifont_ApplyAddon, &MEF_Addons, &MEO_ADDONS_ACCEPT, Link );
+static MenuEntry_t ME_ADDONS_ACCEPT = MAKE_MENUENTRY( "Confirm Selection and Restart", &MF_Minifont_ApplyAddon, &MEF_Addons, &MEO_ADDONS_ACCEPT, Link );
 static MenuEntry_t ME_ADDONS_ITEM = MAKE_MENUENTRY( NULL, &MF_Minifont, &MEF_Addons, &MEO_ADDONS_SELECT, Link );
 
 #ifdef __linux__
@@ -3214,6 +3221,18 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
         if (addonIndex < 0 || addonIndex > g_nummenuaddons)
         {
             mminitext(origin.x + (30<<16), origin.y + (119<<16), "Select addons to enable.", MF_Minifont.pal_deselected_right);
+
+            m_addondesc_linecount = 5;
+
+            G_ScreenText(MF_Bluefont.tilenum, origin.x + (26<<16), origin.y + (135<<16), (65536L >> 1) + (65536L >> 2),
+                        0, 0, m_addonmenu_defaulttitle, 0, MF_Bluefont.pal, g_textstat, 0,
+                        MF_Bluefont.emptychar.x, MF_Bluefont.emptychar.y, MF_Bluefont.between.x,
+                        MF_Bluefont.between.y, MF_Bluefont.textflags, 0, 0, xdim-1, ydim-1);
+
+            G_ScreenText(MF_Minifont.tilenum, origin.x + (26<<16), origin.y + (148<<16) + m_addondesc_shift, MF_Minifont.zoom,
+                    0, 0, m_addonmenu_defaultdesc, 0, MF_Minifont.pal, g_textstat, 0,
+                    MF_Minifont.emptychar.x, MF_Minifont.emptychar.y, MF_Minifont.between.x,
+                    MF_Minifont.between.y, MF_Minifont.textflags, 0, (ydim * 23 / 32), xdim-1, (ydim * 15 / 16) -1);
             break;
         }
 
@@ -3234,7 +3253,7 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
                             MF_Bluefont.between.y, MF_Bluefont.textflags, 0, 0, xdim-1, ydim-1);
 
                 // description
-                G_ScreenText(MF_Minifont.tilenum, origin.x + (26<<16), origin.y + (144<<16) + m_addondesc_shift, MF_Minifont.zoom,
+                G_ScreenText(MF_Minifont.tilenum, origin.x + (26<<16), origin.y + (148<<16) + m_addondesc_shift, MF_Minifont.zoom,
                         0, 0, madd.jsonDat.description, 0, MF_Minifont.pal, g_textstat, 0,
                         MF_Minifont.emptychar.x, MF_Minifont.emptychar.y, MF_Minifont.between.x,
                         MF_Minifont.between.y, MF_Minifont.textflags, 0, (ydim * 23 / 32), xdim-1, (ydim * 15 / 16) -1);
@@ -5246,7 +5265,6 @@ static void Menu_LoadAddonPackages()
     ADDONS_L2EMAP = (int16_t *) Xrealloc(ADDONS_L2EMAP, nummenuitems * sizeof(int16_t));
 
     MEL_ADDONS[0] = &ME_ADDONS_ACCEPT;
-    ME_ADDONS_ACCEPT.name = "Activate Selected Addons";
     MEL_ADDONS[1] = &ME_Space4_Redfont;
     ADDONS_L2EMAP[0] = ADDONS_L2EMAP[1] = -1;
 
