@@ -2548,6 +2548,7 @@ static void Menu_Pre(MenuID_t cm)
             ME_MAIN_NEWGAME.entry = &MEO_MAIN_NEWGAME;
             ME_MAIN_NEWGAME_INGAME.entry = &MEO_MAIN_NEWGAME_INGAME;
         }
+        MenuEntry_DisableOnCondition(&ME_MAIN_ADDONS, g_Shareware);
         break;
 
     case MENU_GAMESETUP:
