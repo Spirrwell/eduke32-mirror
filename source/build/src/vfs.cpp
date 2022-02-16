@@ -240,15 +240,23 @@ int32_t removesearchpath(const char *p)
         }
     }
 
+    size_t newmaxpathlen = 0;
+    for (srch = searchpathhead; srch; srch = srch->next)
+    {
+        if (srch->pathlen > newmaxpathlen)
+            newmaxpathlen = srch->pathlen;
+    }
+    maxsearchpathlen = newmaxpathlen;
+
     Xfree(path);
     return 0;
 }
 
 void removesearchpaths_withuser(int32_t usermask)
 {
-    searchpath_t *next;
+    searchpath_t *srch, *next;
 
-    for (searchpath_t *srch = searchpathhead; srch; srch = next)
+    for (srch = searchpathhead; srch; srch = next)
     {
         next = srch->next;
 
@@ -275,6 +283,14 @@ void removesearchpaths_withuser(int32_t usermask)
             Xfree(srch);
         }
     }
+
+    size_t newmaxpathlen = 0;
+    for (srch = searchpathhead; srch; srch = srch->next)
+    {
+        if (srch->pathlen > newmaxpathlen)
+            newmaxpathlen = srch->pathlen;
+    }
+    maxsearchpathlen = newmaxpathlen;
 }
 
 int32_t findfrompath(const char *fn, char **where)
