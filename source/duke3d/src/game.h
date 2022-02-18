@@ -107,6 +107,7 @@ enum LogoFlags_t : unsigned int {
     LOGO_HIDEEPISODE       = 0x01000000,
     LOGO_NOHELP            = 0x02000000,
     LOGO_NOCREDITS         = 0x04000000,
+    LOGO_NOADDONS          = 0x08000000,
 };
 
 enum {

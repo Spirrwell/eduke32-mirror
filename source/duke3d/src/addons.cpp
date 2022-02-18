@@ -659,6 +659,9 @@ static int32_t LoadWorkshopAddons(sjson_context* ctx)
 // into the menu addon storage
 int32_t ReadAddonPackageDescriptors(void)
 {
+    if (G_GetLogoFlags() & LOGO_NOADDONS)
+        return 0;
+
     // TODO: Need to devise a way to remember addons
     // create space for all potentially valid addons
     int32_t maxaddons = CountPotentialAddons();

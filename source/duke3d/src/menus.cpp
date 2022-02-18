@@ -2398,6 +2398,7 @@ void Menu_Init(void)
 #ifndef EDUKE32_RETAIL_MENU
     MenuEntry_HideOnCondition(&ME_MAIN_CREDITS, G_GetLogoFlags() & LOGO_NOCREDITS);
 #endif
+    MenuEntry_HideOnCondition(&ME_MAIN_ADDONS, G_GetLogoFlags() & LOGO_NOADDONS);
 
     // Duplicate the minifont for addons menu display purposes
     {
