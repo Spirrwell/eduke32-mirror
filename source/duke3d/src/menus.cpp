@@ -3217,7 +3217,7 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
             rotatesprite_fs(origin.x + (85<<16), origin.y + (109<<16), (65536L >> 1) + (65536L >> 2) + 1024,1024+512,WINDOWBORDER1,24,0,10);
         }
 
-        // no addons, display N/A, stop here
+        // If no addon selected, show instruction strings
         int32_t addonIndex = ADDONS_L2EMAP[M_ADDONS.currentEntry];
         if (addonIndex < 0 || addonIndex > g_nummenuaddons)
         {
@@ -3302,6 +3302,7 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
             else
                 menutext_centeralign(origin.x + (82<<16), origin.y + (86<<16), "N/A");
         }
+
         break;
     }
 #ifdef EDUKE32_ANDROID_MENU
@@ -7169,6 +7170,16 @@ static void Menu_Run(Menu_t *cm, const vec2_t origin)
 #if !defined EDUKE32_TOUCH_DEVICES
     Menu_Run_MouseReturn(cm, origin);
 #endif
+
+    // display loading text on a black background when rebooting (frozen frame)
+    if (g_bootState & (BOOTSTATE_REBOOT_ADDONS | BOOTSTATE_REBOOT_CLEAN))
+    {
+        videoClearScreen(0);
+        G_ScreenText(MF_Redfont.tilenum, origin.x + (105<<16), origin.y + (85<<16), (65536L + (65536L >> 2)),
+            0, 0, "LOADING...", 0, MF_Redfont.pal, g_textstat, 0,
+            MF_Redfont.emptychar.x, MF_Redfont.emptychar.y, MF_Redfont.between.x,
+            MF_Redfont.between.y, MF_Redfont.textflags, 0, 0, xdim-1, ydim-1);
+    }
 }
 
 /*
