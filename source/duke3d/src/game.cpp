@@ -6061,8 +6061,8 @@ static void G_SoftReboot(void)
     // if (g_noSound) ud.config.SoundToggle = 0;
     // if (g_noMusic) ud.config.MusicToggle = 0;
 
-    CONTROL_Shutdown();
-    KB_Shutdown();
+//    CONTROL_Shutdown();
+//    KB_Shutdown();
 
     // reset szPlayerName[l];
     // reset g_gametypeFlags
