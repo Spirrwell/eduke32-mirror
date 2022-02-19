@@ -500,7 +500,7 @@ static int32_t Addon_ParseJson(useraddon_t* addon, sjson_context* ctx, const cha
         jsonfil = kopen4load(json_path, 0);
         if (jsonfil == buildvfs_kfd_invalid)
         {
-            LOG_F(ERROR, "Could not find addon descriptor '%s' for addon: '%s'", json_path, addon->uniqueId);
+            DLOG_F(ERROR, "Could not find addon descriptor '%s' for addon: '%s'", json_path, addon->uniqueId);
             return -1;
         }
     }
@@ -511,7 +511,7 @@ static int32_t Addon_ParseJson(useraddon_t* addon, sjson_context* ctx, const cha
 
     if (kread_and_test(jsonfil, jsonTextBuf, len))
     {
-        LOG_F(ERROR, "Failed to read addon descriptor at: '%s'", json_path);
+        DLOG_F(ERROR, "Failed to read addon descriptor at: '%s'", json_path);
         Xfree(jsonTextBuf);
         kclose(jsonfil);
         return -1;
@@ -521,7 +521,7 @@ static int32_t Addon_ParseJson(useraddon_t* addon, sjson_context* ctx, const cha
     sjson_reset_context(ctx);
     if (!sjson_validate(ctx, jsonTextBuf))
     {
-        LOG_F(ERROR, "Invalid addon descriptor JSON structure for addon '%s'!", addon->uniqueId);
+        DLOG_F(ERROR, "Invalid addon descriptor JSON structure for addon '%s'!", addon->uniqueId);
         return -1;
     }
 
@@ -635,7 +635,7 @@ static int32_t Addon_ReadLocalPackages(sjson_context* ctx, fnlist_t* fnlist, con
             const int32_t grpfileidx = initgroupfile(package_path);
             if (grpfileidx == -1)
             {
-                LOG_F(ERROR, "Failed to open addon package at '%s'", package_path);
+                DLOG_F(ERROR, "Failed to open addon package at '%s'", package_path);
                 Addon_FreeAddonContents(&addon);
                 addon.loadtype = LT_INVALID;
                 continue;
