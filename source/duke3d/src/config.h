@@ -48,4 +48,7 @@ void CONFIG_MapKey(int which, kb_scancode key1, kb_scancode oldkey1, kb_scancode
 const char * CONFIG_GetGameFuncOnKeyboard(int gameFunc);
 const char * CONFIG_GetGameFuncOnJoystick(int gameFunc);
 
+int32_t CONFIG_GetAddonLoadOrder(char* addonIdentifier);
+void CONFIG_SetAddonLoadOrder(char* addonIdentifier, int32_t const loadOrder);
+
 #endif

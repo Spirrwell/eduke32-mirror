@@ -84,7 +84,6 @@ struct useraddon_t
     char menuentryname[MAXADDONTITLE];
     char data_path[BMAX_PATH];
 
-    addongame_t gametype;
     addonpackage_t loadtype;
     addonjson_t jsondat;
 

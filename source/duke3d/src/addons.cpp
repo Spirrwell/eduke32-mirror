@@ -22,7 +22,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include "duke3d.h"
 #include "addons.h"
-
+#include "config.h"
 #include "sjson.h"
 #include "colmatch.h"
 #include "kplib.h"
@@ -146,6 +146,17 @@ static bool Addon_CheckFilePresence(const char* filepath)
     bool loadsuccess = (jsonfil != buildvfs_kfd_invalid);
     kclose(jsonfil);
     return loadsuccess;
+}
+
+static char* Addon_IdentityFromString(const char* src, const int32_t srclen)
+{
+    int i = 0;
+    while (i < srclen && !isalpha(src[i])) i++;
+
+    if (i >= srclen)
+        return nullptr;
+    else
+        return Xstrdup(&src[i]);
 }
 
 // This function copies the given string into the text buffer and adds linebreaks at appropriate locations.
@@ -453,37 +464,35 @@ static int32_t Addon_ParseJson_RTSPath(useraddon_t* addon, sjson_node* root, con
     return 0;
 }
 
-static int32_t Addon_ParseJson_GameFlag(useraddon_t* addon, sjson_node* root, const char* key)
+static addongame_t Addon_ParseJson_GameFlag(useraddon_t* addon, sjson_node* root, const char* key)
 {
     sjson_node * ele = sjson_find_member_nocase(root, key);
     if (ele == nullptr)
-        return -1;
+        return BASEGAME_ANY;
 
     if (ele->tag != SJSON_STRING)
     {
         LOG_F(WARNING, "Provided game type of addon '%s' is not a string!", addon->uniqueId);
-        return -1;
+        return BASEGAME_ANY;
     }
 
     if (!Bstrncasecmp(ele->string_, jsonval_gt_any, ARRAY_SIZE(jsonval_gt_any)))
-        addon->gametype = BASEGAME_ANY;
+        return BASEGAME_ANY;
     else if (!Bstrncasecmp(ele->string_, jsonval_gt_duke, ARRAY_SIZE(jsonval_gt_duke)))
-        addon->gametype = BASEGAME_DUKE;
+        return BASEGAME_DUKE;
     else if (!Bstrncasecmp(ele->string_, jsonval_gt_fury, ARRAY_SIZE(jsonval_gt_fury)))
-        addon->gametype = BASEGAME_FURY;
+        return BASEGAME_FURY;
     else if (!Bstrncasecmp(ele->string_, jsonval_gt_ww2gi, ARRAY_SIZE(jsonval_gt_ww2gi)))
-        addon->gametype = BASEGAME_WW2GI;
+        return BASEGAME_WW2GI;
     else if (!Bstrncasecmp(ele->string_, jsonval_gt_nam, ARRAY_SIZE(jsonval_gt_nam)))
-        addon->gametype = BASEGAME_NAM;
+        return BASEGAME_NAM;
     else if (!Bstrncasecmp(ele->string_, jsonval_gt_nam_ww2gi, ARRAY_SIZE(jsonval_gt_nam_ww2gi)))
-        addon->gametype = BASEGAME_NAM_WW2GI;
+        return BASEGAME_NAM_WW2GI;
     else
     {
         LOG_F(WARNING, "Provided game type '%s' of '%s' is invalid!", ele->string_, addon->uniqueId);
-        return -1;
+        return BASEGAME_ANY;
     }
-
-    return 0;
 }
 
 // Load data from json file into addon -- assumes that addon ID has been defined!
@@ -528,9 +537,10 @@ static int32_t Addon_ParseJson(useraddon_t* addon, sjson_context* ctx, const cha
     sjson_node * root = sjson_decode(ctx, jsonTextBuf);
     Xfree(jsonTextBuf);
 
-    // base game type
-    if (Addon_ParseJson_GameFlag(addon, root, jsonkey_game))
-        addon->gametype = BASEGAME_ANY;
+    // if current gametype doesn't match expected gametype, discard addon
+    addongame_t exp_gametype = Addon_ParseJson_GameFlag(addon, root, jsonkey_game);
+    if (!(g_gameType & exp_gametype))
+        return -1;
 
     // load visual descriptors
     if (Addon_ParseJson_String(addon, root, jsonkey_title, addon->jsondat.title, MAXADDONTITLE))
@@ -616,10 +626,11 @@ static int32_t Addon_ReadLocalPackages(sjson_context* ctx, fnlist_t* fnlist, con
         for (rec=fnlist->findfiles; rec; rec=rec->next)
         {
             char package_path[BMAX_PATH];
-            Bsnprintf(package_path, BMAX_PATH, "%s/%s", addondir, rec->name);
+            int const nchar = Bsnprintf(package_path, BMAX_PATH, "%s/%s", addondir, rec->name);
 
             useraddon_t & addon = g_useraddons[g_numuseraddons];
-            addon.uniqueId = Xstrdup(package_path);
+            addon.uniqueId = Addon_IdentityFromString(package_path, nchar);
+
             Bstrncpy(addon.data_path, package_path, BMAX_PATH);
             addon.loadorder_idx = -1;
 
@@ -655,11 +666,6 @@ static int32_t Addon_ReadLocalPackages(sjson_context* ctx, fnlist_t* fnlist, con
             }
 
             Addon_PackageCleanup(grpfileidx);
-
-            // clean up based on game type
-            if (!(g_gameType & addon.gametype))
-                continue;
-
             ++g_numuseraddons;
         }
 
@@ -681,10 +687,11 @@ static int32_t Addon_ReadSubfolderAddons(sjson_context* ctx, fnlist_t* fnlist, c
         if (!strcmp(rec->name, "..")) continue;
 
         char basepath[BMAX_PATH];
-        Bsnprintf(basepath, BMAX_PATH, "%s/%s", addondir, rec->name);
+        int const nchar = Bsnprintf(basepath, BMAX_PATH, "%s/%s", addondir, rec->name);
 
         useraddon_t & addon = g_useraddons[g_numuseraddons];
-        addon.uniqueId = Xstrdup(basepath);
+        addon.uniqueId = Addon_IdentityFromString(basepath, nchar);
+
         Bstrncpy(addon.data_path, basepath, BMAX_PATH);
         addon.loadtype = LT_FOLDER;
         addon.loadorder_idx = -1;
@@ -695,10 +702,6 @@ static int32_t Addon_ReadSubfolderAddons(sjson_context* ctx, fnlist_t* fnlist, c
             addon.loadtype = LT_INVALID;
             continue;
         }
-
-        // clean up based on game type
-        if (!(g_gameType & addon.gametype))
-            continue;
 
         ++g_numuseraddons;
     }
@@ -714,22 +717,27 @@ static int32_t Addon_LoadWorkshopAddons(sjson_context* ctx)
     return 0;
 }
 
-static int32_t Addon_InitLoadOrderFromConfig()
+static int16_t Addon_InitLoadOrderFromConfig()
 {
     if (g_numuseraddons <= 0 || !g_useraddons)
         return -1;
 
-    int32_t i, cl, maxLoadOrder = 0;
-
-    // temp: get max load order
-    for (i = 0; i < g_numuseraddons; i++)
+    int16_t cl, maxLoadOrder = 0;
+    for (int i = 0; i < g_numuseraddons; i++)
     {
-        cl = g_useraddons[i].loadorder_idx + 1;
+        cl = CONFIG_GetAddonLoadOrder(g_useraddons[i].uniqueId);
+        g_useraddons[i].loadorder_idx = cl;
         if (cl > maxLoadOrder)
             maxLoadOrder = cl;
     }
 
-    return maxLoadOrder;
+    return maxLoadOrder + 1;
+}
+
+static void Addon_SaveLoadOrderToConfig()
+{
+    for (int i = 0; i < g_numuseraddons; i++)
+        CONFIG_SetAddonLoadOrder(g_useraddons[i].uniqueId, g_useraddons[i].loadorder_idx);
 }
 
 static void Addon_InitializeLoadOrder()
@@ -767,6 +775,8 @@ static void Addon_InitializeLoadOrder()
         }
     }
     Xfree(lobuf);
+
+    Addon_SaveLoadOrderToConfig();
 }
 
 int32_t Addon_ReadPackageDescriptors(void)
@@ -788,7 +798,9 @@ int32_t Addon_ReadPackageDescriptors(void)
         DLOG_F(INFO, "No custom addons detected.");
         return -1;
     }
+
     g_useraddons = (useraddon_t *)Xcalloc(maxaddons, sizeof(useraddon_t));
+    g_numuseraddons = 0;
 
     sjson_context * ctx = sjson_create_context(0, 0, nullptr);
     char * addonpathbuf = (char*) Xmalloc(BMAX_PATH);
@@ -846,6 +858,7 @@ void Addon_SwapLoadOrder(int32_t indexA, int32_t indexB)
 
     addonA.updateMenuEntryName();
     addonB.updateMenuEntryName();
+    Addon_SaveLoadOrderToConfig();
 }
 
 int32_t Addon_PrepareSelectedAddon(useraddon_t* addon)
