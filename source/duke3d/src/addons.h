@@ -50,11 +50,11 @@ enum addongame_t
 enum addonpackage_t
 {
     LT_INVALID = 0,
-    LT_ZIP,      // ZIP, PK3, PK4
-    LT_GRP,      // KenS GRP
-    LT_SSI,      // Sunstorm
-    LT_FOLDER,   // Local Subfolder
-    LT_WORKSHOP, // Workshop Folder
+    LT_ZIP = (1 << 0),      // ZIP, PK3, PK4
+    LT_GRP = (1 << 1),      // KenS GRP
+    LT_SSI = (1 << 2),      // Sunstorm
+    LT_FOLDER = (1 << 3),   // Local Subfolder
+    LT_WORKSHOP = (1 << 4), // Workshop Folder
 };
 
 struct addonjson_t

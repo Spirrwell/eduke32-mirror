@@ -501,12 +501,13 @@ static int32_t Addon_ParseJson(useraddon_t* addon, sjson_context* ctx, const cha
     char json_path[BMAX_PATH];
     Bsnprintf(json_path, BMAX_PATH, "%s/%s", basepath, addonjsonfn);
 
-    buildvfs_kfd jsonfil = kopen4load(json_path, 0);
+    const bool isgroup = addon->loadtype & (LT_ZIP | LT_GRP | LT_SSI);
+    buildvfs_kfd jsonfil = kopen4load(json_path, (isgroup ? 2 : 0));
     if (jsonfil == buildvfs_kfd_invalid)
     {
         // reduce extension from ".json" to ".jso"
         json_path[strlen(json_path) - 1] = '\0';
-        jsonfil = kopen4load(json_path, 0);
+        jsonfil = kopen4load(json_path, (isgroup ? 2 : 0));
         if (jsonfil == buildvfs_kfd_invalid)
         {
             DLOG_F(ERROR, "Could not find addon descriptor '%s' for addon: '%s'", json_path, addon->uniqueId);
