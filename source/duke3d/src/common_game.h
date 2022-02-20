@@ -75,7 +75,7 @@ enum searchpathtypes_t {
     SEARCHPATH_NAM    = 1<<1,
     SEARCHPATH_WW2GI  = 1<<2,
     SEARCHPATH_FURY   = 1<<3,
-    SEARCHPATH_ALL    = (1<<4) - 1,
+    SEARCHPATH_REBOOT = 1<<4, // remove on soft reboot
 };
 
 typedef enum basepal_ {
@@ -133,6 +133,8 @@ extern char g_modDir[BMAX_PATH];
 extern buildvfs_kfd kopen4loadfrommod(const char *filename, char searchfirst);
 extern void G_AddSearchPaths(void);
 extern void G_CleanupSearchPaths(void);
+extern void G_CleanupCommandPaths(void);
+extern void G_CleanupCommandGrps(void);
 
 extern void G_ExtPreInit(int32_t argc,char const * const * argv);
 extern void G_ExtInit(void);

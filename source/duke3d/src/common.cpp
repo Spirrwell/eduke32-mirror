@@ -244,6 +244,36 @@ int32_t g_groupFileHandle;
 
 static struct strllist *CommandPaths, *CommandGrps;
 
+void G_CleanupCommandPaths(void)
+{
+    if (CommandPaths)
+    {
+        struct strllist *s;
+        while (CommandPaths)
+        {
+            s = CommandPaths->next;
+            Xfree(CommandPaths->str);
+            Xfree(CommandPaths);
+            CommandPaths = s;
+        }
+    }
+}
+
+void G_CleanupCommandGrps(void)
+{
+    if (CommandGrps)
+    {
+        struct strllist *s;
+        while (CommandGrps)
+        {
+            s = CommandGrps->next;
+            Xfree(CommandGrps->str);
+            Xfree(CommandGrps);
+            CommandGrps = s;
+        }
+    }
+}
+
 void G_ExtPreInit(int32_t argc,char const * const * argv)
 {
     g_useCwd = G_CheckCmdSwitch(argc, argv, "-usecwd");
@@ -278,20 +308,31 @@ void G_ExtInit(void)
     if (CommandPaths)
     {
         int32_t i;
-        struct strllist *s;
-        while (CommandPaths)
+        struct strllist *temp, *prev = NULL;
+        struct strllist *cphead = CommandPaths;
+        while (cphead)
         {
-            s = CommandPaths->next;
-            i = addsearchpath(CommandPaths->str);
+            i = addsearchpath(cphead->str);
             if (i < 0)
             {
-                LOG_F(ERROR, "Unable to add data directory %s: %s", CommandPaths->str,
+                LOG_F(ERROR, "Unable to add data directory %s: %s", cphead->str,
                            i==-1 ? "not a directory" : "no such directory");
-            }
 
-            Xfree(CommandPaths->str);
-            Xfree(CommandPaths);
-            CommandPaths = s;
+                if (cphead == CommandPaths)
+                    CommandPaths = cphead->next;
+                else
+                    prev->next = cphead->next;
+
+                temp = cphead->next;
+                Xfree(cphead->str);
+                Xfree(cphead);
+                cphead = temp;
+            }
+            else
+            {
+                prev = cphead;
+                cphead = cphead->next;
+            }
         }
     }
 
@@ -398,8 +439,8 @@ void G_LoadGroups(int32_t autoload)
         char cwd[BMAX_PATH];
 
         Bstrcat(g_rootDir, g_modDir);
-        addsearchpath(g_rootDir);
-        //        addsearchpath(mod_dir);
+        addsearchpath_user(g_rootDir, SEARCHPATH_REBOOT);
+        //        addsearchpath_user(mod_dir, SEARCHPATH_REBOOT);
 
         char path[BMAX_PATH];
 
@@ -408,9 +449,9 @@ void G_LoadGroups(int32_t autoload)
             Bsnprintf(path, sizeof(path), "%s/%s", cwd, g_modDir);
             if (!Bstrcmp(g_rootDir, path))
             {
-                if (addsearchpath(path) == -2)
+                if (addsearchpath_user(path, SEARCHPATH_REBOOT) == -2)
                     if (buildvfs_mkdir(path, S_IRWXU) == 0)
-                        addsearchpath(path);
+                        addsearchpath_user(path, SEARCHPATH_REBOOT);
             }
         }
 
@@ -479,30 +520,41 @@ void G_LoadGroups(int32_t autoload)
 
     loaddefinitions_game(G_DefFile(), TRUE);
 
-    struct strllist *s;
-
     int const bakpathsearchmode = pathsearchmode;
     pathsearchmode = 1;
 
-    while (CommandGrps)
+    if (CommandGrps)
     {
         int32_t j;
-
-        s = CommandGrps->next;
-
-        if ((j = initgroupfile(CommandGrps->str)) == -1)
-            LOG_F(ERROR, "Unable to load %s: file not found.", CommandGrps->str);
-        else
+        struct strllist *temp, *prev = NULL;
+        struct strllist *cphead = CommandGrps;
+        while (cphead)
         {
-            g_groupFileHandle = j;
-            LOG_F(INFO, "Loaded %s", CommandGrps->str);
-            if (autoload)
-                G_DoAutoload(CommandGrps->str);
-        }
+            if ((j = initgroupfile(cphead->str)) == -1)
+            {
+                LOG_F(ERROR, "Unable to load %s: file not found.", cphead->str);
 
-        Xfree(CommandGrps->str);
-        Xfree(CommandGrps);
-        CommandGrps = s;
+                if (cphead == CommandGrps)
+                    CommandGrps = cphead->next;
+                else
+                    prev->next = cphead->next;
+
+                temp = cphead->next;
+                Xfree(cphead->str);
+                Xfree(cphead);
+                cphead = temp;
+            }
+            else
+            {
+                g_groupFileHandle = j;
+                LOG_F(INFO, "Loaded %s", cphead->str);
+                if (autoload)
+                    G_DoAutoload(cphead->str);
+
+                prev = cphead;
+                cphead = cphead->next;
+            }
+        }
     }
     pathsearchmode = bakpathsearchmode;
 }
@@ -550,7 +602,7 @@ static void Fury_Add_GOG_Linux(const char * path)
     char buf[BMAX_PATH];
 
     Bsnprintf(buf, sizeof(buf), "%s/game", path);
-    addsearchpath(buf);
+    addsearchpath_user(buf, SEARCHPATH_FURY);
 }
 #endif
 
@@ -867,12 +919,14 @@ void G_AddCon(const char *buffer)
 {
     clearScriptNamePtr();
     g_scriptNamePtr = dup_filename(buffer);
-    LOG_F(INFO, "Using CON file %s",g_scriptNamePtr);
+    LOG_F(INFO, "Using main CON file '%s'",g_scriptNamePtr);
 }
 
 void G_AddConModule(const char *buffer)
 {
-    g_scriptModules.append(Xstrdup(buffer));
+    char * dupbuf = Xstrdup(buffer);
+    g_scriptModules.append(dupbuf);
+    LOG_F(INFO, "Appending module CON file '%s'",dupbuf);
 }
 
 //////////

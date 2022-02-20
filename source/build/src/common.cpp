@@ -80,12 +80,14 @@ void G_AddDef(const char *buffer)
 {
     clearDefNamePtr();
     g_defNamePtr = dup_filename(buffer);
-    LOG_F(INFO, "Using .def file %s",g_defNamePtr);
+    LOG_F(INFO, "Using main .def file '%s'",g_defNamePtr);
 }
 
 void G_AddDefModule(const char *buffer)
 {
-    g_defModules.append(Xstrdup(buffer));
+    char* dupbuf = Xstrdup(buffer);
+    g_defModules.append(dupbuf);
+    LOG_F(INFO, "Appending module .def file '%s'",dupbuf);
 }
 
 #ifdef HAVE_CLIPSHAPE_FEATURE

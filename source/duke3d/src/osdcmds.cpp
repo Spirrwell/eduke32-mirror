@@ -709,7 +709,7 @@ static int osdcmd_addpath(osdcmdptr_t parm)
     if (parm->numparms != 1)
         return OSDCMD_SHOWHELP;
 
-    addsearchpath(parm->parms[0]);
+    addsearchpath_user(parm->parms[0], SEARCHPATH_REBOOT);
 
     return OSDCMD_OK;
 }

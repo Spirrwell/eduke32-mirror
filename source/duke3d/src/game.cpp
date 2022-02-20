@@ -5941,6 +5941,8 @@ static void G_FreeHashAnim(const char * /*string*/, intptr_t key)
     Xfree((void *)key);
 }
 
+static void G_FreeBackupValues(void);
+
 static void G_Cleanup(void)
 {
     int32_t i;
@@ -6011,6 +6013,10 @@ static void G_Cleanup(void)
 
     inthash_free(&h_dynamictilemap);
 
+    G_FreeBackupValues();
+    G_CleanupCommandPaths();
+    G_CleanupCommandGrps();
+
     Addon_FreePreviewHashTable();
     Addon_FreeUserAddons();
 
@@ -6024,6 +6030,119 @@ static void G_Cleanup(void)
 =
 ===================
 */
+
+static user_defs BACKUP_ud = {};
+
+static int BACKUP_g_noLogo = 0;
+static int BACKUP_g_useCwd = 0;
+static int BACKUP_g_addonNum = 0;
+static int BACKUP_g_gameType = 0;
+static int BACKUP_g_noAutoLoad = 0;
+static int BACKUP_g_rotatespriteNoWidescreen = 0;
+static int BACKUP_MAXCACHE1DSIZE = 0;
+static int BACKUP_g_forceWeaponChoice = 0;
+
+static char BACKUP_g_setupFileName[BMAX_PATH];
+static char BACKUP_g_modDir[BMAX_PATH];
+static char BACKUP_g_grpName[BMAX_PATH];
+static char BACKUP_g_scriptName[BMAX_PATH];
+static char BACKUP_g_defName[BMAX_PATH];
+static char BACKUP_g_rtsName[BMAX_PATH];
+
+GrowArray<char *> BACKUP_g_scriptModules;
+GrowArray<char *> BACKUP_g_defModules;
+
+static void G_FreeBackupValues(void)
+{
+    for (char * m : BACKUP_g_scriptModules) Xfree(m);
+    BACKUP_g_scriptModules.clear();
+
+    for (char * m : BACKUP_g_defModules) Xfree(m);
+    BACKUP_g_defModules.clear();
+}
+
+static void G_BackupStartupValues(void)
+{
+    // CommandGrps and CommandPaths do not need to be saved
+    G_FreeBackupValues();
+
+    BACKUP_ud = ud;
+
+    BACKUP_g_noLogo = g_noLogo;
+    BACKUP_g_useCwd = g_useCwd;
+    BACKUP_g_addonNum = g_addonNum;
+    BACKUP_g_gameType = g_gameType;
+    BACKUP_g_noAutoLoad = g_noAutoLoad;
+    BACKUP_g_rotatespriteNoWidescreen = g_rotatespriteNoWidescreen;
+    BACKUP_g_forceWeaponChoice = g_forceWeaponChoice;
+
+    BACKUP_MAXCACHE1DSIZE = MAXCACHE1DSIZE;
+
+    Bstrncpy(BACKUP_g_setupFileName, g_setupFileName, BMAX_PATH);
+    Bstrncpy(BACKUP_g_modDir, g_modDir, BMAX_PATH);
+
+    BACKUP_g_grpName[0] = '\0';
+    if (g_grpNamePtr) Bstrncpy(BACKUP_g_grpName, g_grpNamePtr, BMAX_PATH);
+
+    BACKUP_g_scriptName[0] = '\0';
+    if (g_scriptNamePtr) Bstrncpy(BACKUP_g_scriptName, g_scriptNamePtr, BMAX_PATH);
+
+    BACKUP_g_defName[0] = '\0';
+    if (g_defNamePtr) Bstrncpy(BACKUP_g_defName, g_defNamePtr, BMAX_PATH);
+
+    BACKUP_g_rtsName[0] = '\0';
+    if (g_rtsNamePtr) Bstrncpy(BACKUP_g_rtsName, g_rtsNamePtr, BMAX_PATH);
+
+    for (char * m : g_scriptModules)
+        BACKUP_g_scriptModules.append(Xstrdup(m));
+
+    for (char * m : g_defModules)
+        BACKUP_g_defModules.append(Xstrdup(m));
+}
+
+static void G_RestoreStartupValues(void)
+{
+    // CommandGrps and CommandPaths do not need to be restored
+    ud = BACKUP_ud;
+
+    g_noLogo = BACKUP_g_noLogo;
+    g_useCwd = BACKUP_g_useCwd;
+    g_addonNum = BACKUP_g_addonNum;
+    g_gameType = BACKUP_g_gameType;
+    g_noAutoLoad = BACKUP_g_noAutoLoad;
+    g_rotatespriteNoWidescreen = BACKUP_g_rotatespriteNoWidescreen;
+    g_forceWeaponChoice = BACKUP_g_forceWeaponChoice;
+
+    MAXCACHE1DSIZE = BACKUP_MAXCACHE1DSIZE;
+
+    Bstrcpy(g_modDir, BACKUP_g_modDir);
+    Bstrcpy(g_setupFileName, BACKUP_g_setupFileName);
+
+    // restore main GRP, CON, DEF and RTS files
+    if (g_grpNamePtr) DO_FREE_AND_NULL(g_grpNamePtr);
+    if (BACKUP_g_grpName[0]) g_grpNamePtr = dup_filename(BACKUP_g_grpName);
+
+    if (g_scriptNamePtr) DO_FREE_AND_NULL(g_scriptNamePtr);
+    if (BACKUP_g_scriptName[0]) g_scriptNamePtr = dup_filename(BACKUP_g_scriptName);
+
+    if (g_defNamePtr) DO_FREE_AND_NULL(g_defNamePtr);
+    if (BACKUP_g_defName[0]) g_defNamePtr = dup_filename(BACKUP_g_defName);
+
+    if (g_rtsNamePtr) DO_FREE_AND_NULL(g_rtsNamePtr);
+    if (BACKUP_g_rtsName[0]) g_rtsNamePtr = dup_filename(BACKUP_g_rtsName);
+
+    // restore con modules
+    for (char * m : g_scriptModules) Xfree(m);
+    g_scriptModules.clear();
+    for (char * m : BACKUP_g_scriptModules)
+        g_scriptModules.append(Xstrdup(m));
+
+    // restore def modules
+    for (char * m : g_defModules) Xfree(m);
+    g_defModules.clear();
+    for (char * m : BACKUP_g_defModules)
+        g_defModules.append(Xstrdup(m));
+}
 
 static void G_SoftReboot(void)
 {
@@ -6051,9 +6170,8 @@ static void G_SoftReboot(void)
     // TODO: tilefileoffs[i] = offscount; reset
 
     CONFIG_WriteSetup(1);
-    ud = {};
     g_maxDefinedSkill = 4;
-    ud.multimode = 1;
+    G_RestoreStartupValues();
     CONFIG_ReadSetup();
 
     S_SoundShutdown();
@@ -6061,8 +6179,8 @@ static void G_SoftReboot(void)
     // if (g_noSound) ud.config.SoundToggle = 0;
     // if (g_noMusic) ud.config.MusicToggle = 0;
 
-//    CONTROL_Shutdown();
-//    KB_Shutdown();
+    //   CONTROL_Shutdown();
+    //    KB_Shutdown();
 
     // reset szPlayerName[l];
     // reset g_gametypeFlags
@@ -6114,7 +6232,9 @@ static void G_SoftReboot(void)
     // scriptfile_clearsymbols();
     // MAXCACHE1DSIZE = (96*1024*1024);
     duke3d_globalflags = 0;
-    CommandMap = nullptr;
+    CommandName = NULL;
+    CommandMap = NULL;
+
     // note: by setting boardfilename, it's possible to directly start in a map
     boardfilename[0] = '\0';
 
@@ -6152,11 +6272,11 @@ static void G_SoftReboot(void)
     Bmemset(aGameVars, 0, ARRAY_SIZE(aGameVars) * sizeof(gamevar_t));
     Bmemset(aGameArrays, 0, ARRAY_SIZE(aGameArrays) * sizeof(gamearray_t));
 
-    for (i = 0; i < MAXPALOOKUPS; i++)
+/*    for (i = 0; i < MAXPALOOKUPS; i++)
         if (palookup[i])
             DO_FREE_AND_NULL(palookup[i]);
     Bmemset(g_noFloorPal, 0, ARRAY_SIZE(g_noFloorPal));
-
+*/
     // remapbuf needs to be reset
 
     /* TODO:
@@ -6194,7 +6314,6 @@ static void G_SoftReboot(void)
         hash_add(&h_gamefuncs,gamefunctions[i],i,0);
     }
 
-
     hash_loop(&h_dukeanim, G_FreeHashAnim);
     hash_free(&h_dukeanim);
     inthash_free(&h_dsound);
@@ -6211,8 +6330,7 @@ static void G_SoftReboot(void)
     // g_groupFileHandle (never used anywhere)
     // pathsearchmode = 1; // full access
     // pathsearchmode = 0; // local only
-    FreeGroups();
-    removesearchpaths_withuser(SEARCHPATH_ALL);
+    removesearchpaths_withuser(SEARCHPATH_REBOOT);
     uninitkzstack();
     uninitgroupfile();
 
@@ -6245,10 +6363,22 @@ static void G_SoftReboot(void)
     // TODO: OSD_Exec(autoexec.cfg) -- check console commands
     Bfflush(NULL);
 
-    g_scriptDebug = 0;
+    ud.warp_on = 0;    // no map warping on soft reboot
+    g_scriptDebug = 0; // no script debugging on soft reboot
+    ud.m_recstat = 0;  // do not record demos on soft reboot
+
+    // disable several multiplayer-specific stuff on soft reboot
     g_netServer = g_netClient = NULL;
     g_networkMode = NET_CLIENT;
     g_fakeMultiMode = 0;
+    ud.multimode = 1;
+    ud.playerai = 0;
+    ud.m_coop = ud.coop = 0;
+    ud.m_monsters_off = 0;
+    ud.m_marker = ud.marker = 0;
+    ud.m_respawn_monsters = ud.respawn_monsters = 0;
+    ud.m_respawn_items = ud.respawn_items = 0;
+    ud.m_respawn_inventory = ud.respawn_inventory = 0;
 }
 
 /*
@@ -6979,9 +7109,14 @@ int app_main(int argc, char const* const* argv)
     }
 #endif
 
+    G_BackupStartupValues();
+
 SOFT_REBOOT:
     if (g_bootState & (BOOTSTATE_REBOOT_ADDONS | BOOTSTATE_REBOOT_CLEAN))
         G_SoftReboot();
+
+    if (g_bootState & BOOTSTATE_REBOOT_ADDONS)
+        Addon_PrepareUserAddons();
 
     G_LoadGroups(!g_noAutoLoad && !ud.setup.noautoload);
 

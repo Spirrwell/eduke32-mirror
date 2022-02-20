@@ -39,11 +39,11 @@ extern "C" {
 
 enum addongame_t
 {
+    BASEGAME_NONE = 0,
     BASEGAME_ANY = GAMEFLAGMASK,
     BASEGAME_DUKE = GAMEFLAG_DUKE,
     BASEGAME_NAM = GAMEFLAG_NAM | GAMEFLAG_NAPALM,
     BASEGAME_WW2GI = GAMEFLAG_WW2GI,
-    BASEGAME_NAM_WW2GI = GAMEFLAG_NAM | GAMEFLAG_NAPALM | GAMEFLAG_WW2GI,
     BASEGAME_FURY = GAMEFLAG_FURY,
 };
 
@@ -94,6 +94,11 @@ struct useraddon_t
         Bsnprintf(menuentryname, MAXADDONTITLE, "%d: %s", loadorder_idx + 1, jsondat.title);
     }
 
+    bool isSelected()
+    {
+        return (status & 1) == 1;
+    }
+
     bool isValid()
     {
         return loadtype != LT_INVALID;
@@ -105,12 +110,11 @@ extern uint16_t g_numuseraddons;
 
 void Addon_FreePreviewHashTable(void);
 void Addon_FreeUserAddons(void);
+
 int32_t Addon_ReadPackageDescriptors(void);
 int32_t Addon_LoadPreviewTile(addonjson_t* mjsonStore);
 void Addon_SwapLoadOrder(int32_t indexA, int32_t indexB);
-
-int32_t Addon_PrepareSelectedAddon(useraddon_t* addon);
-int32_t Addon_StartSelectedAddons(void);
+int32_t Addon_PrepareUserAddons(void);
 
 #ifdef __cplusplus
 }

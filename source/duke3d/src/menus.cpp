@@ -4785,23 +4785,7 @@ static void Menu_Verify(int32_t input)
 
     case MENU_ADDONSVERIFY:
         if (input)
-        {
-            if (!ADDONS_L2EMAP) break;
-
-            // Menu list order obeys internal load order.
-            for (int i = 0; i < M_ADDONS.numEntries; i++)
-            {
-                const int32_t addonIndex = ADDONS_L2EMAP[M_ADDONS.currentEntry];
-
-                if (addonIndex < 0 || (!g_useraddons[addonIndex].isValid()))
-                    continue;
-
-                if (g_useraddons[addonIndex].status)
-                    Addon_PrepareSelectedAddon(&g_useraddons[addonIndex]);
-            }
-            Addon_StartSelectedAddons();
             g_bootState = BOOTSTATE_REBOOT_ADDONS;
-        }
         break;
     case MENU_COLCORRRESETVERIFY:
         if (input)

@@ -51,7 +51,6 @@ static const char jsonval_gt_any[] = "any";
 static const char jsonval_gt_duke[] = "duke3d";
 static const char jsonval_gt_nam[] = "nam";
 static const char jsonval_gt_ww2gi[] = "ww2gi";
-static const char jsonval_gt_nam_ww2gi[] = "nam_ww2gi";
 static const char jsonval_gt_fury[] = "fury";
 
 // script path values
@@ -473,7 +472,7 @@ static addongame_t Addon_ParseJson_GameFlag(useraddon_t* addon, sjson_node* root
     if (ele->tag != SJSON_STRING)
     {
         LOG_F(WARNING, "Provided game type of addon '%s' is not a string!", addon->uniqueId);
-        return BASEGAME_ANY;
+        return BASEGAME_NONE;
     }
 
     if (!Bstrncasecmp(ele->string_, jsonval_gt_any, ARRAY_SIZE(jsonval_gt_any)))
@@ -486,12 +485,10 @@ static addongame_t Addon_ParseJson_GameFlag(useraddon_t* addon, sjson_node* root
         return BASEGAME_WW2GI;
     else if (!Bstrncasecmp(ele->string_, jsonval_gt_nam, ARRAY_SIZE(jsonval_gt_nam)))
         return BASEGAME_NAM;
-    else if (!Bstrncasecmp(ele->string_, jsonval_gt_nam_ww2gi, ARRAY_SIZE(jsonval_gt_nam_ww2gi)))
-        return BASEGAME_NAM_WW2GI;
     else
     {
         LOG_F(WARNING, "Provided game type '%s' of '%s' is invalid!", ele->string_, addon->uniqueId);
-        return BASEGAME_ANY;
+        return BASEGAME_NONE;
     }
 }
 
@@ -739,7 +736,7 @@ static int16_t Addon_InitLoadOrderFromConfig()
     return maxLoadOrder + 1;
 }
 
-static void Addon_SaveStatusForAddon()
+static void Addon_SaveStatusForAddon(void)
 {
     for (int i = 0; i < g_numuseraddons; i++)
     {
@@ -748,13 +745,13 @@ static void Addon_SaveStatusForAddon()
     }
 }
 
-static void Addon_InitializeLoadOrder()
+static void Addon_InitializeLoadOrder(void)
 {
     int32_t i, cl, maxBufSize;
     if (g_numuseraddons <= 0 || !g_useraddons)
         return;
 
-    int maxLoadOrder = Addon_InitLoadOrderFromConfig();
+    int16_t maxLoadOrder = Addon_InitLoadOrderFromConfig();
 
     // allocate enough space for the case where all load order indices are duplicates
     maxBufSize = maxLoadOrder + g_numuseraddons;
@@ -783,7 +780,6 @@ static void Addon_InitializeLoadOrder()
         }
     }
     Xfree(lobuf);
-
     Addon_SaveStatusForAddon();
 }
 
@@ -791,6 +787,8 @@ int32_t Addon_ReadPackageDescriptors(void)
 {
     if (G_GetLogoFlags() & LOGO_NOADDONS)
         return 0;
+
+    LOG_F(INFO, "Loading addon descriptors and preview images...");
 
     // initialize hash table if it doesn't exist yet
     if (!h_addonpreviews.items)
@@ -869,50 +867,71 @@ void Addon_SwapLoadOrder(int32_t indexA, int32_t indexB)
     Addon_SaveStatusForAddon();
 }
 
-int32_t Addon_PrepareSelectedAddon(useraddon_t* addon)
+static int32_t Addon_LoadSelectedAddon(useraddon_t* addon)
 {
+    if (!addon->data_path[0])
+    {
+        LOG_F(ERROR, "No data path specified for addon: %s", addon->uniqueId);
+        return -1;
+    }
+
     switch (addon->loadtype)
     {
         case LT_FOLDER:
-        {
-            int32_t status = addsearchpath(addon->data_path);
-            DLOG_F(INFO, "Result of trying to add '%s': %d", addon->data_path, status);
+            addsearchpath_user(addon->data_path, SEARCHPATH_REBOOT);
             break;
-        }
         case LT_ZIP:
         case LT_SSI:
         case LT_GRP:
-            G_AddGroup(addon->data_path);
-            /*switch (seljson.addonType)
-            {
-                case ATYPE_MAIN:
-                    DLOG_F(INFO, "Previous main grp: %s", g_grpNamePtr);
-                    clearGrpNamePtr();
-                    g_grpNamePtr = dup_filename(seljson.dataPath);
-                    DLOG_F(INFO, "New main grp: %s", g_grpNamePtr);
-                    break;
-                case ATYPE_MODULE:
-                    G_AddGroup(seljson.dataPath);
-                    break;
-                default:
-                    return -1;
-            }*/
+            initgroupfile(addon->data_path);
             break;
-        default:
+        case LT_WORKSHOP:
+            //TODO:
+            break;
+        case LT_INVALID:
+            LOG_F(ERROR, "Invalid addon: %s", addon->uniqueId);
             return -1;
     }
 
     if (addon->jsondat.main_script_path[0])
         G_AddCon(addon->jsondat.main_script_path);
 
+    for (int i = 0; i < addon->jsondat.num_script_modules; i++)
+        G_AddConModule(addon->jsondat.script_modules[i]);
+
     if (addon->jsondat.main_def_path[0])
         G_AddDef(addon->jsondat.main_def_path);
+
+    for (int i = 0; i < addon->jsondat.num_def_modules; i++)
+        G_AddDefModule(addon->jsondat.def_modules[i]);
+
+    if (addon->jsondat.main_rts_path[0])
+    {
+        Bstrncpy(ud.rtsname, addon->jsondat.main_rts_path, MAXRTSNAME);
+        LOG_F(INFO, "Using RTS file: %s", ud.rtsname);
+    }
 
     return 0;
 }
 
-int32_t Addon_StartSelectedAddons(void)
+int32_t Addon_PrepareUserAddons(void)
 {
-    // addsearchpath(g_rootDir);
+    if (g_numuseraddons <= 0 || !g_useraddons)
+        return 0;
+
+    // assume that load order already sanitized
+    useraddon_t** lobuf = (useraddon_t**) Xcalloc(g_numuseraddons, sizeof(useraddon_t*));
+    for (int i = 0; i < g_numuseraddons; i++)
+        lobuf[g_useraddons[i].loadorder_idx] = &g_useraddons[i];
+
+    // addons in load order
+    for (int i = 0; i < g_numuseraddons; i++)
+    {
+        useraddon_t* addon = lobuf[i];
+        if (addon->isValid() && addon->isSelected())
+            Addon_LoadSelectedAddon(addon);
+    }
+
+    Xfree(lobuf);
     return 0;
 }
