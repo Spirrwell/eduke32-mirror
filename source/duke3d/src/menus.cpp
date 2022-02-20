@@ -4139,9 +4139,11 @@ static void Menu_EntryLinkActivate(MenuEntry_t *entry)
         {
             if (addonIndex >= 0 && addonIndex < g_numuseraddons)
             {
-                g_useraddons[addonIndex].selected = !g_useraddons[addonIndex].selected;
+                useraddon_t & addon = g_useraddons[addonIndex];
+                addon.status = !addon.status;
+                CONFIG_SetAddonStatus(addon.uniqueId, addon.status);
 
-                if (g_useraddons[addonIndex].selected)
+                if (g_useraddons[addonIndex].status)
                     ME_ADDONS[addonIndex].font = &MF_Minifont_SelectedAddon;
                 else
                     ME_ADDONS[addonIndex].font = &MF_Minifont;
@@ -4794,7 +4796,7 @@ static void Menu_Verify(int32_t input)
                 if (addonIndex < 0 || (!g_useraddons[addonIndex].isValid()))
                     continue;
 
-                if (g_useraddons[addonIndex].selected)
+                if (g_useraddons[addonIndex].status)
                     Addon_PrepareSelectedAddon(&g_useraddons[addonIndex]);
             }
             Addon_StartSelectedAddons();
@@ -5312,7 +5314,7 @@ static void Menu_LoadAddonPackages()
 
         ME_ADDONS[i] = ME_ADDONS_ITEM;
         ME_ADDONS[i].name = g_useraddons[i].menuentryname;
-        if (g_useraddons[i].selected)
+        if (g_useraddons[i].status)
             ME_ADDONS[i].font = &MF_Minifont_SelectedAddon;
     }
 

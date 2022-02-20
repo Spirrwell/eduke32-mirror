@@ -1127,14 +1127,26 @@ int CONFIG_SetMapBestTime(uint8_t const * const mapmd4, int32_t tm)
     return 0;
 }
 
-int32_t CONFIG_GetAddonLoadOrder(char* addonIdentifier)
+int32_t CONFIG_GetAddonStatus(const char* addonIdentifier)
+{
+    int32_t status = 0;
+    SCRIPT_GetNumber(ud.config.scripthandle, "Addon Status", addonIdentifier, &status);
+    return status;
+}
+
+int32_t CONFIG_GetAddonLoadOrder(const char* addonIdentifier)
 {
     int32_t loadOrder = -1;
     SCRIPT_GetNumber(ud.config.scripthandle, "Addon Load Order", addonIdentifier, &loadOrder);
     return loadOrder;
 }
 
-void CONFIG_SetAddonLoadOrder(char* addonIdentifier, int32_t const loadOrder)
+void CONFIG_SetAddonStatus(const char* addonIdentifier, int32_t const status)
+{
+    SCRIPT_PutNumber(ud.config.scripthandle, "Addon Status", addonIdentifier, status, FALSE, FALSE);
+}
+
+void CONFIG_SetAddonLoadOrder(const char* addonIdentifier, int32_t const loadOrder)
 {
     SCRIPT_PutNumber(ud.config.scripthandle, "Addon Load Order", addonIdentifier, loadOrder, FALSE, FALSE);
 }

@@ -67,7 +67,6 @@ struct addonjson_t
     char main_def_path[BMAX_PATH];
     char main_rts_path[BMAX_PATH];
 
-    uint32_t flags;
     int32_t desc_len, desc_linecnt;
     int32_t num_script_modules, num_def_modules;
 
@@ -87,8 +86,8 @@ struct useraddon_t
     addonpackage_t loadtype;
     addonjson_t jsondat;
 
+    int8_t status;
     int16_t loadorder_idx;
-    uint8_t selected;
 
     void updateMenuEntryName()
     {

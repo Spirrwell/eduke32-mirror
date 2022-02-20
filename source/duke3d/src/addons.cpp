@@ -634,6 +634,8 @@ static int32_t Addon_ReadLocalPackages(sjson_context* ctx, fnlist_t* fnlist, con
             Bstrncpy(addon.data_path, package_path, BMAX_PATH);
             addon.loadorder_idx = -1;
 
+            addon.status = (int8_t) CONFIG_GetAddonStatus(addon.uniqueId);
+
             // set initial file type based on extension
             if (!Bstrcmp(ext, grp_ext))
                 addon.loadtype = LT_GRP;
@@ -696,6 +698,8 @@ static int32_t Addon_ReadSubfolderAddons(sjson_context* ctx, fnlist_t* fnlist, c
         addon.loadtype = LT_FOLDER;
         addon.loadorder_idx = -1;
 
+        addon.status = (int8_t) CONFIG_GetAddonStatus(addon.uniqueId);
+
         if (Addon_ParseJson(&addon, ctx, basepath))
         {
             Addon_FreeAddonContents(&addon);
@@ -734,10 +738,13 @@ static int16_t Addon_InitLoadOrderFromConfig()
     return maxLoadOrder + 1;
 }
 
-static void Addon_SaveLoadOrderToConfig()
+static void Addon_SaveStatusForAddon()
 {
     for (int i = 0; i < g_numuseraddons; i++)
+    {
+        CONFIG_SetAddonStatus(g_useraddons[i].uniqueId, (int32_t) g_useraddons[i].status);
         CONFIG_SetAddonLoadOrder(g_useraddons[i].uniqueId, g_useraddons[i].loadorder_idx);
+    }
 }
 
 static void Addon_InitializeLoadOrder()
@@ -776,7 +783,7 @@ static void Addon_InitializeLoadOrder()
     }
     Xfree(lobuf);
 
-    Addon_SaveLoadOrderToConfig();
+    Addon_SaveStatusForAddon();
 }
 
 int32_t Addon_ReadPackageDescriptors(void)
@@ -858,7 +865,7 @@ void Addon_SwapLoadOrder(int32_t indexA, int32_t indexB)
 
     addonA.updateMenuEntryName();
     addonB.updateMenuEntryName();
-    Addon_SaveLoadOrderToConfig();
+    Addon_SaveStatusForAddon();
 }
 
 int32_t Addon_PrepareSelectedAddon(useraddon_t* addon)
