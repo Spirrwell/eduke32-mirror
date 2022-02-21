@@ -797,6 +797,14 @@ int32_t Addon_ReadPackageDescriptors(void)
     // free current storage (large data)
     Addon_FreeUserAddons();
 
+    char backup_cwd[BMAX_PATH];
+    buildvfs_getcwd(backup_cwd, BMAX_PATH);
+
+    // always load addons from same directory as binary, ignore %appdata%
+    char* appdir = Bgetappdir();
+    buildvfs_chdir(appdir);
+    Xfree(appdir);
+
     // create space for all potentially valid addons
     int32_t maxaddons = Addon_CountPotentialAddons();
     if (maxaddons <= 0)
@@ -821,6 +829,8 @@ int32_t Addon_ReadPackageDescriptors(void)
 
     Addon_LoadWorkshopAddons(ctx);
     sjson_destroy_context(ctx);
+
+    buildvfs_chdir(backup_cwd);
 
     if (g_numuseraddons <= 0)
     {
