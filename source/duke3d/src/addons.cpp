@@ -837,7 +837,7 @@ int32_t Addon_ReadPackageDescriptors(void)
 
 int32_t Addon_LoadPreviewTile(addonjson_t* mjsonStore)
 {
-    if (!mjsonStore->image_data[0])
+    if (!mjsonStore->image_data)
         return -1;
 
     walock[TILE_ADDONSHOT] = CACHE1D_PERMANENT;
