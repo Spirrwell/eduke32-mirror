@@ -153,6 +153,9 @@
     <ClInclude Include="..\..\source\duke3d\src\dnames.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\source\duke3d\src\addons.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\source\duke3d\src\actors.cpp">
@@ -255,6 +258,9 @@
       <Filter>Resource Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\source\duke3d\src\dnames.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\source\duke3d\src\addons.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -277,6 +277,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\..\source\duke3d\src\actors.h" />
+    <ClInclude Include="..\..\source\duke3d\src\addons.h" />
     <ClInclude Include="..\..\source\duke3d\src\android.h" />
     <ClInclude Include="..\..\source\duke3d\src\dnames.h" />
     <ClInclude Include="..\..\source\duke3d\src\gamestructures.h" />
@@ -326,6 +327,7 @@
   <ItemGroup>
     <ClCompile Include="..\..\source\duke3d\rsrc\eduke32_icon.c" />
     <ClCompile Include="..\..\source\duke3d\src\actors.cpp" />
+    <ClCompile Include="..\..\source\duke3d\src\addons.cpp" />
     <ClCompile Include="..\..\source\duke3d\src\anim.cpp" />
     <ClCompile Include="..\..\source\duke3d\src\cheats.cpp" />
     <ClCompile Include="..\..\source\duke3d\src\cmdline.cpp" />
