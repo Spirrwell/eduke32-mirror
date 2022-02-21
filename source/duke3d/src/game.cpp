@@ -6210,7 +6210,7 @@ static void G_SoftReboot(void)
     G_MaybeAllocPlayer(0);
 
     S_ClearSoundLocks();
-    for (native_t j = 0; j < 11; ++j)
+    for (i = 0; i < 11; ++i)
         rts_lumplockbyte[i] = CACHE1D_UNLOCKED;
 
 
