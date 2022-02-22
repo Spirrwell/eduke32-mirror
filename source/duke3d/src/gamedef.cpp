@@ -6515,6 +6515,14 @@ void C_Compile(const char *fileName)
 
     if (kFile == buildvfs_kfd_invalid) // JBF: was 0
     {
+        if (g_bootState & BOOTSTATE_REBOOT_ADDONS)
+        {
+            // retry with clean files
+            LOG_F(ERROR, "Unable to load addon CON %s: file not found.", fileName);
+            g_errorCnt++;
+            return;
+        }
+
         if (g_loadFromGroupOnly == 1 || numgroupfiles == 0)
         {
 #ifndef EDUKE32_STANDALONE
@@ -6529,13 +6537,6 @@ void C_Compile(const char *fileName)
         else
         {
             Bsprintf(tempbuf,"Unable to load %s: file not found.", fileName);
-            if (g_bootState & BOOTSTATE_REBOOT_ADDONS)
-            {
-                // retry with clean files
-                LOG_F(ERROR, tempbuf);
-                g_errorCnt++;
-                return;
-            }
             G_GameExit(tempbuf);
         }
 

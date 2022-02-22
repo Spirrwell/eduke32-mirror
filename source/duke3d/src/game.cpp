@@ -6429,7 +6429,7 @@ static void G_CompileScripts(void)
     if ((g_bootState & BOOTSTATE_REBOOT_ADDONS) && g_errorCnt)
     {
         // allocated memory is later freed by soft reboot process
-        LOG_F(ERROR, "Failed to compile CON code for selected addons, resetting to previous values...");
+        LOG_F(ERROR, "Failed to compile CON code for selected addons.");
         pathsearchmode = psm;
         return;
     }
