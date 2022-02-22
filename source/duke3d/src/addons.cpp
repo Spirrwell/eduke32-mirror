@@ -72,7 +72,7 @@ useraddon_t * g_useraddons = nullptr;
 uint16_t g_numuseraddons = 0;
 
 // local path for loading addons and json descriptor filenames
-static const char addon_dir[] = "./addons";
+static const char addon_dir[] = "addons";
 static const char addonjsonfn[] = "addon.json";
 
 // adjust for mod directory
@@ -81,7 +81,11 @@ static int32_t Addon_GetLocalDir(char * pathbuf, const int32_t buflen)
     if (g_modDir[0] != '/' || g_modDir[1] != 0)
         Bsnprintf(pathbuf, buflen, "%s/%s", g_modDir, addon_dir);
     else
-        Bstrncpy(pathbuf, addon_dir, buflen);
+    {
+        char* appdir = Bgetappdir();
+        Bsnprintf(pathbuf, buflen, "%s/%s", appdir, addon_dir);
+        Xfree(appdir);
+    }
 
     if (!buildvfs_isdir(pathbuf))
     {
@@ -800,10 +804,9 @@ int32_t Addon_ReadPackageDescriptors(void)
     char backup_cwd[BMAX_PATH];
     buildvfs_getcwd(backup_cwd, BMAX_PATH);
 
-    // always load addons from same directory as binary, ignore %appdata%
-    char* appdir = Bgetappdir();
-    buildvfs_chdir(appdir);
-    Xfree(appdir);
+    // use absolute paths to load addons
+    int const bakpathsearchmode = pathsearchmode;
+    pathsearchmode = 1;
 
     // create space for all potentially valid addons
     int32_t maxaddons = Addon_CountPotentialAddons();
@@ -830,7 +833,7 @@ int32_t Addon_ReadPackageDescriptors(void)
     Addon_LoadWorkshopAddons(ctx);
     sjson_destroy_context(ctx);
 
-    buildvfs_chdir(backup_cwd);
+    pathsearchmode = bakpathsearchmode;
 
     if (g_numuseraddons <= 0)
     {
@@ -893,7 +896,11 @@ static int32_t Addon_LoadSelectedAddon(useraddon_t* addon)
         case LT_ZIP:
         case LT_SSI:
         case LT_GRP:
-            initgroupfile(addon->data_path);
+            {
+            int const status = initgroupfile(addon->data_path);
+            if (status == -1)
+                LOG_F(ERROR, "failed to open addon group file: %s", addon->data_path);
+            }
             break;
         case LT_WORKSHOP:
             //TODO:
@@ -929,6 +936,10 @@ int32_t Addon_PrepareUserAddons(void)
     if (g_numuseraddons <= 0 || !g_useraddons)
         return 0;
 
+    // use absolute paths to load addons
+    int const bakpathsearchmode = pathsearchmode;
+    pathsearchmode = 1;
+
     // assume that load order already sanitized
     useraddon_t** lobuf = (useraddon_t**) Xcalloc(g_numuseraddons, sizeof(useraddon_t*));
     for (int i = 0; i < g_numuseraddons; i++)
@@ -941,6 +952,8 @@ int32_t Addon_PrepareUserAddons(void)
         if (addon->isValid() && addon->isSelected())
             Addon_LoadSelectedAddon(addon);
     }
+
+    pathsearchmode = bakpathsearchmode;
 
     Xfree(lobuf);
     return 0;
