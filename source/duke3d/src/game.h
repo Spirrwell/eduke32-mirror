@@ -157,6 +157,7 @@ typedef struct ud_setup_s {
     int32_t bpp;
     int32_t forcesetup;
     int32_t noautoload;
+    int32_t launchuseraddons;
 } ud_setup_t;
 
 typedef struct {

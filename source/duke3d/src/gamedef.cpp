@@ -1238,7 +1238,7 @@ static void C_GetNextLabelName(void)
     {
         g_errorCnt++;
         C_ReportError(ERROR_TOOMANYLABELS);
-        if (g_bootState & BOOTSTATE_REBOOT_ADDONS)
+        if (g_bootState & BOOTSTATE_ADDONS)
         {
             LOG_F(ERROR, "Reboot: too many labels defined!");
             return;
@@ -2536,7 +2536,7 @@ static bool C_ParseCommand(bool loop /*= false*/)
         if (EDUKE32_PREDICT_FALSE(g_errorCnt > 63 || (*textptr == '\0') || (*(textptr+1) == '\0')))
             return 1;
 
-        if (EDUKE32_PREDICT_FALSE((g_bootState & BOOTSTATE_REBOOT_ADDONS) && g_errorCnt > 0))
+        if (EDUKE32_PREDICT_FALSE((g_bootState & BOOTSTATE_ADDONS) && g_errorCnt > 0))
             return 1;
 
         if ((g_scriptPtr - apScript) > (g_scriptSize - 4096) && g_caseTablePtr == NULL)
@@ -6515,7 +6515,7 @@ void C_Compile(const char *fileName)
 
     if (kFile == buildvfs_kfd_invalid) // JBF: was 0
     {
-        if (g_bootState & BOOTSTATE_REBOOT_ADDONS)
+        if (g_bootState & BOOTSTATE_ADDONS)
         {
             // retry with clean files
             LOG_F(ERROR, "Unable to load addon CON %s: file not found.", fileName);
@@ -6531,7 +6531,7 @@ void C_Compile(const char *fileName)
                      "You must copy '%s' to your game directory before continuing!", gf, gf);
             G_GameExit(tempbuf);
 #else
-            G_GameExit();
+            G_GameExit("Required game data was not found!");
 #endif
         }
         else
@@ -6596,7 +6596,7 @@ void C_Compile(const char *fileName)
 
         if (g_errorCnt)
         {
-            if (g_bootState & BOOTSTATE_REBOOT_ADDONS)
+            if (g_bootState & BOOTSTATE_ADDONS)
             {
                 LOG_F(ERROR, "Failed to compile CON files when loading addons!");
                 return;

@@ -77,6 +77,7 @@ static struct
     GtkWidget *emptyhlayout;
     GtkWidget *autoloadcheck;
     GtkWidget *alwaysshowcheck;
+    GtkWidget *useraddonscheck;
     GtkWidget *configtab;
     GtkWidget *gamevlayout;
     GtkWidget *gamelabel;
@@ -202,6 +203,12 @@ static void on_alwaysshowcheck_toggled(GtkToggleButton *togglebutton, gpointer u
 {
     UNREFERENCED_PARAMETER(user_data);
     settings.shared.forcesetup = gtk_toggle_button_get_active(togglebutton);
+}
+
+static void on_useraddonscheck_toggled(GtkToggleButton *togglebutton, gpointer user_data)
+{
+    UNREFERENCED_PARAMETER(user_data);
+    settings.shared.launchuseraddons = gtk_toggle_button_get_active(togglebutton);
 }
 
 static void on_cancelbutton_clicked(GtkButton *button, gpointer user_data)
@@ -424,6 +431,7 @@ static void PopulateForm(unsigned char pgs)
 #endif
         gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(stwidgets.autoloadcheck), !settings.shared.noautoload);
         gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(stwidgets.alwaysshowcheck), settings.shared.forcesetup);
+        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(stwidgets.useraddonscheck), settings.shared.launchuseraddons);
     }
 
     if ((pgs == ALL) || (pgs == POPULATE_GAME))
@@ -601,6 +609,10 @@ static GtkWidget *create_window(void)
     stwidgets.alwaysshowcheck = gtk_check_button_new_with_mnemonic("_Always show this window at startup");
     gtk_table_attach(GTK_TABLE(stwidgets.configtlayout), stwidgets.alwaysshowcheck, 0,3, 5,6, GTK_FILL, (GtkAttachOptions)0, 2, 2);
 
+    // Launch mods on startup checkbox
+    stwidgets.useraddonscheck = gtk_check_button_new_with_mnemonic("_Launch previously selected user-addons on startup");
+    gtk_table_attach(GTK_TABLE(stwidgets.configtlayout), stwidgets.useraddonscheck, 0,3, 6,7, GTK_FILL, (GtkAttachOptions)0, 2, 2);
+
     // Configuration tab
     stwidgets.configtab = gtk_label_new("Configuration");
     gtk_notebook_set_tab_label(GTK_NOTEBOOK(stwidgets.tabs), gtk_notebook_get_nth_page(GTK_NOTEBOOK(stwidgets.tabs), 0), stwidgets.configtab);
@@ -736,6 +748,9 @@ static GtkWidget *create_window(void)
                      NULL);
     g_signal_connect((gpointer) stwidgets.alwaysshowcheck, "toggled",
                      G_CALLBACK(on_alwaysshowcheck_toggled),
+                     NULL);
+    g_signal_connect((gpointer) stwidgets.useraddonscheck, "toggled",
+                     G_CALLBACK(on_useraddonscheck_toggled),
                      NULL);
     g_signal_connect((gpointer) stwidgets.cancelbutton, "clicked",
                      G_CALLBACK(on_cancelbutton_clicked),

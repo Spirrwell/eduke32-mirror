@@ -250,6 +250,7 @@ void CONFIG_SetDefaults(void)
     ud.setup.noautoload       = 1;
     ud.setup.fullscreen       = 1;
     ud.setup.usemouse         = 1;
+    ud.setup.launchuseraddons = 0;
 
     ud.althud                 = 1;
     ud.auto_run               = 1;
@@ -744,6 +745,7 @@ int CONFIG_ReadSetup(void)
     SCRIPT_GetNumber(ud.config.scripthandle, "Setup", "ConfigVersion", &ud.configversion);
     SCRIPT_GetNumber(ud.config.scripthandle, "Setup", "ForceSetup", &ud.setup.forcesetup);
     SCRIPT_GetNumber(ud.config.scripthandle, "Setup", "NoAutoLoad", &ud.setup.noautoload);
+    SCRIPT_GetNumber(ud.config.scripthandle, "Setup", "LaunchUserAddons", &ud.setup.launchuseraddons);
 
     int32_t cachesize;
     SCRIPT_GetNumber(ud.config.scripthandle, "Setup", "CacheSize", &cachesize);
@@ -912,6 +914,7 @@ void CONFIG_WriteSetup(uint32_t flags)
     SCRIPT_PutNumber(ud.config.scripthandle, "Setup", "ConfigVersion", BYTEVERSION_EDUKE32, FALSE, FALSE);
     SCRIPT_PutNumber(ud.config.scripthandle, "Setup", "ForceSetup", ud.setup.forcesetup, FALSE, FALSE);
     SCRIPT_PutNumber(ud.config.scripthandle, "Setup", "NoAutoLoad", ud.setup.noautoload, FALSE, FALSE);
+    SCRIPT_PutNumber(ud.config.scripthandle, "Setup", "LaunchUserAddons", ud.setup.launchuseraddons, FALSE, FALSE);
 
 #ifdef POLYMER
     SCRIPT_PutNumber(ud.config.scripthandle, "Screen Setup", "Polymer", glrendmode == REND_POLYMER, FALSE, FALSE);

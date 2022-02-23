@@ -540,6 +540,7 @@ static int32_t Addon_ParseJson(useraddon_t* addon, sjson_context* ctx, const cha
     sjson_node * root = sjson_decode(ctx, jsonTextBuf);
     Xfree(jsonTextBuf);
 
+    // TODO: Needs to be reverted back to setting a flag on the struct, since gametype may not be initialized
     // if current gametype doesn't match expected gametype, discard addon
     addongame_t exp_gametype = Addon_ParseJson_GameFlag(addon, root, jsonkey_game);
     if (!(g_gameType & exp_gametype))
@@ -558,7 +559,7 @@ static int32_t Addon_ParseJson(useraddon_t* addon, sjson_context* ctx, const cha
     if (Addon_ParseJson_Description(addon, root, jsonkey_desc))
         Addon_AllocateDefaultDescription(addon);
 
-    // Load addon preview image
+    // TODO: palette may not be initialized, need to separate out
     // TODO: could load a default image using the return value
     Addon_ParseJson_PreviewImage(addon, root, jsonkey_image, basepath);
 
@@ -790,11 +791,6 @@ static void Addon_InitializeLoadOrder(void)
 
 int32_t Addon_ReadPackageDescriptors(void)
 {
-    if (G_GetLogoFlags() & LOGO_NOADDONS)
-        return 0;
-
-    LOG_F(INFO, "Loading addon descriptors and preview images...");
-
     // initialize hash table if it doesn't exist yet
     if (!h_addonpreviews.items)
         hash_init(&h_addonpreviews);

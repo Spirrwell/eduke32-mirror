@@ -971,7 +971,7 @@ nextdemo_nomenu:
         }
 
         // soft reboot initiated
-        if (g_bootState & (BOOTSTATE_REBOOT_ADDONS | BOOTSTATE_REBOOT_CLEAN))
+        if (g_bootState & BOOTSTATE_REBOOT)
             return 1;
     }
 

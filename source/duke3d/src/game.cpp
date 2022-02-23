@@ -6156,7 +6156,10 @@ static void G_SoftReboot(void)
     // g_clipMapFiles exists
 
     // reset caches
-    g_cache.reset();
+
+    if (g_cache.getIndex())
+        g_cache.reset();
+
     for (i = 0; i < MAXTILES; i++)
     {
         waloff[i] = 0;
@@ -6175,7 +6178,8 @@ static void G_SoftReboot(void)
     CONFIG_ReadSetup();
 
     S_SoundShutdown();
-    S_MusicShutdown();
+    if (MUSIC_WarmedUp())
+        S_MusicShutdown();
     // if (g_noSound) ud.config.SoundToggle = 0;
     // if (g_noMusic) ud.config.MusicToggle = 0;
 
@@ -6214,20 +6218,22 @@ static void G_SoftReboot(void)
         rts_lumplockbyte[i] = CACHE1D_UNLOCKED;
 
 
-    for (i = 0; i <= g_highestSoundIdx; i++)
+    if (g_sounds)
     {
-        if (g_sounds[i] != &nullsound)
+        for (i = 0; i <= g_highestSoundIdx; i++)
         {
-            DO_FREE_AND_NULL(g_sounds[i]->filename);
+            if (g_sounds[i] != &nullsound)
+            {
+                DO_FREE_AND_NULL(g_sounds[i]->filename);
 
-            if (g_sounds[i]->voices != &nullvoice)
-                DO_FREE_AND_NULL(g_sounds[i]->voices);
+                if (g_sounds[i]->voices != &nullvoice)
+                    DO_FREE_AND_NULL(g_sounds[i]->voices);
 
-            Xfree(g_sounds[i]);
-            g_sounds[i] = &nullsound;
+                Xfree(g_sounds[i]);
+                g_sounds[i] = &nullsound;
+            }
         }
     }
-
     // DEF
     // scriptfile_clearsymbols();
     // MAXCACHE1DSIZE = (96*1024*1024);
@@ -6426,7 +6432,7 @@ static void G_CompileScripts(void)
     pathsearchmode = 1;
 
     C_Compile(G_ConFile());
-    if ((g_bootState & BOOTSTATE_REBOOT_ADDONS) && g_errorCnt)
+    if ((g_bootState & BOOTSTATE_ADDONS) && g_errorCnt)
     {
         // allocated memory is later freed by soft reboot process
         LOG_F(ERROR, "Failed to compile CON code for selected addons.");
@@ -6440,9 +6446,9 @@ static void G_CompileScripts(void)
     // for safety
     if ((uint32_t)g_labelCnt >= MAXLABELS)
     {
-        if ((g_bootState & BOOTSTATE_REBOOT_ADDONS))
+        if ((g_bootState & BOOTSTATE_ADDONS))
         {
-            LOG_F(ERROR, "Too many labels defined when launching addons! Resetting to previous values...");
+            LOG_F(ERROR, "Too many labels defined when launching addons!");
             g_errorCnt++;
             pathsearchmode = psm;
             return;
@@ -6577,7 +6583,8 @@ static void G_Startup(void)
     initcrc32table();
 
     G_CompileScripts();
-    // TODO: not sure if to bail out here or later on error with addon restart
+    if ((g_bootState & BOOTSTATE_ADDONS) && g_errorCnt)
+        return;
 
     if (engineInit())
         G_FatalEngineInitError();
@@ -6652,16 +6659,21 @@ static void G_Startup(void)
         return;
     }
 
-    if ((g_bootState & BOOTSTATE_REBOOT_ADDONS) && g_errorCnt)
-        return;
-
     Net_GetPackets();
 
     if (numplayers > 1)
         VLOG_F(LOG_NET, "Multiplayer initialized.");
 
     if (artLoadFiles("tiles000.art",MAXCACHE1DSIZE) < 0)
+    {
+        if (g_bootState & BOOTSTATE_ADDONS)
+        {
+            LOG_F(ERROR, "Failed loading art when loading addons.");
+            g_errorCnt++;
+            return;
+        }
         G_GameExit("Failed loading art.");
+    }
 
     // Make the fullscreen nuke logo background non-fullbright.  Has to be
     // after dynamic tile remapping (from C_Compile) and loading tiles.
@@ -7096,7 +7108,6 @@ int app_main(int argc, char const* const* argv)
         LOG_F(INFO, "Using config file '%s'.",g_setupFileName);
 
     G_ScanGroups();
-    g_bootState = BOOTSTATE_NORMAL;
 
 #ifdef STARTUP_SETUP_WINDOW
     if (!Bgetenv("SteamTenfoot") && (readSetup < 0 || (!g_noSetup && (ud.configversion != BYTEVERSION_EDUKE32 || ud.setup.forcesetup)) || g_commandSetup))
@@ -7111,11 +7122,19 @@ int app_main(int argc, char const* const* argv)
 
     G_BackupStartupValues();
 
+    LOG_F(INFO, "Loading addon descriptors...");
+    Addon_ReadPackageDescriptors();
+
+    g_bootState = BOOTSTATE_INITIAL;
+
+    if (ud.setup.launchuseraddons)
+        g_bootState |= BOOTSTATE_ADDONS;
+
 SOFT_REBOOT:
-    if (g_bootState & (BOOTSTATE_REBOOT_ADDONS | BOOTSTATE_REBOOT_CLEAN))
+    if (g_bootState & BOOTSTATE_REBOOT)
         G_SoftReboot();
 
-    if (g_bootState & BOOTSTATE_REBOOT_ADDONS)
+    if (g_bootState & BOOTSTATE_ADDONS)
         Addon_PrepareUserAddons();
 
     G_LoadGroups(!g_noAutoLoad && !ud.setup.noautoload);
@@ -7184,10 +7203,10 @@ SOFT_REBOOT:
         G_MaybeAllocPlayer(i);
 
     G_Startup(); // a bunch of stuff including compiling cons
-    if ((g_bootState & BOOTSTATE_REBOOT_ADDONS)  && g_errorCnt)
+    if ((g_bootState & BOOTSTATE_ADDONS)  && g_errorCnt)
     {
         LOG_F(ERROR, "Failed to launch selected addons, resetting to previous values...");
-        g_bootState = BOOTSTATE_REBOOT_CLEAN;
+        g_bootState = BOOTSTATE_REBOOT;
         g_addonfailed = true;
         goto SOFT_REBOOT;
     }
@@ -7225,7 +7244,16 @@ SOFT_REBOOT:
     cacheAllSounds();
 
     if (enginePostInit())
+    {
+        if (g_bootState & BOOTSTATE_ADDONS)
+        {
+            LOG_F(ERROR, "Fatal engine error when attempting to launch addons, resetting to previous values...");
+            g_bootState = BOOTSTATE_REBOOT;
+            g_addonfailed = true;
+            goto SOFT_REBOOT;
+        }
         G_FatalEngineInitError();
+    }
 
     G_PostLoadPalette();
 
@@ -7253,7 +7281,7 @@ SOFT_REBOOT:
 
     g_mostConcurrentPlayers = ud.multimode;  // XXX: redundant?
 
-    if (g_bootState == BOOTSTATE_NORMAL)
+    if (g_bootState & BOOTSTATE_INITIAL)
         ++ud.executions;
     CONFIG_WriteSetup(1);
     CONFIG_ReadSetup();
@@ -7305,8 +7333,6 @@ SOFT_REBOOT:
     system_getcvars();
 
     if (quitevent) app_exit(4);
-
-    Addon_ReadPackageDescriptors();
 
     if (g_networkMode != NET_DEDICATED_SERVER && validmodecnt > 0)
     {
@@ -7388,7 +7414,7 @@ SOFT_REBOOT:
     dukeCreateFrameRoutine();
 
     VM_OnEvent(EVENT_INITCOMPLETE);
-    g_bootState = BOOTSTATE_NORMAL;
+    g_bootState = BOOTSTATE_NONE;
 
 MAIN_LOOP_RESTART:
     totalclock = 0;
@@ -7452,11 +7478,8 @@ MAIN_LOOP_RESTART:
                 if (G_PlaybackDemo())
                 {
                     FX_StopAllSounds();
-                    if (g_bootState & (BOOTSTATE_REBOOT_ADDONS | BOOTSTATE_REBOOT_CLEAN))
-                    {
-                        DLOG_F(INFO, "Reboot state %d requested, relaunching game...", g_bootState);
+                    if (g_bootState & BOOTSTATE_REBOOT)
                         goto SOFT_REBOOT;
-                    }
                     else
                     {
                         g_noLogoAnim = 1;

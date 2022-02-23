@@ -4814,7 +4814,7 @@ static void Menu_Verify(int32_t input)
         if (input)
         {
             g_addonfailed = false;
-            g_bootState = BOOTSTATE_REBOOT_ADDONS;
+            g_bootState = (BOOTSTATE_ADDONS | BOOTSTATE_REBOOT);
         }
         break;
     case MENU_COLCORRRESETVERIFY:
@@ -7213,7 +7213,7 @@ static void Menu_Run(Menu_t *cm, const vec2_t origin)
 #endif
 
     // display loading text on a black background when rebooting (frozen frame)
-    if (g_bootState & (BOOTSTATE_REBOOT_ADDONS | BOOTSTATE_REBOOT_CLEAN))
+    if (g_bootState & (BOOTSTATE_REBOOT | BOOTSTATE_ADDONS))
     {
         videoClearScreen(0);
         G_ScreenText(MF_Redfont.tilenum, origin.x + (105<<16), origin.y + (85<<16), (65536L + (65536L >> 2)),
