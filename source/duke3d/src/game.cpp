@@ -7188,6 +7188,7 @@ SOFT_REBOOT:
     {
         LOG_F(ERROR, "Failed to launch selected addons, resetting to previous values...");
         g_bootState = BOOTSTATE_REBOOT_CLEAN;
+        g_addonfailed = true;
         goto SOFT_REBOOT;
     }
 

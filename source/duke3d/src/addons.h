@@ -106,7 +106,8 @@ struct useraddon_t
 };
 
 extern useraddon_t * g_useraddons;
-extern uint16_t g_numuseraddons;
+extern int32_t g_numuseraddons;
+extern bool g_addonfailed;
 
 void Addon_FreePreviewHashTable(void);
 void Addon_FreeUserAddons(void);

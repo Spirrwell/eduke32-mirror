@@ -49,6 +49,9 @@ droidinput_t droidinput;
 #define MENU_MARGIN_CENTER  160
 #define MENU_HEIGHT_CENTER  100
 
+// common text shades
+#define MENU_GLOWSHADE (sintable[(timer120()<<4)&2047]>>11)
+
 #define USERMAPENTRYLENGTH 25
 
 static FORCE_INLINE void Menu_StartTextInput()
@@ -156,7 +159,7 @@ static void Menu_DrawTopBarCaption(const char *caption, const vec2_t origin)
 
 static FORCE_INLINE int32_t Menu_CursorShade(void)
 {
-    return VM_OnEventWithReturn(EVENT_MENUCURSORSHADE, -1, myconnectindex, 4-(sintable[(timer120()<<4)&2047]>>11));
+    return VM_OnEventWithReturn(EVENT_MENUCURSORSHADE, -1, myconnectindex, 4-(MENU_GLOWSHADE));
 }
 static void Menu_DrawCursorCommon(int32_t x, int32_t y, int32_t z, int32_t picnum, int32_t ydim_upper = 0, int32_t ydim_lower = ydim-1)
 {
@@ -2991,7 +2994,31 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
         {
             rotatesprite_fs(origin.x + (MENU_MARGIN_CENTER<<16), origin.y + ((28+l)<<16), 65536L,0,INGAMEDUKETHREEDEE,0,0,10);
             if (PLUTOPAK)   // JBF 20030804
-                rotatesprite_fs(origin.x + ((MENU_MARGIN_CENTER+100)<<16), origin.y + (36<<16), 65536L,0,PLUTOPAKSPRITE+2,(sintable[(timer120()<<4)&2047]>>11),0,2+8);
+                rotatesprite_fs(origin.x + ((MENU_MARGIN_CENTER+100)<<16), origin.y + (36<<16), 65536L,0,PLUTOPAKSPRITE+2,MENU_GLOWSHADE,0,2+8);
+        }
+
+        if (g_addonfailed)
+        {
+            if (FURY)
+            {
+                G_ScreenText(MF_Bluefont.tilenum, origin.x + (350<<16), origin.y + (206<<16),
+                                (int32_t) (MF_Bluefont.zoom * 1.4), 0, 0, "Failed to launch user content!",
+                                6-MENU_GLOWSHADE, 9 /*pal*/, g_textstat, 0,
+                                MF_Bluefont.emptychar.x, MF_Bluefont.emptychar.y,
+                                MF_Bluefont.between.x, MF_Bluefont.between.y,
+                                MF_Bluefont.textflags | TEXT_XRIGHT | TEXT_YCENTER,
+                                0, 0, xdim-1, ydim-1);
+            }
+            else
+            {
+                G_ScreenText(MF_Bluefont.tilenum, origin.x + (MENU_MARGIN_CENTER<<16), origin.y + (184<<16),
+                                MF_Bluefont.zoom, 0, 0, "Failed to launch addons!",
+                                6-MENU_GLOWSHADE, 2 /*pal*/, g_textstat, 0,
+                                MF_Bluefont.emptychar.x, MF_Bluefont.emptychar.y,
+                                MF_Bluefont.between.x, MF_Bluefont.between.y,
+                                MF_Bluefont.textflags | TEXT_XCENTER | TEXT_YCENTER,
+                                0, 0, xdim-1, ydim-1);
+            }
         }
         break;
 
@@ -4785,7 +4812,10 @@ static void Menu_Verify(int32_t input)
 
     case MENU_ADDONSVERIFY:
         if (input)
+        {
+            g_addonfailed = false;
             g_bootState = BOOTSTATE_REBOOT_ADDONS;
+        }
         break;
     case MENU_COLCORRRESETVERIFY:
         if (input)

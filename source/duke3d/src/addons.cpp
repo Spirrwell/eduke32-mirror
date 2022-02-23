@@ -63,13 +63,14 @@ static const char default_author[] = "N/A";
 static const char default_version[] = "N/A";
 static const char default_description[] = "--Empty Description--";
 
-// hashtable for images
+// hashtables (only free on shutdown)
 hashtable_t h_addonpreviews = { 1024, NULL };
 // hashtable_t h_addondescriptions = { 1024, NULL };
 
 // extern vars, tracks the currently loaded addons
 useraddon_t * g_useraddons = nullptr;
-uint16_t g_numuseraddons = 0;
+int32_t g_numuseraddons = 0;
+bool g_addonfailed = false;
 
 // local path for loading addons and json descriptor filenames
 static const char addon_dir[] = "addons";
