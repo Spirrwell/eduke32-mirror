@@ -71,7 +71,7 @@ int32_t Addon_LoadPreviewTile(useraddon_t* addon)
     return 0;
 }
 
-int32_t Addon_LoadSelectedGrpFileAddon(void)
+int32_t Addon_LoadSelectedGrpInfoAddon(void)
 {
     //stub
     return 0;

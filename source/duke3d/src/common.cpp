@@ -464,10 +464,8 @@ void G_LoadGroups(int32_t autoload)
 
     if (g_addonNum)
         G_LoadAddon();
-
-    // load addon selected in menu
-    if (g_useraddons && g_numuseraddons > 0)
-        Addon_LoadSelectedGrpFileAddon();
+    else if (g_useraddons && g_numuseraddons > 0)
+        Addon_LoadSelectedGrpInfoAddon();
 
     const char *grpfile;
     int32_t i;

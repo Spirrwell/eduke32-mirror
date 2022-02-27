@@ -504,6 +504,15 @@ static void Addon_PackageCleanup(int32_t grpfileidx)
 static int32_t Addon_CountPotentialAddons(void)
 {
     int32_t numaddons = 0;
+
+    for (grpfile_t *grp = foundgrps; grp; grp=grp->next)
+    {
+        if (grp->type->game & GAMEFLAG_ADDON)
+        {
+            numaddons++; 
+        }
+    }
+
     char * addonpathbuf = (char*) Xmalloc(BMAX_PATH);
 
     if (!Addon_GetLocalDir(addonpathbuf, BMAX_PATH))
@@ -635,12 +644,12 @@ static int32_t Addon_ReadSubfolderAddons(sjson_context* ctx, fnlist_t* fnlist, c
     return 0;
 }
 
-#ifndef EDUKE32_STANDALONE
-static void Addon_DukeAddon_GetAuthor(useraddon_t * addon, grpfile_t * agrpf)
+static void Addon_GrpInfo_GetAuthor(useraddon_t * addon, grpfile_t * agrpf)
 {
-    const char* author = default_author;
+    const char* author;
     switch (agrpf->type->crcval)
     {
+#ifndef EDUKE32_STANDALONE
         case DUKEDC13_CRC:
         case DUKEDCPP_CRC:
         case DUKEDC_CRC:
@@ -663,15 +672,20 @@ static void Addon_DukeAddon_GetAuthor(useraddon_t * addon, grpfile_t * agrpf)
         case PENTP_ZOOM_CRC:
             author = "Intersphere Communications, Ltd. and Tyler Matthews";
             break;
+#endif
+        default:
+            author = default_author; // TODO: need storage for author
+            break;
     }
     Bstrncpy(addon->jsondat.author, author, MAXADDONAUTHOR);
 }
 
-static void Addon_DukeAddon_GetDescription(useraddon_t * addon, grpfile_t * agrpf)
+static void Addon_GrpInfo_GetDescription(useraddon_t * addon, grpfile_t * agrpf)
 {
-    const char* desc = default_description;
+    const char* desc;
     switch (agrpf->type->crcval)
     {
+#ifndef EDUKE32_STANDALONE
         case DUKEDC13_CRC:
         case DUKEDCPP_CRC:
         case DUKEDC_CRC:
@@ -698,6 +712,10 @@ static void Addon_DukeAddon_GetDescription(useraddon_t * addon, grpfile_t * agrp
         case PENTP_ZOOM_CRC:
             desc = "Penthouse Paradise Description, TODO";
             break;
+#endif
+        default:
+            desc = default_description;
+            break;
     }
     int const desclen = strlen(desc) + 1;
     addon->jsondat.description = (char *) Xmalloc(desclen);
@@ -705,33 +723,40 @@ static void Addon_DukeAddon_GetDescription(useraddon_t * addon, grpfile_t * agrp
     addon->jsondat.desc_len = desclen;
 }
 
-static void Addon_DukeAddon_FakeJson(useraddon_t * addon, grpfile_t * agrpf)
-{
-    addon->uniqueId = Xstrdup(agrpf->type->name);
+static void Addon_GrpInfo_FakeJson(useraddon_t * addon, grpfile_t * agrpf)
+{ 
+
     Bstrncpy(addon->jsondat.title, agrpf->type->name, MAXADDONTITLE);
-    Bsnprintf(addon->jsondat.version, MAXADDONVERSION, "%d", agrpf->type->crcval);
-    Addon_DukeAddon_GetAuthor(addon, agrpf);
-    Addon_DukeAddon_GetDescription(addon, agrpf);
+    Bsnprintf(addon->jsondat.version, MAXADDONVERSION, "%x", agrpf->type->crcval);
+    Addon_GrpInfo_GetAuthor(addon, agrpf);
+    Addon_GrpInfo_GetDescription(addon, agrpf);
 }
 
-static void Addon_LoadDukeAddons(void)
+static void Addon_LoadGrpInfoAddons(void)
 {
     for (grpfile_t *grp = foundgrps; grp; grp=grp->next)
     {
         if (grp->type->game & GAMEFLAG_ADDON)
         {
             useraddon_t & addon = g_useraddons[g_numuseraddons];
+            char* gId = Xstrdup(grp->type->name);
+            for (int i = 0; gId[i]; i++) if (isspace(gId[i])) gId[i] = '_';
+            addon.uniqueId = gId;
 
             addon.flags |= ADDFLAG_GRPFILE;
+            if (CONFIG_GetAddonActivationStatus(addon.uniqueId))
+                addon.flags |= ADDFLAG_SELECTED;
+
             addon.grpfile = grp;
             addon.loadtype = LT_INTERNAL;
             addon.gametype = (addongame_t) grp->type->game;
-            Addon_DukeAddon_FakeJson(&addon, grp);
+
+            Addon_GrpInfo_FakeJson(&addon, grp);
+
             g_numuseraddons++;
         }
     }
 }
-#endif
 
 static int32_t Addon_LoadWorkshopAddons(sjson_context* ctx)
 {
@@ -839,9 +864,7 @@ int32_t Addon_ReadPackageDescriptors(void)
     g_useraddons = (useraddon_t *)Xcalloc(maxaddons, sizeof(useraddon_t));
     g_numuseraddons = 0;
 
-#ifndef EDUKE32_STANDALONE
-    Addon_LoadDukeAddons();
-#endif
+    Addon_LoadGrpInfoAddons();
 
     sjson_context * ctx = sjson_create_context(0, 0, nullptr);
     char * addonpathbuf = (char*) Xmalloc(BMAX_PATH);
@@ -866,7 +889,7 @@ int32_t Addon_ReadPackageDescriptors(void)
         return -1;
     }
 
-    g_useraddons = (useraddon_t *)Xrealloc(g_useraddons, sizeof(useraddon_t) * g_numuseraddons);
+    g_useraddons = (useraddon_t *)Xrealloc(g_useraddons, g_numuseraddons * sizeof(useraddon_t));
     return 0;
 }
 
@@ -1026,18 +1049,28 @@ void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB)
     Addon_SaveConfig();
 }
 
-int32_t Addon_LoadSelectedGrpFileAddon(void)
+int32_t Addon_LoadSelectedGrpInfoAddon(void)
 {
+    // skip
     if (!(g_bootState & BOOTSTATE_ADDONS) || g_numuseraddons <= 0 || !g_useraddons)
         return 0;
+
+    // do not load grpinfo files on first boot
+    if ((g_bootState & BOOTSTATE_INITIAL))
+        return 1;
 
     // addons in load order
     for (int i = 0; i < g_numuseraddons; i++)
     {
         useraddon_t & addon = g_useraddons[i];
-        if (addon.isValid() && addon.isDukeAddon() && addon.isSelected()
+        if (addon.isValid() && addon.isGrpInfoAddon() && addon.isSelected()
             && (addon.gametype & g_selectedGrp->type->game))
         {
+            if (!addon.grpfile)
+            {
+                LOG_F(ERROR, "No grp specified for addon: '%s'", addon.uniqueId);
+                continue;
+            }
             g_selectedGrp = addon.grpfile;
             break; // only a single file should be loaded, so we break here
         }
@@ -1112,7 +1145,7 @@ int32_t Addon_PrepareUserAddons(void)
     for (int i = 0; i < g_numuseraddons; i++)
     {
         useraddon_t* addon = lobuf[i];
-        if (addon->isValid() && !addon->isDukeAddon() && addon->isSelected() && (addon->gametype & g_gameType))
+        if (addon->isValid() && !addon->isGrpInfoAddon() && addon->isSelected() && (addon->gametype & g_gameType))
             Addon_LoadSelectedUserAddon(addon);
     }
 

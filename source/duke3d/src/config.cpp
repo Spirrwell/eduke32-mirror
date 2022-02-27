@@ -1133,7 +1133,7 @@ int CONFIG_SetMapBestTime(uint8_t const * const mapmd4, int32_t tm)
 int32_t CONFIG_GetAddonActivationStatus(const char* addonIdentifier)
 {
     int32_t status = 0;
-    SCRIPT_GetBoolean(ud.config.scripthandle, "Addon Status", addonIdentifier, &status);
+    SCRIPT_GetBoolean(ud.config.scripthandle, "Active Addons", addonIdentifier, &status);
     return status;
 }
 

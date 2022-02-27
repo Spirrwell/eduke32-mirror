@@ -6031,6 +6031,8 @@ static void G_Cleanup(void)
 ===================
 */
 
+static const grpfile_t * BACKUP_g_selectedGrp;
+
 static user_defs BACKUP_ud = {};
 
 static int BACKUP_g_noLogo = 0;
@@ -6065,6 +6067,8 @@ static void G_BackupStartupValues(void)
 {
     // CommandGrps and CommandPaths do not need to be saved
     G_FreeBackupValues();
+    
+    BACKUP_g_selectedGrp = g_selectedGrp;
 
     BACKUP_ud = ud;
 
@@ -6103,6 +6107,8 @@ static void G_BackupStartupValues(void)
 static void G_RestoreStartupValues(void)
 {
     // CommandGrps and CommandPaths do not need to be restored
+    g_selectedGrp = BACKUP_g_selectedGrp;
+    
     ud = BACKUP_ud;
 
     g_noLogo = BACKUP_g_noLogo;
@@ -6336,14 +6342,13 @@ static void G_SoftReboot(void)
     // g_groupFileHandle (never used anywhere)
     // pathsearchmode = 1; // full access
     // pathsearchmode = 0; // local only
-    removesearchpaths_withuser(SEARCHPATH_REBOOT);
+    removesearchpaths_withuser(SEARCHPATH_REBOOT | SEARCHPATH_REMOVE | SEARCHPATH_NAM | SEARCHPATH_WW2GI | SEARCHPATH_FURY);
     uninitkzstack();
     uninitgroupfile();
 
     // to reset:
     // g_rootDir, g_modDir, cwd
 
-    //g_selectedGrp = NULL;
     //DO_FREE_AND_NULL(g_grpNamePtr);
     //DO_FREE_AND_NULL(g_scriptNamePtr);
     //DO_FREE_AND_NULL(g_rtsNamePtr);
@@ -7132,7 +7137,11 @@ int app_main(int argc, char const* const* argv)
 
 SOFT_REBOOT:
     if (g_bootState & BOOTSTATE_REBOOT)
+    {
         G_SoftReboot();
+        if (!g_useCwd)
+            G_AddSearchPaths();
+    }
 
     G_LoadGroups(!g_noAutoLoad && !ud.setup.noautoload);
 

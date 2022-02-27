@@ -2424,8 +2424,8 @@ void Menu_Init(void)
         }
         else
         {
-            MF_Minifont_AddonEntry.zoom = (4096*12);
-            MF_Minifont_ApplyAddon.zoom = (4096*13);
+            MF_Minifont_AddonEntry.zoom = (4096*11);
+            MF_Minifont_ApplyAddon.zoom = (4096*12);
             MF_Minifont_SelectedAddon = MF_Minifont_AddonEntry;
 
             MF_Minifont_SelectedAddon.pal_selected = 8;

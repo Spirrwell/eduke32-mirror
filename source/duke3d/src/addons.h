@@ -109,7 +109,7 @@ struct useraddon_t
         return (flags & 1) != 0;
     }
 
-    bool isDukeAddon()
+    bool isGrpInfoAddon()
     {
         return (flags & 2) != 0;
     }
@@ -135,7 +135,7 @@ int32_t Addon_ReadPackageDescriptors(void);
 int32_t Addon_PruneInvalidAddons(void);
 int32_t Addon_CachePreviewImages(void);
 int32_t Addon_LoadPreviewTile(useraddon_t* addon);
-int32_t Addon_LoadSelectedGrpFileAddon(void);
+int32_t Addon_LoadSelectedGrpInfoAddon(void);
 int32_t Addon_PrepareUserAddons(void);
 
 #ifdef __cplusplus
