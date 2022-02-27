@@ -49,7 +49,7 @@ int32_t Addon_ReadPackageDescriptors(void)
 
 void Addon_InitializeLoadOrder(void)
 {
-
+    //stub
 }
 
 int32_t Addon_PruneInvalidAddons(void)
@@ -68,6 +68,12 @@ int32_t Addon_LoadPreviewTile(useraddon_t* addon)
 {
     // stub
     UNREFERENCED_PARAMETER(addon);
+    return 0;
+}
+
+int32_t Addon_LoadSelectedGrpFileAddon(void)
+{
+    //stub
     return 0;
 }
 

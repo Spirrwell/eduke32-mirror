@@ -53,6 +53,13 @@ enum addonpackage_t
     LT_SSI = (1 << 2),      // Sunstorm
     LT_FOLDER = (1 << 3),   // Local Subfolder
     LT_WORKSHOP = (1 << 4), // Workshop Folder
+    LT_INTERNAL = (1 << 5), // For Official Addons
+};
+
+enum addonflags_t
+{
+    ADDFLAG_SELECTED = 1,
+    ADDFLAG_GRPFILE = 2,
 };
 
 struct addonjson_t
@@ -80,13 +87,16 @@ struct useraddon_t
     char menuentryname[MAXADDONTITLE];
     char data_path[BMAX_PATH];
 
+    // only used for official addons
+    grpfile_t * grpfile;
+
     addongame_t gametype;
     addonpackage_t loadtype;
     addonjson_t jsondat;
 
     uint8_t* image_data;
 
-    int8_t status;
+    uint16_t flags;
     int16_t loadorder_idx;
 
     void updateMenuEntryName()
@@ -96,18 +106,25 @@ struct useraddon_t
 
     bool isSelected()
     {
-        return (status & 1) == 1;
+        return (flags & 1) != 0;
+    }
+
+    bool isDukeAddon()
+    {
+        return (flags & 2) != 0;
     }
 
     bool isValid()
     {
         return loadtype != LT_INVALID;
     }
+
 };
 
 extern useraddon_t * g_useraddons;
 extern int32_t g_numuseraddons;
 extern bool g_addonfailed;
+extern int32_t g_menudesc_lblength;
 
 void Addon_FreePreviewHashTable(void);
 void Addon_FreeUserAddons(void);
@@ -118,6 +135,7 @@ int32_t Addon_ReadPackageDescriptors(void);
 int32_t Addon_PruneInvalidAddons(void);
 int32_t Addon_CachePreviewImages(void);
 int32_t Addon_LoadPreviewTile(useraddon_t* addon);
+int32_t Addon_LoadSelectedGrpFileAddon(void);
 int32_t Addon_PrepareUserAddons(void);
 
 #ifdef __cplusplus

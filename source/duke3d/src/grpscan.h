@@ -44,13 +44,19 @@ extern "C" {
 #define DUKEDC13_CRC (int32_t)0xA9242158
 #define DUKEDCPP_CRC (int32_t)0xB79D997F
 #define DUKEDC_CRC  (int32_t)0xA8CF80DA
+#define DUKEDC_REPACK_CRC (int32_t) 0x39A692BF
 #define VACA13_CRC  (int32_t)0x4A2DBB62
 #define VACAPP_CRC  (int32_t)0x2F4FCCEE
 #define VACA15_CRC  (int32_t)0xB62B42FD
 #define DUKECB_CRC  (int32_t)0x18F01C5B
+#define VACA_REPACK_CRC (int32_t) 0x65B5F690
 #define DUKENW_CRC  (int32_t)0xF1CAE8E4
+#define DUKENW_DEMO_CRC (int32_t) 0xC7EFBFA9
 #define DZ2_13_CRC  (int32_t)0x82C1B47F
 #define DZ2_PP_CRC  (int32_t)0x7FB6117C
+#define DZ2_PP_REPACK_CRC (int32_t) 0x1E9516F1
+#define PENTP_CRC (int32_t) 0x7CD82A3B
+#define PENTP_ZOOM_CRC (int32_t) 0xCF928A58
 #define NAM_CRC     (int32_t)0x75C1F07B
 #define NAPALM_CRC  (int32_t)0x3DE1589A
 #define WW2GI_CRC   (int32_t)0x907B82BF

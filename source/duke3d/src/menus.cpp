@@ -2405,7 +2405,9 @@ void Menu_Init(void)
     MenuEntry_HideOnCondition(&ME_MAIN_ADDONS, G_GetLogoFlags() & LOGO_NOADDONS);
 
     // Duplicate the minifont for addons menu display purposes
+    if (!(G_GetLogoFlags() & LOGO_NOADDONS))
     {
+        g_menudesc_lblength = (FURY) ? 84 : 64;
         MF_Minifont_AddonEntry = MF_Minifont;
         MF_Minifont_ApplyAddon = MF_Minifont;
 
@@ -4175,10 +4177,10 @@ static void Menu_EntryLinkActivate(MenuEntry_t *entry)
             if (addonIndex >= 0 && addonIndex < g_numuseraddons)
             {
                 useraddon_t & addon = g_useraddons[addonIndex];
-                addon.status = !addon.status;
-                CONFIG_SetAddonStatus(addon.uniqueId, addon.status);
+                addon.flags ^= ADDFLAG_SELECTED;
+                CONFIG_SetAddonActivationStatus(addon.uniqueId, addon.isSelected());
 
-                if (g_useraddons[addonIndex].status)
+                if (addon.isSelected())
                     ME_ADDONS[addonIndex].font = &MF_Minifont_SelectedAddon;
                 else
                     ME_ADDONS[addonIndex].font = &MF_Minifont_AddonEntry;
@@ -5340,7 +5342,7 @@ static void Menu_LoadAddonPackages()
 
         ME_ADDONS[i] = ME_ADDONS_ITEM;
         ME_ADDONS[i].name = g_useraddons[i].menuentryname;
-        if (g_useraddons[i].status)
+        if (g_useraddons[i].isSelected())
             ME_ADDONS[i].font = &MF_Minifont_SelectedAddon;
     }
 

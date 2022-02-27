@@ -1130,10 +1130,10 @@ int CONFIG_SetMapBestTime(uint8_t const * const mapmd4, int32_t tm)
     return 0;
 }
 
-int32_t CONFIG_GetAddonStatus(const char* addonIdentifier)
+int32_t CONFIG_GetAddonActivationStatus(const char* addonIdentifier)
 {
     int32_t status = 0;
-    SCRIPT_GetNumber(ud.config.scripthandle, "Addon Status", addonIdentifier, &status);
+    SCRIPT_GetBoolean(ud.config.scripthandle, "Addon Status", addonIdentifier, &status);
     return status;
 }
 
@@ -1144,12 +1144,20 @@ int32_t CONFIG_GetAddonLoadOrder(const char* addonIdentifier)
     return loadOrder;
 }
 
-void CONFIG_SetAddonStatus(const char* addonIdentifier, int32_t const status)
+int CONFIG_SetAddonActivationStatus(const char* addonIdentifier, bool const status)
 {
-    SCRIPT_PutNumber(ud.config.scripthandle, "Addon Status", addonIdentifier, status, FALSE, FALSE);
+    if (ud.config.scripthandle < 0 && (ud.config.scripthandle = SCRIPT_Init(g_setupFileName)) < 0)
+        return -1;
+
+    SCRIPT_PutBoolean(ud.config.scripthandle, "Active Addons", addonIdentifier, status);
+    return 0;
 }
 
-void CONFIG_SetAddonLoadOrder(const char* addonIdentifier, int32_t const loadOrder)
+int CONFIG_SetAddonLoadOrder(const char* addonIdentifier, int32_t const loadOrder)
 {
+    if (ud.config.scripthandle < 0 && (ud.config.scripthandle = SCRIPT_Init(g_setupFileName)) < 0)
+        return -1;
+
     SCRIPT_PutNumber(ud.config.scripthandle, "Addon Load Order", addonIdentifier, loadOrder, FALSE, FALSE);
+    return 0;
 }
