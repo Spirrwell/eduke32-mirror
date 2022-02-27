@@ -111,6 +111,7 @@ extern bool g_addonfailed;
 
 void Addon_FreePreviewHashTable(void);
 void Addon_FreeUserAddons(void);
+void Addon_InitializeLoadOrder(void);
 void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB);
 
 int32_t Addon_ReadPackageDescriptors(void);

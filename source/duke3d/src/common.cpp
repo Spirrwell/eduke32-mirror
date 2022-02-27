@@ -506,7 +506,13 @@ void G_LoadGroups(int32_t autoload)
     if (g_modDir[0] != '/')
         G_LoadGroupsInDir(g_modDir);
 
-    Addon_PrepareUserAddons();
+    if (g_useraddons && g_numuseraddons > 0)
+    {
+        // check for bootstate inside the function
+        Addon_PruneInvalidAddons();
+        Addon_InitializeLoadOrder();
+        Addon_PrepareUserAddons();
+    }
 
 #ifndef EDUKE32_STANDALONE
     if (g_defNamePtr == NULL)

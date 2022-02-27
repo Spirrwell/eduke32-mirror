@@ -225,6 +225,7 @@ MenuFont_t MF_Minifont =              { { 4<<16, 5<<16 },   { 1<<16, 1<<16 },0, 
                                         -1,                 10,                 0,                  0,                  2,                  2,                  0,
                                         0,                  0,                  16 };
 
+MenuFont_t MF_Minifont_AddonEntry = {};
 MenuFont_t MF_Minifont_ApplyAddon = {};
 MenuFont_t MF_Minifont_SelectedAddon = {};
 
@@ -1250,7 +1251,7 @@ static int16_t *ADDONS_L2EMAP = nullptr;
 static MenuLink_t MEO_ADDONS_ACCEPT = { MENU_ADDONSVERIFY, MA_None, };
 static MenuLink_t MEO_ADDONS_SELECT = { MENU_NULL, MA_None, };
 static MenuEntry_t ME_ADDONS_ACCEPT = MAKE_MENUENTRY( "Confirm Selection and Restart", &MF_Minifont_ApplyAddon, &MEF_Addons, &MEO_ADDONS_ACCEPT, Link );
-static MenuEntry_t ME_ADDONS_ITEM = MAKE_MENUENTRY( NULL, &MF_Minifont, &MEF_Addons, &MEO_ADDONS_SELECT, Link );
+static MenuEntry_t ME_ADDONS_ITEM = MAKE_MENUENTRY( NULL, &MF_Minifont_AddonEntry, &MEF_Addons, &MEO_ADDONS_SELECT, Link );
 
 #ifdef __linux__
 static int32_t alsadevice;
@@ -2405,12 +2406,15 @@ void Menu_Init(void)
 
     // Duplicate the minifont for addons menu display purposes
     {
-        MF_Minifont_SelectedAddon = MF_Minifont;
+        MF_Minifont_AddonEntry = MF_Minifont;
         MF_Minifont_ApplyAddon = MF_Minifont;
 
         if (FURY)
         {
-            // TODO: Select good pals
+            MF_Minifont_AddonEntry.zoom = (4096*12);
+            MF_Minifont_ApplyAddon.zoom = (4096*13);
+            MF_Minifont_SelectedAddon = MF_Minifont_AddonEntry;
+
             MF_Minifont_SelectedAddon.pal_selected = 8;
             MF_Minifont_SelectedAddon.pal_deselected = 8;
             MF_Minifont_ApplyAddon.pal_selected = 2;
@@ -2418,6 +2422,10 @@ void Menu_Init(void)
         }
         else
         {
+            MF_Minifont_AddonEntry.zoom = (4096*12);
+            MF_Minifont_ApplyAddon.zoom = (4096*13);
+            MF_Minifont_SelectedAddon = MF_Minifont_AddonEntry;
+
             MF_Minifont_SelectedAddon.pal_selected = 8;
             MF_Minifont_SelectedAddon.pal_deselected = 8;
             MF_Minifont_ApplyAddon.pal_selected = 12;
@@ -4173,7 +4181,7 @@ static void Menu_EntryLinkActivate(MenuEntry_t *entry)
                 if (g_useraddons[addonIndex].status)
                     ME_ADDONS[addonIndex].font = &MF_Minifont_SelectedAddon;
                 else
-                    ME_ADDONS[addonIndex].font = &MF_Minifont;
+                    ME_ADDONS[addonIndex].font = &MF_Minifont_AddonEntry;
             }
         }
         break;
@@ -5301,6 +5309,7 @@ static void Menu_LoadAddonPackages()
 
     Addon_ReadPackageDescriptors();
     Addon_PruneInvalidAddons();
+    Addon_InitializeLoadOrder();
     Addon_CachePreviewImages();
 
     int const nummenuitems = g_numuseraddons + ADDONLIST_OFFSET;

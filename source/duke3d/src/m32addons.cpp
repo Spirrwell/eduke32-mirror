@@ -37,14 +37,19 @@ void Addon_FreePreviewHashTable(void){ /* stub */ };
 void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB)
 {
     // stub
-    UNREFERENCED_CONST_PARAMETER(indexA);
-    UNREFERENCED_CONST_PARAMETER(indexB);
+    (void) indexA;
+    (void) indexB;
 }
 
 int32_t Addon_ReadPackageDescriptors(void)
 {
     // stub
     return 0;
+}
+
+void Addon_InitializeLoadOrder(void)
+{
+
 }
 
 int32_t Addon_PruneInvalidAddons(void)

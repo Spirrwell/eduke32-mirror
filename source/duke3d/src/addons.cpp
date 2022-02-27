@@ -58,7 +58,6 @@ static const char jsonval_scriptmain[] = "main";
 static const char jsonval_scriptmodule[] = "module";
 
 // default addon content
-static const char default_title[] = "Unnamed Addon";
 static const char default_author[] = "N/A";
 static const char default_version[] = "N/A";
 static const char default_description[] = "--Empty Description--";
@@ -417,7 +416,7 @@ static addongame_t Addon_ParseJson_GameFlag(useraddon_t* addon, sjson_node* root
 }
 
 // Load data from json file into addon -- assumes that addon ID has been defined!
-static int32_t Addon_ParseJson(useraddon_t* addon, sjson_context* ctx, const char* basepath)
+static int32_t Addon_ParseJson(useraddon_t* addon, sjson_context* ctx, const char* basepath, const char* pack_fn)
 {
     char json_path[BMAX_PATH];
     Bsnprintf(json_path, BMAX_PATH, "%s/%s", basepath, addonjsonfn);
@@ -465,13 +464,13 @@ static int32_t Addon_ParseJson(useraddon_t* addon, sjson_context* ctx, const cha
 
     // load visual descriptors
     if (Addon_ParseJson_String(addon, root, jsonkey_title, addon->jsondat.title, MAXADDONTITLE))
-        Bstrncpy(addon->jsondat.title, default_title, ARRAY_SIZE(default_title));
+        Bstrncpy(addon->jsondat.title, pack_fn, MAXADDONTITLE);
 
     if (Addon_ParseJson_String(addon, root, jsonkey_author, addon->jsondat.author, MAXADDONAUTHOR))
-        Bstrncpy(addon->jsondat.author, default_author, ARRAY_SIZE(default_author));
+        Bstrncpy(addon->jsondat.author, default_author, MAXADDONAUTHOR);
 
     if (Addon_ParseJson_String(addon, root, jsonkey_version, addon->jsondat.version, MAXADDONVERSION))
-        Bstrncpy(addon->jsondat.version, default_version, ARRAY_SIZE(default_version));
+        Bstrncpy(addon->jsondat.version, default_version, MAXADDONVERSION);
 
     if (Addon_ParseJson_Description(addon, root, jsonkey_desc))
         Addon_AllocateDefaultDescription(addon);
@@ -579,7 +578,7 @@ static int32_t Addon_ReadLocalPackages(sjson_context* ctx, fnlist_t* fnlist, con
                 addon.loadtype = LT_ZIP;
             }
 
-            if (Addon_ParseJson(&addon, ctx, "/"))
+            if (Addon_ParseJson(&addon, ctx, "/", rec->name))
             {
                 Addon_FreeAddonContents(&addon);
                 Addon_PackageCleanup(grpfileidx);
@@ -620,7 +619,7 @@ static int32_t Addon_ReadSubfolderAddons(sjson_context* ctx, fnlist_t* fnlist, c
 
         addon.status = (int8_t) CONFIG_GetAddonStatus(addon.uniqueId);
 
-        if (Addon_ParseJson(&addon, ctx, basepath))
+        if (Addon_ParseJson(&addon, ctx, basepath, rec->name))
         {
             Addon_FreeAddonContents(&addon);
             addon.loadtype = LT_INVALID;
@@ -649,6 +648,9 @@ static int16_t Addon_InitLoadOrderFromConfig()
     int16_t cl, maxLoadOrder = 0;
     for (int i = 0; i < g_numuseraddons; i++)
     {
+        if (!g_useraddons[i].isValid() || !(g_useraddons[i].gametype & g_gameType))
+            continue;
+
         cl = CONFIG_GetAddonLoadOrder(g_useraddons[i].uniqueId);
         g_useraddons[i].loadorder_idx = cl;
         if (cl > maxLoadOrder)
@@ -662,12 +664,15 @@ static void Addon_SaveConfig(void)
 {
     for (int i = 0; i < g_numuseraddons; i++)
     {
+        if (!g_useraddons[i].isValid() || !(g_useraddons[i].gametype & g_gameType))
+            continue;
+
         CONFIG_SetAddonStatus(g_useraddons[i].uniqueId, (int32_t) g_useraddons[i].status);
         CONFIG_SetAddonLoadOrder(g_useraddons[i].uniqueId, g_useraddons[i].loadorder_idx);
     }
 }
 
-static void Addon_InitializeLoadOrder(void)
+void Addon_InitializeLoadOrder(void)
 {
     int32_t i, cl, maxBufSize;
     if (g_numuseraddons <= 0 || !g_useraddons)
@@ -758,8 +763,6 @@ int32_t Addon_ReadPackageDescriptors(void)
     }
 
     g_useraddons = (useraddon_t *)Xrealloc(g_useraddons, sizeof(useraddon_t) * g_numuseraddons);
-    Addon_InitializeLoadOrder();
-
     return 0;
 }
 
@@ -843,7 +846,7 @@ static int32_t Addon_LoadPreviewDataFromFile(char const *fn, uint8_t *imagebuffe
 // must be run before loading tiles
 int32_t Addon_CachePreviewImages(void)
 {
-    if (!g_useraddons || g_numuseraddons <= 0)
+    if (!g_useraddons || g_numuseraddons <= 0 || (G_GetLogoFlags() & LOGO_NOADDONS))
         return 0;
 
     // use absolute paths to load addons
@@ -855,7 +858,7 @@ int32_t Addon_CachePreviewImages(void)
         useraddon_t & addon = g_useraddons[i];
 
         // don't cache images for addons we won't see
-        if (!(addon.isValid() && (addon.gametype & g_gameType)))
+        if (!(addon.isValid() && addon.jsondat.preview_path[0] && (addon.gametype & g_gameType)))
             continue;
 
         intptr_t cachedImage = hash_find(&h_addonpreviews, addon.jsondat.preview_path);
