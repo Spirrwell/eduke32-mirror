@@ -1236,6 +1236,10 @@ static MenuEntry_t **MEL_SAVE;
 static int32_t m_addondesc_linecount = 0;
 static int32_t m_addondesc_shift = 0;
 
+#define MENU_ADDONTITLE_SHIFTDELAY 30
+static int32_t m_addontitleshift_lastticks = 0;
+static int32_t m_addontitleshift = 0;
+
 static char m_addonmenu_defaulttitle[] = "HOW TO USE";
 static char m_addonmenu_defaultdesc[] = "\
 - Select addons to enable them, then confirm the selection.\n\n\
@@ -2407,7 +2411,8 @@ void Menu_Init(void)
     // Duplicate the minifont for addons menu display purposes
     if (!(G_GetLogoFlags() & LOGO_NOADDONS))
     {
-        g_menudesc_lblength = (FURY) ? 84 : 64;
+        m_addontitle_maxvisible = (FURY) ? 40 : 42;
+        m_menudesc_lblength = (FURY) ? 84 : 64;
         MF_Minifont_AddonEntry = MF_Minifont;
         MF_Minifont_ApplyAddon = MF_Minifont;
 
@@ -3280,51 +3285,61 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
 
         mminitext(origin.x + (26<<16), origin.y + (115<<16), "Author:", MF_Minifont.pal_deselected_right);
         mminitext(origin.x + (26<<16), origin.y + (123<<16), "Version:", MF_Minifont.pal_deselected_right);
-        // display addon content
-        useraddon_t & caddon = g_useraddons[addonIndex];
-        if (caddon.isValid())
+
+        useraddon_t & addon = g_useraddons[addonIndex];
+        if (((int) Bstrlen(addon.jsondat.title)) - m_addontitleshift > m_addontitle_maxvisible)
         {
-            m_addondesc_linecount = caddon.jsondat.desc_linecnt;
+            if ((timer120() - m_addontitleshift_lastticks) >= MENU_ADDONTITLE_SHIFTDELAY)
+            {
+                m_addontitleshift++;
+                m_addontitleshift_lastticks = timer120();
+                addon.updateMenuEntryName(m_addontitleshift);
+            }
+        }
+
+        if (addon.isValid())
+        {
+            m_addondesc_linecount = addon.jsondat.desc_linecnt;
 
             if (FURY)
             {
                 // title text
                 G_ScreenText(MF_Bluefont.tilenum, origin.x + (26<<16), origin.y + (135<<16), (65536L >> 1) + (65536L >> 2),
-                            0, 0, caddon.jsondat.title, 0, MF_Bluefont.pal, g_textstat, 0,
+                            0, 0, addon.jsondat.title, 0, MF_Bluefont.pal, g_textstat, 0,
                             MF_Bluefont.emptychar.x, MF_Bluefont.emptychar.y, MF_Bluefont.between.x,
                             MF_Bluefont.between.y, MF_Bluefont.textflags, 0, 0, xdim-1, ydim-1);
 
                 // description
                 G_ScreenText(MF_Minifont.tilenum, origin.x + (26<<16), origin.y + (148<<16) + m_addondesc_shift, MF_Minifont.zoom,
-                        0, 0, caddon.jsondat.description, 0, MF_Minifont.pal, g_textstat, 0,
+                        0, 0, addon.jsondat.description, 0, MF_Minifont.pal, g_textstat, 0,
                         MF_Minifont.emptychar.x, MF_Minifont.emptychar.y, MF_Minifont.between.x,
                         MF_Minifont.between.y, MF_Minifont.textflags, 0, (ydim * 23 / 32), xdim-1, (ydim * 15 / 16) -1);
 
                 // author
-                mminitext(origin.x + (60<<16), origin.y + (115<<16), caddon.jsondat.author, MF_Minifont.pal_selected_right);
+                mminitext(origin.x + (60<<16), origin.y + (115<<16), addon.jsondat.author, MF_Minifont.pal_selected_right);
 
                 // version
-                mminitext(origin.x + (60<<16), origin.y + (123<<16), caddon.jsondat.version, MF_Minifont.pal_selected_right);
+                mminitext(origin.x + (60<<16), origin.y + (123<<16), addon.jsondat.version, MF_Minifont.pal_selected_right);
             }
             else
             {
                 // title text
                 G_ScreenText(MF_Bluefont.tilenum, origin.x + (26<<16), origin.y + (135<<16), (65536L >> 1) + (65536L >> 2),
-                            0, 0, caddon.jsondat.title, 0, MF_Bluefont.pal, g_textstat, 0,
+                            0, 0, addon.jsondat.title, 0, MF_Bluefont.pal, g_textstat, 0,
                             MF_Bluefont.emptychar.x, MF_Bluefont.emptychar.y, MF_Bluefont.between.x,
                             MF_Bluefont.between.y, MF_Bluefont.textflags, 0, 0, xdim-1, ydim-1);
 
                 // description
                 G_ScreenText(MF_Minifont.tilenum, origin.x + (26<<16), origin.y + (144<<16) + m_addondesc_shift, MF_Minifont.zoom,
-                        0, 0, caddon.jsondat.description, 0, MF_Minifont.pal, g_textstat, 0,
+                        0, 0, addon.jsondat.description, 0, MF_Minifont.pal, g_textstat, 0,
                         MF_Minifont.emptychar.x, MF_Minifont.emptychar.y, MF_Minifont.between.x,
                         MF_Minifont.between.y, MF_Minifont.textflags, 0, (ydim * 23 / 32), xdim-1, (ydim * 15 / 16) -1);
 
                 // author
-                mminitext(origin.x + (60<<16), origin.y + (115<<16), caddon.jsondat.author, MF_Minifont.pal_selected_right);
+                mminitext(origin.x + (60<<16), origin.y + (115<<16), addon.jsondat.author, MF_Minifont.pal_selected_right);
 
                 // version
-                mminitext(origin.x + (60<<16), origin.y + (123<<16), caddon.jsondat.version, MF_Minifont.pal_selected_right);
+                mminitext(origin.x + (60<<16), origin.y + (123<<16), addon.jsondat.version, MF_Minifont.pal_selected_right);
             }
         }
 
@@ -3937,6 +3952,8 @@ static void Menu_EntryFocus(/*MenuEntry_t *entry*/)
         break;
     case MENU_ADDONS:
         {
+            m_addontitleshift = 0;
+            m_addontitleshift_lastticks = timer120();
             m_addondesc_shift = 0;
 
             int32_t addonIndex = -1;
@@ -8216,26 +8233,32 @@ static void Menu_RunInput(Menu_t *cm)
                 {
                     I_MenuUpClear();
 
-                    if (g_currentMenu == MENU_ADDONS && (KB_KeyPressed(sc_LeftShift) || KB_KeyPressed(sc_RightShift)))
+                    if (g_currentMenu == MENU_ADDONS)
                     {
                         if (!ADDONS_L2EMAP) break;
-
                         int32_t addonIndex = ADDONS_L2EMAP[M_ADDONS.currentEntry];
-                        if (addonIndex >= 0 && (addonIndex < g_numuseraddons) && M_ADDONS.currentEntry > ADDONLIST_OFFSET)
-                        {
-                            Addon_SwapLoadOrder(ADDONS_L2EMAP[M_ADDONS.currentEntry - 1], addonIndex);
+                        if (addonIndex >= 0)
+                            g_useraddons[addonIndex].updateMenuEntryName();
 
-                            MenuEntry_t* me_temp = MEL_ADDONS[M_ADDONS.currentEntry - 1];
-                            MEL_ADDONS[M_ADDONS.currentEntry - 1] = MEL_ADDONS[M_ADDONS.currentEntry];
-                            MEL_ADDONS[M_ADDONS.currentEntry] = me_temp;
-
-                            int16_t l2e_temp = ADDONS_L2EMAP[M_ADDONS.currentEntry - 1];
-                            ADDONS_L2EMAP[M_ADDONS.currentEntry - 1] = ADDONS_L2EMAP[M_ADDONS.currentEntry];
-                            ADDONS_L2EMAP[M_ADDONS.currentEntry] = l2e_temp;
-                        }
-                        else
+                        // change load order
+                        if (KB_KeyPressed(sc_LeftShift) || KB_KeyPressed(sc_RightShift))
                         {
-                            break;
+                            if (addonIndex >= 0 && (addonIndex < g_numuseraddons) && M_ADDONS.currentEntry > ADDONLIST_OFFSET)
+                            {
+                                Addon_SwapLoadOrder(ADDONS_L2EMAP[M_ADDONS.currentEntry - 1], addonIndex);
+
+                                MenuEntry_t* me_temp = MEL_ADDONS[M_ADDONS.currentEntry - 1];
+                                MEL_ADDONS[M_ADDONS.currentEntry - 1] = MEL_ADDONS[M_ADDONS.currentEntry];
+                                MEL_ADDONS[M_ADDONS.currentEntry] = me_temp;
+
+                                int16_t l2e_temp = ADDONS_L2EMAP[M_ADDONS.currentEntry - 1];
+                                ADDONS_L2EMAP[M_ADDONS.currentEntry - 1] = ADDONS_L2EMAP[M_ADDONS.currentEntry];
+                                ADDONS_L2EMAP[M_ADDONS.currentEntry] = l2e_temp;
+                            }
+                            else
+                            {
+                                break;
+                            }
                         }
                     }
 
@@ -8247,26 +8270,33 @@ static void Menu_RunInput(Menu_t *cm)
                 {
                     I_MenuDownClear();
 
-                    if (g_currentMenu == MENU_ADDONS && (KB_KeyPressed(sc_LeftShift) || KB_KeyPressed(sc_RightShift)))
+                    if (g_currentMenu == MENU_ADDONS)
                     {
                         if (!ADDONS_L2EMAP) break;
-
                         int32_t addonIndex = ADDONS_L2EMAP[M_ADDONS.currentEntry];
-                        if (addonIndex >= 0 && (addonIndex < g_numuseraddons)  && (M_ADDONS.currentEntry < M_ADDONS.numEntries - 1))
-                        {
-                            Addon_SwapLoadOrder(addonIndex, ADDONS_L2EMAP[M_ADDONS.currentEntry + 1]);
+                        if (addonIndex >= 0)
+                            g_useraddons[addonIndex].updateMenuEntryName();
 
-                            MenuEntry_t* me_temp = MEL_ADDONS[M_ADDONS.currentEntry];
-                            MEL_ADDONS[M_ADDONS.currentEntry] = MEL_ADDONS[M_ADDONS.currentEntry + 1];
-                            MEL_ADDONS[M_ADDONS.currentEntry + 1] = me_temp;
-
-                            int16_t l2e_temp = ADDONS_L2EMAP[M_ADDONS.currentEntry];
-                            ADDONS_L2EMAP[M_ADDONS.currentEntry] = ADDONS_L2EMAP[M_ADDONS.currentEntry + 1];
-                            ADDONS_L2EMAP[M_ADDONS.currentEntry + 1] = l2e_temp;
-                        }
-                        else
+                        // change load order
+                        if ((KB_KeyPressed(sc_LeftShift) || KB_KeyPressed(sc_RightShift)))
                         {
-                            break;
+                            int32_t addonIndex = ADDONS_L2EMAP[M_ADDONS.currentEntry];
+                            if (addonIndex >= 0 && (addonIndex < g_numuseraddons)  && (M_ADDONS.currentEntry < M_ADDONS.numEntries - 1))
+                            {
+                                Addon_SwapLoadOrder(addonIndex, ADDONS_L2EMAP[M_ADDONS.currentEntry + 1]);
+
+                                MenuEntry_t* me_temp = MEL_ADDONS[M_ADDONS.currentEntry];
+                                MEL_ADDONS[M_ADDONS.currentEntry] = MEL_ADDONS[M_ADDONS.currentEntry + 1];
+                                MEL_ADDONS[M_ADDONS.currentEntry + 1] = me_temp;
+
+                                int16_t l2e_temp = ADDONS_L2EMAP[M_ADDONS.currentEntry];
+                                ADDONS_L2EMAP[M_ADDONS.currentEntry] = ADDONS_L2EMAP[M_ADDONS.currentEntry + 1];
+                                ADDONS_L2EMAP[M_ADDONS.currentEntry + 1] = l2e_temp;
+                            }
+                            else
+                            {
+                                break;
+                            }
                         }
                     }
 

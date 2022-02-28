@@ -27,13 +27,16 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 extern "C" {
 #endif
 
-#define MAXADDONTITLE 128
-#define MAXADDONAUTHOR 128
-#define MAXADDONVERSION 32
-#define MAXADDONDESC 32768
+#define ADDON_MAXTITLE 128
+#define ADDON_MAXAUTHOR 128
+#define ADDON_MAXVERSION 32
+#define ADDON_MAXDESC 32768
 
 #define PREVIEWTILE_XSIZE 320
 #define PREVIEWTILE_YSIZE 200
+
+extern int32_t m_menudesc_lblength;
+extern int32_t m_addontitle_maxvisible;
 
 enum addongame_t
 {
@@ -64,9 +67,9 @@ enum addonflags_t
 
 struct addonjson_t
 {
-    char title[MAXADDONTITLE];
-    char author[MAXADDONAUTHOR];
-    char version[MAXADDONVERSION];
+    char title[ADDON_MAXTITLE];
+    char author[ADDON_MAXAUTHOR];
+    char version[ADDON_MAXVERSION];
 
     char* description;
     int32_t desc_len, desc_linecnt;
@@ -84,7 +87,7 @@ struct addonjson_t
 struct useraddon_t
 {
     char* uniqueId;
-    char menuentryname[MAXADDONTITLE];
+    char menuentryname[ADDON_MAXTITLE];
     char data_path[BMAX_PATH];
 
     // only used for official addons
@@ -99,11 +102,6 @@ struct useraddon_t
     uint16_t flags;
     int16_t loadorder_idx;
 
-    void updateMenuEntryName()
-    {
-        Bsnprintf(menuentryname, MAXADDONTITLE, "%d: %s", loadorder_idx + 1, jsondat.title);
-    }
-
     bool isSelected()
     {
         return (flags & 1) != 0;
@@ -114,9 +112,27 @@ struct useraddon_t
         return (flags & 2) != 0;
     }
 
+    bool isTotalConversion()
+    {
+        return jsondat.main_script_path[0] || jsondat.main_def_path[0];
+    }
+
     bool isValid()
     {
         return loadtype != LT_INVALID;
+    }
+
+    void updateMenuEntryName(int const titleIdx = 0)
+    {
+        char pbuf[8];
+        if (isGrpInfoAddon())
+            Bstrcpy(pbuf, "GRP");
+        else if (isTotalConversion())
+            Bstrcpy(pbuf, "TC");
+        else
+            Bsnprintf(pbuf, 8, "%d", loadorder_idx + 1);
+
+        Bsnprintf(menuentryname, m_addontitle_maxvisible, "%s: %s", pbuf, &jsondat.title[titleIdx]);
     }
 
 };
@@ -124,7 +140,6 @@ struct useraddon_t
 extern useraddon_t * g_useraddons;
 extern int32_t g_numuseraddons;
 extern bool g_addonfailed;
-extern int32_t g_menudesc_lblength;
 
 void Addon_FreePreviewHashTable(void);
 void Addon_FreeUserAddons(void);

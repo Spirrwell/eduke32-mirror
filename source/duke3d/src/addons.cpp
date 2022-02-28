@@ -60,7 +60,7 @@ static const char jsonval_scriptmodule[] = "module";
 // default addon content
 static const char default_author[] = "N/A";
 static const char default_version[] = "N/A";
-static const char default_description[] = "--Empty Description--";
+static const char default_description[] = "No description available.";
 
 // hashtables (only free on shutdown)
 hashtable_t h_addonpreviews = { 1024, NULL };
@@ -69,7 +69,10 @@ hashtable_t h_addonpreviews = { 1024, NULL };
 useraddon_t * g_useraddons = nullptr;
 int32_t g_numuseraddons = 0;
 bool g_addonfailed = false;
-int32_t g_menudesc_lblength = 0;
+
+// menu specific globals
+int32_t m_menudesc_lblength = 0;
+int32_t m_addontitle_maxvisible = ADDON_MAXTITLE;
 
 // local path for loading addons and json descriptor filenames
 static const char addon_dir[] = "addons";
@@ -290,14 +293,14 @@ static int32_t Addon_ParseJson_Description(useraddon_t *addon, sjson_node *node,
 
     // add some extra space for linebreaks inserted by textwrap
     int desclen = strlen(ele->string_) + 256;
-    if (desclen > MAXADDONDESC)
+    if (desclen > ADDON_MAXDESC)
     {
-        LOG_F(WARNING, "Member '%s' of addon '%s' exceeds maximum size of %d chars!", key, addon->uniqueId, MAXADDONDESC);
-        desclen = MAXADDONDESC;
+        LOG_F(WARNING, "Member '%s' of addon '%s' exceeds maximum size of %d chars!", key, addon->uniqueId, ADDON_MAXDESC);
+        desclen = ADDON_MAXDESC;
     }
 
     addon->jsondat.description = (char *) Xmalloc(desclen);
-    addon->jsondat.desc_linecnt = Addon_Strncpy_TextWrap(addon->jsondat.description, ele->string_, desclen, g_menudesc_lblength);
+    addon->jsondat.desc_linecnt = Addon_Strncpy_TextWrap(addon->jsondat.description, ele->string_, desclen, m_menudesc_lblength);
     addon->jsondat.desc_len = desclen;
 
     return 0;
@@ -463,14 +466,14 @@ static int32_t Addon_ParseJson(useraddon_t* addon, sjson_context* ctx, const cha
         return -1;
 
     // load visual descriptors
-    if (Addon_ParseJson_String(addon, root, jsonkey_title, addon->jsondat.title, MAXADDONTITLE))
-        Bstrncpy(addon->jsondat.title, pack_fn, MAXADDONTITLE);
+    if (Addon_ParseJson_String(addon, root, jsonkey_title, addon->jsondat.title, ADDON_MAXTITLE))
+        Bstrncpy(addon->jsondat.title, pack_fn, ADDON_MAXTITLE);
 
-    if (Addon_ParseJson_String(addon, root, jsonkey_author, addon->jsondat.author, MAXADDONAUTHOR))
-        Bstrncpy(addon->jsondat.author, default_author, MAXADDONAUTHOR);
+    if (Addon_ParseJson_String(addon, root, jsonkey_author, addon->jsondat.author, ADDON_MAXAUTHOR))
+        Bstrncpy(addon->jsondat.author, default_author, ADDON_MAXAUTHOR);
 
-    if (Addon_ParseJson_String(addon, root, jsonkey_version, addon->jsondat.version, MAXADDONVERSION))
-        Bstrncpy(addon->jsondat.version, default_version, MAXADDONVERSION);
+    if (Addon_ParseJson_String(addon, root, jsonkey_version, addon->jsondat.version, ADDON_MAXVERSION))
+        Bstrncpy(addon->jsondat.version, default_version, ADDON_MAXVERSION);
 
     if (Addon_ParseJson_Description(addon, root, jsonkey_desc))
         Addon_AllocateDefaultDescription(addon);
@@ -509,7 +512,7 @@ static int32_t Addon_CountPotentialAddons(void)
     {
         if (grp->type->game & GAMEFLAG_ADDON)
         {
-            numaddons++; 
+            numaddons++;
         }
     }
 
@@ -677,7 +680,7 @@ static void Addon_GrpInfo_GetAuthor(useraddon_t * addon, grpfile_t * agrpf)
             author = default_author; // TODO: need storage for author
             break;
     }
-    Bstrncpy(addon->jsondat.author, author, MAXADDONAUTHOR);
+    Bstrncpy(addon->jsondat.author, author, ADDON_MAXAUTHOR);
 }
 
 static void Addon_GrpInfo_GetDescription(useraddon_t * addon, grpfile_t * agrpf)
@@ -717,17 +720,17 @@ static void Addon_GrpInfo_GetDescription(useraddon_t * addon, grpfile_t * agrpf)
             desc = default_description;
             break;
     }
-    int const desclen = strlen(desc) + 1;
+    int const desclen = strlen(desc) + 16;
     addon->jsondat.description = (char *) Xmalloc(desclen);
-    addon->jsondat.desc_linecnt = Addon_Strncpy_TextWrap(addon->jsondat.description, desc, desclen, g_menudesc_lblength);
+    addon->jsondat.desc_linecnt = Addon_Strncpy_TextWrap(addon->jsondat.description, desc, desclen, m_menudesc_lblength);
     addon->jsondat.desc_len = desclen;
 }
 
 static void Addon_GrpInfo_FakeJson(useraddon_t * addon, grpfile_t * agrpf)
-{ 
+{
 
-    Bstrncpy(addon->jsondat.title, agrpf->type->name, MAXADDONTITLE);
-    Bsnprintf(addon->jsondat.version, MAXADDONVERSION, "%x", agrpf->type->crcval);
+    Bstrncpy(addon->jsondat.title, agrpf->type->name, ADDON_MAXTITLE);
+    Bsnprintf(addon->jsondat.version, ADDON_MAXVERSION, "%x", agrpf->type->crcval);
     Addon_GrpInfo_GetAuthor(addon, agrpf);
     Addon_GrpInfo_GetDescription(addon, agrpf);
 }
@@ -773,7 +776,8 @@ static int16_t Addon_InitLoadOrderFromConfig()
     int16_t cl, maxLoadOrder = 0;
     for (int i = 0; i < g_numuseraddons; i++)
     {
-        if (!g_useraddons[i].isValid() || !(g_useraddons[i].gametype & g_gameType))
+        useraddon_t & addon = g_useraddons[i];
+        if (!addon.isValid() || addon.isTotalConversion() || addon.isGrpInfoAddon() || !(addon.gametype & g_gameType))
             continue;
 
         cl = CONFIG_GetAddonLoadOrder(g_useraddons[i].uniqueId);
@@ -789,7 +793,8 @@ static void Addon_SaveConfig(void)
 {
     for (int i = 0; i < g_numuseraddons; i++)
     {
-        if (!g_useraddons[i].isValid() || !(g_useraddons[i].gametype & g_gameType))
+        useraddon_t & addon = g_useraddons[i];
+        if (!addon.isValid() || addon.isTotalConversion() || addon.isGrpInfoAddon() || !(addon.gametype & g_gameType))
             continue;
 
         CONFIG_SetAddonActivationStatus(g_useraddons[i].uniqueId, g_useraddons[i].isSelected());
@@ -812,12 +817,16 @@ void Addon_InitializeLoadOrder(void)
     // place pointers to menu addons corresponding to load order
     for (i = 0; i < g_numuseraddons; i++)
     {
-        cl = g_useraddons[i].loadorder_idx;
+        useraddon_t & addon = g_useraddons[i];
+        if (addon.isTotalConversion() || addon.isGrpInfoAddon())
+            continue;
+
+        cl = addon.loadorder_idx;
 
         if (cl < 0 || lobuf[cl])
-            lobuf[maxLoadOrder++] = &g_useraddons[i];
+            lobuf[maxLoadOrder++] = &addon;
         else
-            lobuf[cl] = &g_useraddons[i];
+            lobuf[cl] = &addon;
     }
 
     // clean up load order
