@@ -37,6 +37,7 @@ static const char ssi_ext[] = "*.ssi";
 static const char* addon_extensions[] = { grp_ext, ssi_ext, "*.zip", "*.pk3", "*.pk4" };
 
 // keys used in the JSON addon descriptor
+static const char jsonkey_uid[] = "uid";
 static const char jsonkey_game[] = "game";
 static const char jsonkey_title[] = "title";
 static const char jsonkey_author[] = "author";
@@ -97,9 +98,6 @@ static int32_t Addon_GetLocalDir(char * pathbuf, const int32_t buflen)
 // free individual addon struct memory
 static void Addon_FreeAddonContents(useraddon_t * addon)
 {
-    if (addon->uniqueId)
-        DO_FREE_AND_NULL(addon->uniqueId);
-
     if (addon->jsondat.description)
         DO_FREE_AND_NULL(addon->jsondat.description);
 
@@ -139,14 +137,6 @@ static int32_t Addon_CheckFilePresence(const char* filepath)
     }
 
     return -1;
-}
-
-// remove leading slashes and other non-alpha chars, for cfg storage
-static char* Addon_TrimLeadingNonAlpha(const char* src, const int32_t srclen)
-{
-    int i = 0;
-    while (i < srclen && !isalpha(src[i])) i++;
-    return (i >= srclen) ? nullptr : Xstrdup(&src[i]);
 }
 
 static char* Addon_ProcessDescription(const char *description, int32_t const desclen, int32_t const lblen, int32_t & linecount)
@@ -205,6 +195,52 @@ static int32_t Addon_CheckJsonStringType(useraddon_t *addon, sjson_node *ele, co
 
     return 0;
 }
+
+static int32_t Addon_ParseJson_UniqueId(useraddon_t *addon, sjson_node *root, const char *key)
+{
+    sjson_node * ele = sjson_find_member_nocase(root, key);
+    if (ele == nullptr || Addon_CheckJsonStringType(addon, ele, key))
+    {
+        addon->uniqueId[0] = '\0';
+        return -1;
+    }
+
+    if (strlen(ele->string_) < ADDON_MINUID)
+    {
+        LOG_F(ERROR, "Addon UID %s is too short, must have at least %d characters.", ele->string_, ADDON_MINUID);
+        addon->uniqueId[0] = '\0';
+        return -1;
+    }
+
+    Bstrncpy(addon->uniqueId, ele->string_, ADDON_MAXUID);
+    if (addon->uniqueId[ADDON_MAXUID-1])
+    {
+        LOG_F(WARNING, "Unique Id '%s' exceeds maximum size of %d chars!", ele->string_, ADDON_MAXUID);
+        addon->uniqueId[ADDON_MAXUID-1] = '\0';
+    }
+
+    if (!isalpha(addon->uniqueId[0]))
+    {
+        LOG_F(ERROR, "Unique Id '%s' does not start with an alpha char!", addon->uniqueId);
+        addon->uniqueId[0] = '\0';
+        return -1;
+    }
+
+    int i = 1;
+    while (addon->uniqueId[i])
+    {
+        if (!isalnum(addon->uniqueId[i]) && addon->uniqueId[i] != '_')
+        {
+            LOG_F(ERROR, "Invalid char %c in addon id '%s'!", addon->uniqueId[i], addon->uniqueId);
+            addon->uniqueId[0] = '\0';
+            return -1;
+        }
+        i++;
+    }
+
+    return 0;
+}
+
 
 static int32_t Addon_ParseJson_String(useraddon_t *addon, sjson_node *root, const char *key,
                                         char *dstbuf, int32_t const bufsize)
@@ -349,7 +385,7 @@ static addongame_t Addon_ParseJson_GameFlag(useraddon_t* addon, sjson_node* root
 {
     sjson_node * ele = sjson_find_member_nocase(root, key);
     if (ele == nullptr || Addon_CheckJsonStringType(addon, ele, key))
-        goto INVALID_GAMETYPE;
+        return BASEGAME_NONE;
 
     if (!Bstrncasecmp(ele->string_, jsonval_gt_any, ARRAY_SIZE(jsonval_gt_any)))
         return BASEGAME_ANY;
@@ -362,11 +398,7 @@ static addongame_t Addon_ParseJson_GameFlag(useraddon_t* addon, sjson_node* root
     else if (!Bstrncasecmp(ele->string_, jsonval_gt_nam, ARRAY_SIZE(jsonval_gt_nam)))
         return BASEGAME_NAM;
     else
-    {
-INVALID_GAMETYPE:
-        LOG_F(ERROR, "No valid game type specified for addon %s!", addon->uniqueId);
         return BASEGAME_NONE;
-    }
 }
 
 // Load data from json file into addon -- assumes that addon ID has been defined!
@@ -403,16 +435,25 @@ static int32_t Addon_ParseJson(useraddon_t* addon, sjson_context* ctx, const cha
     sjson_reset_context(ctx);
     if (!sjson_validate(ctx, jsonTextBuf))
     {
-        LOG_F(ERROR, "Invalid addon descriptor JSON structure for addon '%s'!", addon->uniqueId);
+        LOG_F(ERROR, "Invalid addon descriptor JSON structure for addon '%s'!", pack_fn);
         return -1;
     }
 
     sjson_node * root = sjson_decode(ctx, jsonTextBuf);
     Xfree(jsonTextBuf);
 
+    if (Addon_ParseJson_UniqueId(addon, root, jsonkey_uid))
+    {
+        LOG_F(ERROR, "No valid unique ID specified for addon: %s!", pack_fn);
+        return -1;
+    }
+
     addon->gametype = Addon_ParseJson_GameFlag(addon, root, jsonkey_game);
     if (addon->gametype == BASEGAME_NONE)
+    {
+        LOG_F(ERROR, "No valid game type specified for addon %s!", addon->uniqueId);
         return -1;
+    }
 
     // load visual descriptors
     if (Addon_ParseJson_String(addon, root, jsonkey_title, addon->jsondat.title, ADDON_MAXTITLE))
@@ -530,8 +571,9 @@ static void Addon_GrpInfo_GetDescription(useraddon_t * addon, grpfile_t * agrpf)
 
 static void Addon_GrpInfo_FakeJson(useraddon_t * addon, grpfile_t * agrpf)
 {
+    Bsnprintf(addon->uniqueId, ADDON_MAXUID, "grpinfo_%x_%d", agrpf->type->crcval, agrpf->type->size);
     Bstrncpy(addon->jsondat.title, agrpf->type->name, ADDON_MAXTITLE);
-    Bsnprintf(addon->jsondat.version, ADDON_MAXVERSION, "%x", agrpf->type->crcval);
+    addon->jsondat.version[0] = '\0';
     Addon_GrpInfo_GetAuthor(addon, agrpf);
     Addon_GrpInfo_GetDescription(addon, agrpf);
 }
@@ -543,9 +585,6 @@ static void Addon_LoadGrpInfoAddons(void)
         if (grp->type->game & GAMEFLAG_ADDON)
         {
             useraddon_t & addon = s_useraddons[s_numuseraddons];
-            char* gId = Xstrdup(grp->type->name);
-            for (int i = 0; gId[i]; i++) if (isspace(gId[i])) gId[i] = '_';
-            addon.uniqueId = gId;
 
             addon.flags |= ADDFLAG_GRPFILE;
             if (g_selectedGrp == grp)
@@ -582,16 +621,11 @@ static int32_t Addon_ReadLocalPackages(sjson_context* ctx, fnlist_t* fnlist, con
         for (rec=fnlist->findfiles; rec; rec=rec->next)
         {
             char package_path[BMAX_PATH];
-            int const nchar = Bsnprintf(package_path, BMAX_PATH, "%s/%s", addondir, rec->name);
+            Bsnprintf(package_path, BMAX_PATH, "%s/%s", addondir, rec->name);
 
             useraddon_t & addon = s_useraddons[s_numuseraddons];
-            addon.uniqueId = Addon_TrimLeadingNonAlpha(package_path, nchar);
             Bstrncpy(addon.data_path, package_path, BMAX_PATH);
             addon.loadorder_idx = DEFAULT_LOADORDER_IDX;
-
-            // retrieve activation status from config
-            if (CONFIG_GetAddonActivationStatus(addon.uniqueId))
-                addon.flags |= ADDFLAG_SELECTED;
 
             // set initial file type based on extension
             if (!Bstrcmp(ext, grp_ext))
@@ -624,6 +658,11 @@ static int32_t Addon_ReadLocalPackages(sjson_context* ctx, fnlist_t* fnlist, con
                 addon.loadtype = LT_INVALID;
                 continue;
             }
+
+            // retrieve activation status from config
+            if (CONFIG_GetAddonActivationStatus(addon.uniqueId))
+                addon.flags |= ADDFLAG_SELECTED;
+
             addon.updateMenuEntryName();
 
             Addon_PackageCleanup(grpfileidx);
@@ -648,16 +687,12 @@ static int32_t Addon_ReadSubfolderAddons(sjson_context* ctx, fnlist_t* fnlist, c
         if (!strcmp(rec->name, "..")) continue;
 
         char basepath[BMAX_PATH];
-        int const nchar = Bsnprintf(basepath, BMAX_PATH, "%s/%s", addondir, rec->name);
+        Bsnprintf(basepath, BMAX_PATH, "%s/%s", addondir, rec->name);
 
         useraddon_t & addon = s_useraddons[s_numuseraddons];
-        addon.uniqueId = Addon_TrimLeadingNonAlpha(basepath, nchar);
         Bstrncpy(addon.data_path, basepath, BMAX_PATH);
         addon.loadorder_idx = DEFAULT_LOADORDER_IDX;
         addon.loadtype = LT_FOLDER;
-
-        if (CONFIG_GetAddonActivationStatus(addon.uniqueId))
-            addon.flags |= ADDFLAG_SELECTED;
 
         // parse json contents
         if (Addon_ParseJson(&addon, ctx, basepath, rec->name))
@@ -666,6 +701,9 @@ static int32_t Addon_ReadSubfolderAddons(sjson_context* ctx, fnlist_t* fnlist, c
             addon.loadtype = LT_INVALID;
             continue;
         }
+        if (CONFIG_GetAddonActivationStatus(addon.uniqueId))
+            addon.flags |= ADDFLAG_SELECTED;
+
         addon.updateMenuEntryName();
 
         ++s_numuseraddons;

@@ -27,6 +27,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 extern "C" {
 #endif
 
+#define ADDON_MINUID 8
+#define ADDON_MAXUID 64
+
 #define ADDON_MAXTITLE 128
 #define ADDON_MAXAUTHOR 128
 #define ADDON_MAXVERSION 32
@@ -88,7 +91,7 @@ struct addonjson_t
 
 struct useraddon_t
 {
-    char* uniqueId;
+    char uniqueId[ADDON_MAXUID];
     char menuentryname[ADDON_MAXTITLE];
     char data_path[BMAX_PATH];
 
