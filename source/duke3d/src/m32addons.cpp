@@ -27,43 +27,18 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "duke3d.h"
 #include "addons.h"
 
-useraddon_t * g_useraddons = nullptr;
-int32_t g_numuseraddons = 0;
-bool g_addonfailed = false;
+useraddon_t* g_useraddons_grpinfo = nullptr;
+useraddon_t* g_useraddons_tcs = nullptr;
+useraddon_t* g_useraddons_mods = nullptr;
 
-void Addon_FreeUserAddons(void){ /* stub */ };
+int32_t g_addoncount_grpinfo = 0;
+int32_t g_addoncount_tcs = 0;
+int32_t g_addoncount_mods = 0;
+
+bool g_addonstart_failed = false;
+
 void Addon_FreePreviewHashTable(void){ /* stub */ };
-
-void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB)
-{
-    // stub
-    (void) indexA;
-    (void) indexB;
-}
-
-int32_t Addon_ReadPackageDescriptors(void)
-{
-    // stub
-    return 0;
-}
-
-void Addon_InitializeLoadOrder(void)
-{
-    //stub
-}
-
-int32_t Addon_PruneInvalidAddons(void)
-{
-    // stub
-    return 0;
-}
-
-int32_t Addon_CachePreviewImages(void)
-{
-    // stub
-    return 0;
-}
-
+void Addon_CachePreviewImages(void) { /* stub */ };
 int32_t Addon_LoadPreviewTile(useraddon_t* addon)
 {
     // stub
@@ -71,14 +46,13 @@ int32_t Addon_LoadPreviewTile(useraddon_t* addon)
     return 0;
 }
 
-int32_t Addon_LoadSelectedGrpInfoAddon(void)
-{
-    //stub
-    return 0;
-}
+void Addon_FreeUserAddons(void) { /* stub */ };
+void Addon_ReadPackageDescriptors(void) { /* stub */ };
+void Addon_PruneInvalidAddons(void) { /* stub */ };
 
-int32_t Addon_PrepareUserAddons(void)
-{
-    // stub
-    return 0;
-};
+void Addon_InitializeLoadOrder(void) { /* stub */ };
+void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB) { (void) indexA; (void) indexB; };
+int32_t Addon_PrepareGrpInfoAddon(void) { return 0; };
+
+int32_t Addon_PrepareUserTCs(void) { return 0; };
+int32_t Addon_PrepareUserMods(void) { return 0; };

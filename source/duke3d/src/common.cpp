@@ -464,8 +464,8 @@ void G_LoadGroups(int32_t autoload)
 
     if (g_addonNum)
         G_LoadAddon();
-    else if (g_useraddons && g_numuseraddons > 0)
-        Addon_LoadSelectedGrpInfoAddon();
+    else if (g_useraddons_grpinfo && g_addoncount_grpinfo > 0)
+        Addon_PrepareGrpInfoAddon();
 
     const char *grpfile;
     int32_t i;
@@ -508,12 +508,15 @@ void G_LoadGroups(int32_t autoload)
     if (g_modDir[0] != '/')
         G_LoadGroupsInDir(g_modDir);
 
-    if (g_useraddons && g_numuseraddons > 0)
+    Addon_PruneInvalidAddons();
+
+    if (g_useraddons_tcs && g_addoncount_tcs > 0)
+        Addon_PrepareUserTCs();
+
+    if (g_useraddons_mods && g_addoncount_mods > 0)
     {
-        // check for bootstate inside the function
-        Addon_PruneInvalidAddons();
         Addon_InitializeLoadOrder();
-        Addon_PrepareUserAddons();
+        Addon_PrepareUserMods();
     }
 
 #ifndef EDUKE32_STANDALONE

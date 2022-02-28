@@ -35,7 +35,9 @@ extern "C" {
 #define PREVIEWTILE_XSIZE 320
 #define PREVIEWTILE_YSIZE 200
 
-extern int32_t m_menudesc_lblength;
+#define DEFAULT_LOADORDER_IDX (-1)
+
+extern int32_t m_addondesc_lblength;
 extern int32_t m_addontitle_maxvisible;
 
 enum addongame_t
@@ -72,7 +74,7 @@ struct addonjson_t
     char version[ADDON_MAXVERSION];
 
     char* description;
-    int32_t desc_len, desc_linecnt;
+    int32_t desc_linecnt;
 
     char preview_path[BMAX_PATH];
     char main_script_path[BMAX_PATH];
@@ -124,34 +126,40 @@ struct useraddon_t
 
     void updateMenuEntryName(int const titleIdx = 0)
     {
-        char pbuf[8];
-        if (isGrpInfoAddon())
-            Bstrcpy(pbuf, "GRP");
-        else if (isTotalConversion())
-            Bstrcpy(pbuf, "TC");
+        if (isGrpInfoAddon() || isTotalConversion())
+            Bstrncpyz(menuentryname, &jsondat.title[titleIdx], m_addontitle_maxvisible);
         else
-            Bsnprintf(pbuf, 8, "%d", loadorder_idx + 1);
-
-        Bsnprintf(menuentryname, m_addontitle_maxvisible, "%s: %s", pbuf, &jsondat.title[titleIdx]);
+            Bsnprintf(menuentryname, m_addontitle_maxvisible, "%d: %s", loadorder_idx + 1, &jsondat.title[titleIdx]);
     }
 
 };
 
-extern useraddon_t * g_useraddons;
-extern int32_t g_numuseraddons;
-extern bool g_addonfailed;
+extern useraddon_t* g_useraddons_grpinfo;
+extern useraddon_t* g_useraddons_tcs;
+extern useraddon_t* g_useraddons_mods;
+
+extern int32_t g_addoncount_grpinfo;
+extern int32_t g_addoncount_tcs;
+extern int32_t g_addoncount_mods;
+
+#define TOTAL_ADDON_COUNT (g_addoncount_grpinfo + g_addoncount_tcs + g_addoncount_mods)
+
+extern bool g_addonstart_failed;
 
 void Addon_FreePreviewHashTable(void);
+void Addon_CachePreviewImages(void);
+int32_t Addon_LoadPreviewTile(useraddon_t* addon);
+
 void Addon_FreeUserAddons(void);
+void Addon_ReadPackageDescriptors(void);
+void Addon_PruneInvalidAddons(void);
+
 void Addon_InitializeLoadOrder(void);
 void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB);
 
-int32_t Addon_ReadPackageDescriptors(void);
-int32_t Addon_PruneInvalidAddons(void);
-int32_t Addon_CachePreviewImages(void);
-int32_t Addon_LoadPreviewTile(useraddon_t* addon);
-int32_t Addon_LoadSelectedGrpInfoAddon(void);
-int32_t Addon_PrepareUserAddons(void);
+int32_t Addon_PrepareGrpInfoAddon(void);
+int32_t Addon_PrepareUserTCs(void);
+int32_t Addon_PrepareUserMods(void);
 
 #ifdef __cplusplus
 }

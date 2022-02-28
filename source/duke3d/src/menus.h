@@ -341,6 +341,7 @@ enum MenuEntryFlags_t
     MEF_Disabled = 1<<0,
     MEF_LookDisabled = 1<<1,
     MEF_Hidden = 1<<2,
+    MEF_Unselectable = 1<<3,
 };
 
 typedef struct MenuEntry_t

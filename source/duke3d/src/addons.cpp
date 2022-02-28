@@ -28,6 +28,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "kplib.h"
 #include "vfs.h"
 
+// preview thumbnail data cache (only free on shutdown)
+static hashtable_t h_addonpreviews = { 1024, NULL };
+
 // supported extensions
 static const char grp_ext[] = "*.grp";
 static const char ssi_ext[] = "*.ssi";
@@ -62,17 +65,9 @@ static const char default_author[] = "N/A";
 static const char default_version[] = "N/A";
 static const char default_description[] = "No description available.";
 
-// hashtables (only free on shutdown)
-hashtable_t h_addonpreviews = { 1024, NULL };
-
-// extern vars, tracks the currently loaded addons
-useraddon_t * g_useraddons = nullptr;
-int32_t g_numuseraddons = 0;
-bool g_addonfailed = false;
-
-// menu specific globals
-int32_t m_menudesc_lblength = 0;
-int32_t m_addontitle_maxvisible = ADDON_MAXTITLE;
+// static addon tracker, only used temporarily before addons are separate into categories
+static useraddon_t* s_useraddons = nullptr;
+static int32_t s_numuseraddons = 0;
 
 // local path for loading addons and json descriptor filenames
 static const char addon_dir[] = "addons";
@@ -99,16 +94,6 @@ static int32_t Addon_GetLocalDir(char * pathbuf, const int32_t buflen)
     return 0;
 }
 
-static void freehashpreviewimage(const char *, intptr_t key)
-{
-    Xfree((void *)key);
-}
-void Addon_FreePreviewHashTable()
-{
-    hash_loop(&h_addonpreviews, freehashpreviewimage);
-    hash_free(&h_addonpreviews);
-}
-
 // free individual addon struct memory
 static void Addon_FreeAddonContents(useraddon_t * addon)
 {
@@ -133,57 +118,55 @@ static void Addon_FreeAddonContents(useraddon_t * addon)
     }
 }
 
-// free all addon storage
-void Addon_FreeUserAddons(void)
+static void Addon_FreeUserAddonsForStruct(useraddon_t* & useraddons, int32_t & addoncount)
 {
-    if (g_useraddons)
+    if (useraddons)
     {
-        for (int i = 0; i < g_numuseraddons; i++)
-            Addon_FreeAddonContents(&g_useraddons[i]);
-
-        DO_FREE_AND_NULL(g_useraddons);
+        for (int i = 0; i < addoncount; i++)
+            Addon_FreeAddonContents(&useraddons[i]);
+        DO_FREE_AND_NULL(useraddons);
     }
-    g_numuseraddons = 0;
+    addoncount = 0;
 }
 
-static bool Addon_CheckFilePresence(const char* filepath)
+static int32_t Addon_CheckFilePresence(const char* filepath)
 {
     buildvfs_kfd jsonfil = kopen4loadfrommod(filepath, 0);
-    bool loadsuccess = (jsonfil != buildvfs_kfd_invalid);
-    kclose(jsonfil);
-    return loadsuccess;
+    if (jsonfil != buildvfs_kfd_invalid)
+    {
+        kclose(jsonfil);
+        return 0;
+    }
+
+    return -1;
 }
 
-// remove leading slashes and other non-alpha chars
+// remove leading slashes and other non-alpha chars, for cfg storage
 static char* Addon_TrimLeadingNonAlpha(const char* src, const int32_t srclen)
 {
     int i = 0;
     while (i < srclen && !isalpha(src[i])) i++;
-
-    if (i >= srclen)
-        return nullptr;
-    else
-        return Xstrdup(&src[i]);
+    return (i >= srclen) ? nullptr : Xstrdup(&src[i]);
 }
 
-// This function copies the given string into the text buffer and adds linebreaks at appropriate locations.
-// * lblen : maximum number of characters until linebreak forced
-static int32_t Addon_Strncpy_TextWrap(char *dst, const char *src, int32_t const maxlen, int32_t const lblen)
+static char* Addon_ProcessDescription(const char *description, int32_t const desclen, int32_t const lblen, int32_t & linecount)
 {
-    // indices and line length
-    const int endbufspace = 8;
+    // provide enough space for altered string
+    int const buflen = (lblen > 0) ? desclen + (2*(desclen / lblen)) : desclen;
+    char sanitized_desc[buflen];
+
     int srcidx = 0, dstidx = 0, lastwsidx = 0;
     int currlinelength = 0;
 
-    int32_t linecount = 1;
-    while (src[srcidx] && (dstidx < maxlen - endbufspace))
+    linecount = 1;
+    while (description[srcidx] && (dstidx < buflen))
     {
         // track last whitespace index of destination
-        if (isspace(src[srcidx]))
+        if (isspace(description[srcidx]))
             lastwsidx = dstidx;
-        dst[dstidx++] = src[srcidx++];
+        sanitized_desc[dstidx++] = description[srcidx++];
 
-        if (src[srcidx-1] == '\n')
+        if (description[srcidx-1] == '\n')
         {
             linecount++;
             currlinelength = 0;
@@ -193,46 +176,43 @@ static int32_t Addon_Strncpy_TextWrap(char *dst, const char *src, int32_t const 
             if (dstidx - lastwsidx < (lblen >> 2))
             {
                 // split at whitespace
-                dst[lastwsidx] = '\n';
+                sanitized_desc[lastwsidx] = '\n';
                 currlinelength = dstidx - lastwsidx;
             }
             else
             {
                 // split word (don't care about syllables )
-                dst[dstidx++] = '-';
-                dst[dstidx++] = '\n';
+                sanitized_desc[dstidx++] = '-';
+                sanitized_desc[dstidx++] = '\n';
                 currlinelength = 0;
             }
             linecount++;
             lastwsidx = dstidx;
         }
     }
-
-    if (dstidx >= maxlen - endbufspace)
-    {
-        Bstrcpy(&dst[dstidx], " [...]");
-    }
-    else
-    {
-        dst[dstidx] = '\0';
-    }
-
-    return linecount;
+    sanitized_desc[dstidx] = '\0';
+    return Xstrdup(sanitized_desc);
 }
 
-static int32_t Addon_ParseJson_String(useraddon_t *addon, sjson_node *node, const char *key,
-                                        char *dstbuf, int32_t const bufsize)
+// utility to check if element is string typed
+static int32_t Addon_CheckJsonStringType(useraddon_t *addon, sjson_node *ele, const char *key)
 {
-    sjson_node * ele = sjson_find_member_nocase(node, key);
-    if (ele == nullptr)
-    {
-        dstbuf[0] = '\0';
-        return 1;
-    }
-
     if (ele->tag != SJSON_STRING)
     {
         LOG_F(WARNING, "Addon descriptor member '%s' of addon '%s' is not string typed!", key, addon->uniqueId);
+        return -1;
+    }
+
+    return 0;
+}
+
+static int32_t Addon_ParseJson_String(useraddon_t *addon, sjson_node *root, const char *key,
+                                        char *dstbuf, int32_t const bufsize)
+{
+    sjson_node * ele = sjson_find_member_nocase(root, key);
+    if (ele == nullptr || Addon_CheckJsonStringType(addon, ele, key))
+    {
+        dstbuf[0] = '\0';
         return -1;
     }
 
@@ -242,24 +222,21 @@ static int32_t Addon_ParseJson_String(useraddon_t *addon, sjson_node *node, cons
         LOG_F(WARNING, "Member '%s' of addon '%s' exceeds maximum size of %d chars!", key, addon->uniqueId, bufsize);
         dstbuf[bufsize-1] = '\0';
     }
+
     return 0;
 }
 
 static int32_t Addon_ParseJson_FilePath(useraddon_t* addon, sjson_node* root, const char* key, char *dstbuf, const char* basepath)
 {
     sjson_node * ele = sjson_find_member_nocase(root, key);
-    if (ele == nullptr)
-        return -1;
-
-    if (ele->tag != SJSON_STRING)
+    if (ele == nullptr || Addon_CheckJsonStringType(addon, ele, key))
     {
-        LOG_F(WARNING, "Provided file path on '%s' for addon '%s' is not a string!", key, addon->uniqueId);
+        dstbuf[0] = '\0';
         return -1;
     }
 
     Bsnprintf(dstbuf, BMAX_PATH, "%s/%s", basepath, ele->string_);
-
-    if (!Addon_CheckFilePresence(addon->jsondat.preview_path))
+    if (Addon_CheckFilePresence(addon->jsondat.preview_path))
     {
         LOG_F(WARNING, "File for key '%s' of addon '%s' at location '%s' does not exist!", key, addon->uniqueId, dstbuf);
         dstbuf[0] = '\0';
@@ -269,39 +246,18 @@ static int32_t Addon_ParseJson_FilePath(useraddon_t* addon, sjson_node* root, co
     return 0;
 }
 
-static void Addon_AllocateDefaultDescription(useraddon_t *addon)
-{
-    const int desclen = ARRAY_SIZE(default_description);
-    addon->jsondat.description = (char *) Xmalloc(desclen);
-    Bstrncpy(addon->jsondat.description, default_description, desclen);
-
-    addon->jsondat.desc_len = desclen;
-    addon->jsondat.desc_linecnt = 1;
-}
-
 static int32_t Addon_ParseJson_Description(useraddon_t *addon, sjson_node *node, const char *key)
 {
     sjson_node * ele = sjson_find_member_nocase(node, key);
-    if (ele == nullptr)
-        return 1;
-
-    if (ele->tag != SJSON_STRING)
+    if (ele == nullptr || Addon_CheckJsonStringType(addon, ele, key))
     {
-        LOG_F(WARNING, "Addon descriptor member '%s' of addon '%s' is not string typed!", key, addon->uniqueId);
+        addon->jsondat.description = nullptr;
         return -1;
     }
 
     // add some extra space for linebreaks inserted by textwrap
-    int desclen = strlen(ele->string_) + 256;
-    if (desclen > ADDON_MAXDESC)
-    {
-        LOG_F(WARNING, "Member '%s' of addon '%s' exceeds maximum size of %d chars!", key, addon->uniqueId, ADDON_MAXDESC);
-        desclen = ADDON_MAXDESC;
-    }
-
-    addon->jsondat.description = (char *) Xmalloc(desclen);
-    addon->jsondat.desc_linecnt = Addon_Strncpy_TextWrap(addon->jsondat.description, ele->string_, desclen, m_menudesc_lblength);
-    addon->jsondat.desc_len = desclen;
+    int const desclen = strlen(ele->string_) + 1;
+    addon->jsondat.description = Addon_ProcessDescription(ele->string_, desclen, m_addondesc_lblength, addon->jsondat.desc_linecnt);
 
     return 0;
 }
@@ -312,13 +268,14 @@ static int32_t Addon_ParseJson_Scripts(useraddon_t *addon, sjson_node* root, con
     char scriptbuf[BMAX_PATH];
     int32_t numValidChildren = 0;
 
+    // by default, set to 0
     mainscriptbuf[0] = '\0';
     modulebuffers = nullptr;
     modulecount = 0;
 
     sjson_node * nodes = sjson_find_member_nocase(root, key);
     if (nodes == nullptr)
-        return 1;
+        return -1;
 
     if (nodes->tag != SJSON_ARRAY)
     {
@@ -326,7 +283,7 @@ static int32_t Addon_ParseJson_Scripts(useraddon_t *addon, sjson_node* root, con
         return -1;
     }
 
-    int numchildren = sjson_child_count(nodes);
+    int const numchildren = sjson_child_count(nodes);
     modulebuffers = (char **) Xmalloc(numchildren * sizeof(char*));
 
     sjson_node *snode, *script_path, *script_type;
@@ -334,7 +291,7 @@ static int32_t Addon_ParseJson_Scripts(useraddon_t *addon, sjson_node* root, con
     {
         if (snode->tag != SJSON_OBJECT)
         {
-            LOG_F(WARNING, "Invalid json type in array of member '%s' of addon '%s'!", key, addon->uniqueId);
+            LOG_F(WARNING, "Invalid type found in array of member '%s' of addon '%s'!", key, addon->uniqueId);
             continue;
         }
 
@@ -346,7 +303,7 @@ static int32_t Addon_ParseJson_Scripts(useraddon_t *addon, sjson_node* root, con
         }
 
         Bsnprintf(scriptbuf, BMAX_PATH, "%s/%s", basepath, script_path->string_);
-        if (!Addon_CheckFilePresence(scriptbuf))
+        if (Addon_CheckFilePresence(scriptbuf))
         {
             LOG_F(WARNING, "Script file of addon '%s' at location '%s' does not exist!", addon->uniqueId, scriptbuf);
             continue;
@@ -372,7 +329,6 @@ static int32_t Addon_ParseJson_Scripts(useraddon_t *addon, sjson_node* root, con
         else
         {
             LOG_F(WARNING, "Invalid script type '%s' specified in addon '%s'!", script_type->string_, addon->uniqueId);
-            continue;
         }
     }
 
@@ -392,14 +348,8 @@ static int32_t Addon_ParseJson_Scripts(useraddon_t *addon, sjson_node* root, con
 static addongame_t Addon_ParseJson_GameFlag(useraddon_t* addon, sjson_node* root, const char* key)
 {
     sjson_node * ele = sjson_find_member_nocase(root, key);
-    if (ele == nullptr)
-        return BASEGAME_ANY;
-
-    if (ele->tag != SJSON_STRING)
-    {
-        LOG_F(WARNING, "Provided game type of addon '%s' is not a string!", addon->uniqueId);
-        return BASEGAME_NONE;
-    }
+    if (ele == nullptr || Addon_CheckJsonStringType(addon, ele, key))
+        goto INVALID_GAMETYPE;
 
     if (!Bstrncasecmp(ele->string_, jsonval_gt_any, ARRAY_SIZE(jsonval_gt_any)))
         return BASEGAME_ANY;
@@ -413,7 +363,8 @@ static addongame_t Addon_ParseJson_GameFlag(useraddon_t* addon, sjson_node* root
         return BASEGAME_NAM;
     else
     {
-        LOG_F(WARNING, "Provided game type '%s' of '%s' is invalid!", ele->string_, addon->uniqueId);
+INVALID_GAMETYPE:
+        LOG_F(ERROR, "No valid game type specified for addon %s!", addon->uniqueId);
         return BASEGAME_NONE;
     }
 }
@@ -424,37 +375,35 @@ static int32_t Addon_ParseJson(useraddon_t* addon, sjson_context* ctx, const cha
     char json_path[BMAX_PATH];
     Bsnprintf(json_path, BMAX_PATH, "%s/%s", basepath, addonjsonfn);
 
+    // open json descriptor (try 8.3 format as well, due to grp restrictions)
     const bool isgroup = addon->loadtype & (LT_ZIP | LT_GRP | LT_SSI);
-    buildvfs_kfd jsonfil = kopen4load(json_path, (isgroup ? 2 : 0));
+    buildvfs_kfd jsonfil = kopen4loadfrommod(json_path, (isgroup ? 2 : 0));
     if (jsonfil == buildvfs_kfd_invalid)
     {
-        // reduce extension from ".json" to ".jso"
         json_path[strlen(json_path) - 1] = '\0';
-        jsonfil = kopen4load(json_path, (isgroup ? 2 : 0));
+        jsonfil = kopen4loadfrommod(json_path, (isgroup ? 2 : 0));
         if (jsonfil == buildvfs_kfd_invalid)
-        {
-            DLOG_F(ERROR, "Could not find addon descriptor '%s' for addon: '%s'", json_path, addon->uniqueId);
-            return -1;
-        }
+            return -1; //not found, skip silently
     }
 
+    // load data out of file
     int32_t len = kfilelength(jsonfil);
     char* jsonTextBuf = (char *)Xmalloc(len+1);
     jsonTextBuf[len] = '\0';
-
     if (kread_and_test(jsonfil, jsonTextBuf, len))
     {
-        DLOG_F(ERROR, "Failed to read addon descriptor at: '%s'", json_path);
+        LOG_F(ERROR, "Failed to read addon descriptor at: '%s'", json_path);
         Xfree(jsonTextBuf);
         kclose(jsonfil);
         return -1;
     }
     kclose(jsonfil);
 
+    // parse the file contents
     sjson_reset_context(ctx);
     if (!sjson_validate(ctx, jsonTextBuf))
     {
-        DLOG_F(ERROR, "Invalid addon descriptor JSON structure for addon '%s'!", addon->uniqueId);
+        LOG_F(ERROR, "Invalid addon descriptor JSON structure for addon '%s'!", addon->uniqueId);
         return -1;
     }
 
@@ -476,7 +425,12 @@ static int32_t Addon_ParseJson(useraddon_t* addon, sjson_context* ctx, const cha
         Bstrncpy(addon->jsondat.version, default_version, ADDON_MAXVERSION);
 
     if (Addon_ParseJson_Description(addon, root, jsonkey_desc))
-        Addon_AllocateDefaultDescription(addon);
+    {
+        const int desclen = strlen(default_description) + 1;
+        addon->jsondat.description = (char *) Xmalloc(desclen);
+        Bstrncpy(addon->jsondat.description, default_description, desclen);
+        addon->jsondat.desc_linecnt = 1;
+    }
 
     // CON script paths
     Addon_ParseJson_Scripts(addon, root, jsonkey_con, basepath, addon->jsondat.main_script_path,
@@ -491,158 +445,6 @@ static int32_t Addon_ParseJson(useraddon_t* addon, sjson_context* ctx, const cha
 
     // RTS file path
     Addon_ParseJson_FilePath(addon, root, jsonkey_rts, addon->jsondat.main_rts_path, basepath);
-
-    return 0;
-}
-
-static void Addon_PackageCleanup(int32_t grpfileidx)
-{
-    if (grpfileidx < numgroupfiles)
-        popgroupfile(); // remove grp/ssi
-    else
-        popgroupfromkzstack(); // remove zip
-}
-
-// Count the number of addons present in the local folder, and the workshop folders.
-static int32_t Addon_CountPotentialAddons(void)
-{
-    int32_t numaddons = 0;
-
-    for (grpfile_t *grp = foundgrps; grp; grp=grp->next)
-    {
-        if (grp->type->game & GAMEFLAG_ADDON)
-        {
-            numaddons++;
-        }
-    }
-
-    char * addonpathbuf = (char*) Xmalloc(BMAX_PATH);
-
-    if (!Addon_GetLocalDir(addonpathbuf, BMAX_PATH))
-    {
-        fnlist_t fnlist = FNLIST_INITIALIZER;
-        fnlist_clearnames(&fnlist);
-
-        // get packages in the local addon dir
-        for (auto & ext : addon_extensions)
-        {
-            fnlist_getnames(&fnlist, addonpathbuf, ext, -1, 0);
-            numaddons += fnlist.numfiles;
-            fnlist_clearnames(&fnlist);
-        }
-
-        fnlist_getnames(&fnlist, addonpathbuf, "*", 0, -1);
-        for (BUILDVFS_FIND_REC *rec = fnlist.finddirs; rec; rec=rec->next)
-        {
-            if (!strcmp(rec->name, ".")) continue;
-            if (!strcmp(rec->name, "..")) continue;
-            numaddons++;
-        }
-        fnlist_clearnames(&fnlist);
-    }
-    Xfree(addonpathbuf);
-
-    // TODO: get number of workshop addon folders
-
-    return numaddons;
-}
-
-static int32_t Addon_ReadLocalPackages(sjson_context* ctx, fnlist_t* fnlist, const char* addondir)
-{
-    // search for local addon packages
-    for (auto & ext : addon_extensions)
-    {
-        BUILDVFS_FIND_REC *rec;
-        fnlist_getnames(fnlist, addondir, ext, -1, 0);
-        for (rec=fnlist->findfiles; rec; rec=rec->next)
-        {
-            char package_path[BMAX_PATH];
-            int const nchar = Bsnprintf(package_path, BMAX_PATH, "%s/%s", addondir, rec->name);
-
-            useraddon_t & addon = g_useraddons[g_numuseraddons];
-            addon.uniqueId = Addon_TrimLeadingNonAlpha(package_path, nchar);
-
-            Bstrncpy(addon.data_path, package_path, BMAX_PATH);
-            addon.loadorder_idx = -1;
-
-            if (CONFIG_GetAddonActivationStatus(addon.uniqueId))
-                addon.flags |= ADDFLAG_SELECTED;
-
-            // set initial file type based on extension
-            if (!Bstrcmp(ext, grp_ext))
-                addon.loadtype = LT_GRP;
-            else if (!Bstrcmp(ext, ssi_ext))
-                addon.loadtype = LT_SSI;
-            else
-                addon.loadtype = LT_ZIP;
-
-            // try to load the package and change the grp file idx
-            const int32_t grpfileidx = initgroupfile(package_path);
-            if (grpfileidx == -1)
-            {
-                DLOG_F(ERROR, "Failed to open addon package at '%s'", package_path);
-                Addon_FreeAddonContents(&addon);
-                addon.loadtype = LT_INVALID;
-                continue;
-            }
-            else if (grpfileidx >= numgroupfiles)
-            {
-                // zip file renamed to grp
-                addon.loadtype = LT_ZIP;
-            }
-
-            if (Addon_ParseJson(&addon, ctx, "/", rec->name))
-            {
-                Addon_FreeAddonContents(&addon);
-                Addon_PackageCleanup(grpfileidx);
-                addon.loadtype = LT_INVALID;
-                continue;
-            }
-
-            Addon_PackageCleanup(grpfileidx);
-            ++g_numuseraddons;
-        }
-
-        fnlist_clearnames(fnlist);
-    }
-
-    return 0;
-}
-
-static int32_t Addon_ReadSubfolderAddons(sjson_context* ctx, fnlist_t* fnlist, const char* addondir)
-{
-    // look for addon directories
-    BUILDVFS_FIND_REC *rec;
-    fnlist_getnames(fnlist, addondir, "*", 0, -1);
-    for (rec=fnlist->finddirs; rec; rec=rec->next)
-    {
-        // these aren't actually directories we want to consider
-        if (!strcmp(rec->name, ".")) continue;
-        if (!strcmp(rec->name, "..")) continue;
-
-        char basepath[BMAX_PATH];
-        int const nchar = Bsnprintf(basepath, BMAX_PATH, "%s/%s", addondir, rec->name);
-
-        useraddon_t & addon = g_useraddons[g_numuseraddons];
-        addon.uniqueId = Addon_TrimLeadingNonAlpha(basepath, nchar);
-
-        Bstrncpy(addon.data_path, basepath, BMAX_PATH);
-        addon.loadtype = LT_FOLDER;
-        addon.loadorder_idx = -1;
-
-        if (CONFIG_GetAddonActivationStatus(addon.uniqueId))
-            addon.flags |= ADDFLAG_SELECTED;
-
-        if (Addon_ParseJson(&addon, ctx, basepath, rec->name))
-        {
-            Addon_FreeAddonContents(&addon);
-            addon.loadtype = LT_INVALID;
-            continue;
-        }
-
-        ++g_numuseraddons;
-    }
-    fnlist_clearnames(fnlist);
 
     return 0;
 }
@@ -677,7 +479,8 @@ static void Addon_GrpInfo_GetAuthor(useraddon_t * addon, grpfile_t * agrpf)
             break;
 #endif
         default:
-            author = default_author; // TODO: need storage for author
+            // TODO: need token for author in grpinfo
+            author = default_author;
             break;
     }
     Bstrncpy(addon->jsondat.author, author, ADDON_MAXAUTHOR);
@@ -717,18 +520,16 @@ static void Addon_GrpInfo_GetDescription(useraddon_t * addon, grpfile_t * agrpf)
             break;
 #endif
         default:
+            // TODO: need token for description in grpinfo
             desc = default_description;
             break;
     }
-    int const desclen = strlen(desc) + 16;
-    addon->jsondat.description = (char *) Xmalloc(desclen);
-    addon->jsondat.desc_linecnt = Addon_Strncpy_TextWrap(addon->jsondat.description, desc, desclen, m_menudesc_lblength);
-    addon->jsondat.desc_len = desclen;
+    int const desclen = strlen(desc) + 1;
+    addon->jsondat.description = Addon_ProcessDescription(desc, desclen, m_addondesc_lblength, addon->jsondat.desc_linecnt);
 }
 
 static void Addon_GrpInfo_FakeJson(useraddon_t * addon, grpfile_t * agrpf)
 {
-
     Bstrncpy(addon->jsondat.title, agrpf->type->name, ADDON_MAXTITLE);
     Bsnprintf(addon->jsondat.version, ADDON_MAXVERSION, "%x", agrpf->type->crcval);
     Addon_GrpInfo_GetAuthor(addon, agrpf);
@@ -741,13 +542,13 @@ static void Addon_LoadGrpInfoAddons(void)
     {
         if (grp->type->game & GAMEFLAG_ADDON)
         {
-            useraddon_t & addon = g_useraddons[g_numuseraddons];
+            useraddon_t & addon = s_useraddons[s_numuseraddons];
             char* gId = Xstrdup(grp->type->name);
             for (int i = 0; gId[i]; i++) if (isspace(gId[i])) gId[i] = '_';
             addon.uniqueId = gId;
 
             addon.flags |= ADDFLAG_GRPFILE;
-            if (CONFIG_GetAddonActivationStatus(addon.uniqueId))
+            if (g_selectedGrp == grp)
                 addon.flags |= ADDFLAG_SELECTED;
 
             addon.grpfile = grp;
@@ -755,10 +556,123 @@ static void Addon_LoadGrpInfoAddons(void)
             addon.gametype = (addongame_t) grp->type->game;
 
             Addon_GrpInfo_FakeJson(&addon, grp);
+            addon.updateMenuEntryName();
 
-            g_numuseraddons++;
+            s_numuseraddons++;
         }
     }
+}
+
+// close recently opened package (removes most recently opened one)
+static void Addon_PackageCleanup(int32_t grpfileidx)
+{
+    if (grpfileidx < numgroupfiles)
+        popgroupfile(); // remove grp/ssi
+    else
+        popgroupfromkzstack(); // remove zip
+}
+
+static int32_t Addon_ReadLocalPackages(sjson_context* ctx, fnlist_t* fnlist, const char* addondir)
+{
+    // search for local addon packages
+    for (auto & ext : addon_extensions)
+    {
+        BUILDVFS_FIND_REC *rec;
+        fnlist_getnames(fnlist, addondir, ext, -1, 0);
+        for (rec=fnlist->findfiles; rec; rec=rec->next)
+        {
+            char package_path[BMAX_PATH];
+            int const nchar = Bsnprintf(package_path, BMAX_PATH, "%s/%s", addondir, rec->name);
+
+            useraddon_t & addon = s_useraddons[s_numuseraddons];
+            addon.uniqueId = Addon_TrimLeadingNonAlpha(package_path, nchar);
+            Bstrncpy(addon.data_path, package_path, BMAX_PATH);
+            addon.loadorder_idx = DEFAULT_LOADORDER_IDX;
+
+            // retrieve activation status from config
+            if (CONFIG_GetAddonActivationStatus(addon.uniqueId))
+                addon.flags |= ADDFLAG_SELECTED;
+
+            // set initial file type based on extension
+            if (!Bstrcmp(ext, grp_ext))
+                addon.loadtype = LT_GRP;
+            else if (!Bstrcmp(ext, ssi_ext))
+                addon.loadtype = LT_SSI;
+            else
+                addon.loadtype = LT_ZIP;
+
+            // load package contents to access the json and preview within
+            const int32_t grpfileidx = initgroupfile(package_path);
+            if (grpfileidx == -1)
+            {
+                DLOG_F(ERROR, "Failed to open addon package at '%s'", package_path);
+                Addon_FreeAddonContents(&addon);
+                addon.loadtype = LT_INVALID;
+                continue;
+            }
+            else if (grpfileidx >= numgroupfiles)
+            {
+                // zip file renamed to grp
+                addon.loadtype = LT_ZIP;
+            }
+
+            // load json contents
+            if (Addon_ParseJson(&addon, ctx, "/", rec->name))
+            {
+                Addon_FreeAddonContents(&addon);
+                Addon_PackageCleanup(grpfileidx);
+                addon.loadtype = LT_INVALID;
+                continue;
+            }
+            addon.updateMenuEntryName();
+
+            Addon_PackageCleanup(grpfileidx);
+            ++s_numuseraddons;
+        }
+
+        fnlist_clearnames(fnlist);
+    }
+
+    return 0;
+}
+
+static int32_t Addon_ReadSubfolderAddons(sjson_context* ctx, fnlist_t* fnlist, const char* addondir)
+{
+    // look for addon directories
+    BUILDVFS_FIND_REC *rec;
+    fnlist_getnames(fnlist, addondir, "*", 0, -1);
+    for (rec=fnlist->finddirs; rec; rec=rec->next)
+    {
+        // these aren't actually directories we want to consider
+        if (!strcmp(rec->name, ".")) continue;
+        if (!strcmp(rec->name, "..")) continue;
+
+        char basepath[BMAX_PATH];
+        int const nchar = Bsnprintf(basepath, BMAX_PATH, "%s/%s", addondir, rec->name);
+
+        useraddon_t & addon = s_useraddons[s_numuseraddons];
+        addon.uniqueId = Addon_TrimLeadingNonAlpha(basepath, nchar);
+        Bstrncpy(addon.data_path, basepath, BMAX_PATH);
+        addon.loadorder_idx = DEFAULT_LOADORDER_IDX;
+        addon.loadtype = LT_FOLDER;
+
+        if (CONFIG_GetAddonActivationStatus(addon.uniqueId))
+            addon.flags |= ADDFLAG_SELECTED;
+
+        // parse json contents
+        if (Addon_ParseJson(&addon, ctx, basepath, rec->name))
+        {
+            Addon_FreeAddonContents(&addon);
+            addon.loadtype = LT_INVALID;
+            continue;
+        }
+        addon.updateMenuEntryName();
+
+        ++s_numuseraddons;
+    }
+    fnlist_clearnames(fnlist);
+
+    return 0;
 }
 
 static int32_t Addon_LoadWorkshopAddons(sjson_context* ctx)
@@ -768,171 +682,71 @@ static int32_t Addon_LoadWorkshopAddons(sjson_context* ctx)
     return 0;
 }
 
-static int16_t Addon_InitLoadOrderFromConfig()
+// count potential maximum number of addons
+static int32_t Addon_CountPotentialAddons(void)
 {
-    if (g_numuseraddons <= 0 || !g_useraddons)
-        return -1;
+    int32_t numaddons = 0;
 
-    int16_t cl, maxLoadOrder = 0;
-    for (int i = 0; i < g_numuseraddons; i++)
-    {
-        useraddon_t & addon = g_useraddons[i];
-        if (!addon.isValid() || addon.isTotalConversion() || addon.isGrpInfoAddon() || !(addon.gametype & g_gameType))
-            continue;
+    // count grpinfo addons
+    for (grpfile_t *grp = foundgrps; grp; grp=grp->next)
+        if (grp->type->game & GAMEFLAG_ADDON)
+            numaddons++;
 
-        cl = CONFIG_GetAddonLoadOrder(g_useraddons[i].uniqueId);
-        g_useraddons[i].loadorder_idx = cl;
-        if (cl > maxLoadOrder)
-            maxLoadOrder = cl;
-    }
-
-    return maxLoadOrder + 1;
-}
-
-static void Addon_SaveConfig(void)
-{
-    for (int i = 0; i < g_numuseraddons; i++)
-    {
-        useraddon_t & addon = g_useraddons[i];
-        if (!addon.isValid() || addon.isTotalConversion() || addon.isGrpInfoAddon() || !(addon.gametype & g_gameType))
-            continue;
-
-        CONFIG_SetAddonActivationStatus(g_useraddons[i].uniqueId, g_useraddons[i].isSelected());
-        CONFIG_SetAddonLoadOrder(g_useraddons[i].uniqueId, g_useraddons[i].loadorder_idx);
-    }
-}
-
-void Addon_InitializeLoadOrder(void)
-{
-    int32_t i, cl, maxBufSize;
-    if (g_numuseraddons <= 0 || !g_useraddons)
-        return;
-
-    int16_t maxLoadOrder = Addon_InitLoadOrderFromConfig();
-
-    // allocate enough space for the case where all load order indices are duplicates
-    maxBufSize = maxLoadOrder + g_numuseraddons;
-    useraddon_t** lobuf = (useraddon_t**) Xcalloc(maxBufSize, sizeof(useraddon_t*));
-
-    // place pointers to menu addons corresponding to load order
-    for (i = 0; i < g_numuseraddons; i++)
-    {
-        useraddon_t & addon = g_useraddons[i];
-        if (addon.isTotalConversion() || addon.isGrpInfoAddon())
-            continue;
-
-        cl = addon.loadorder_idx;
-
-        if (cl < 0 || lobuf[cl])
-            lobuf[maxLoadOrder++] = &addon;
-        else
-            lobuf[cl] = &addon;
-    }
-
-    // clean up load order
-    int16_t newlo = 0;
-    for (i = 0; i < maxLoadOrder; i++)
-    {
-        if (lobuf[i])
-        {
-            lobuf[i]->loadorder_idx = newlo;
-            lobuf[i]->updateMenuEntryName();
-            newlo++;
-        }
-    }
-    Xfree(lobuf);
-    Addon_SaveConfig();
-}
-
-// Important: this function is called before the setup window is shown
-// Hence it must not depend on any variables initialized from game content
-int32_t Addon_ReadPackageDescriptors(void)
-{
-    // initialize hash table if it doesn't exist yet
-    if (!h_addonpreviews.items)
-        hash_init(&h_addonpreviews);
-
-    // free current storage (large data)
-    Addon_FreeUserAddons();
-
-    char backup_cwd[BMAX_PATH];
-    buildvfs_getcwd(backup_cwd, BMAX_PATH);
-
-    // use absolute paths to load addons
-    int const bakpathsearchmode = pathsearchmode;
-    pathsearchmode = 1;
-
-    // create space for all potentially valid addons
-    int32_t maxaddons = Addon_CountPotentialAddons();
-    if (maxaddons <= 0)
-    {
-        DLOG_F(INFO, "No custom addons detected.");
-        return -1;
-    }
-
-    g_useraddons = (useraddon_t *)Xcalloc(maxaddons, sizeof(useraddon_t));
-    g_numuseraddons = 0;
-
-    Addon_LoadGrpInfoAddons();
-
-    sjson_context * ctx = sjson_create_context(0, 0, nullptr);
-    char * addonpathbuf = (char*) Xmalloc(BMAX_PATH);
+    char addonpathbuf[BMAX_PATH];
     if (!Addon_GetLocalDir(addonpathbuf, BMAX_PATH))
     {
         fnlist_t fnlist = FNLIST_INITIALIZER;
         fnlist_clearnames(&fnlist);
-        Addon_ReadLocalPackages(ctx, &fnlist, addonpathbuf);
-        Addon_ReadSubfolderAddons(ctx, &fnlist, addonpathbuf);
+
+        // get number of packages in the local addon dir
+        for (auto & ext : addon_extensions)
+        {
+            fnlist_getnames(&fnlist, addonpathbuf, ext, -1, 0);
+            numaddons += fnlist.numfiles;
+            fnlist_clearnames(&fnlist);
+        }
+
+        // get number of subfolders
+        fnlist_getnames(&fnlist, addonpathbuf, "*", 0, -1);
+        for (BUILDVFS_FIND_REC *rec = fnlist.finddirs; rec; rec=rec->next)
+        {
+            if (!strcmp(rec->name, ".")) continue;
+            if (!strcmp(rec->name, "..")) continue;
+            numaddons++;
+        }
+        fnlist_clearnames(&fnlist);
     }
-    Xfree(addonpathbuf);
 
-    Addon_LoadWorkshopAddons(ctx);
-    sjson_destroy_context(ctx);
+    // TODO: get number of workshop addon folders
 
-    pathsearchmode = bakpathsearchmode;
-
-    if (g_numuseraddons <= 0)
-    {
-        DLOG_F(INFO, "No valid addons found.");
-        Addon_FreeUserAddons();
-        return -1;
-    }
-
-    g_useraddons = (useraddon_t *)Xrealloc(g_useraddons, g_numuseraddons * sizeof(useraddon_t));
-    return 0;
+    return numaddons;
 }
 
-// Remove addons for which the gametype doesn't match the current
-// hack to fix the menu display
-int32_t Addon_PruneInvalidAddons(void)
+static void Addon_SeparatePackageTypes(void)
 {
-    if (!g_useraddons || g_numuseraddons <= 0)
-        return -1;
-
-    int i, j, newaddoncount = 0;
-    for (i = 0; i < g_numuseraddons; i++)
+    for (int i = 0; i < s_numuseraddons; i++)
     {
-        if (g_useraddons[i].gametype & g_gameType)
-            newaddoncount++;
+        useraddon_t & addon = s_useraddons[i];
+        if (!addon.isValid()) continue;
+        else if (addon.isGrpInfoAddon()) g_addoncount_grpinfo++;
+        else if (addon.isTotalConversion()) g_addoncount_tcs++;
+        else g_addoncount_mods++;
     }
 
-    useraddon_t * gooduseraddons = (useraddon_t *)Xcalloc(newaddoncount, sizeof(useraddon_t));
+    g_useraddons_grpinfo = (useraddon_t *)Xcalloc(g_addoncount_grpinfo, sizeof(useraddon_t));
+    g_useraddons_tcs = (useraddon_t *)Xcalloc(g_addoncount_tcs, sizeof(useraddon_t));
+    g_useraddons_mods = (useraddon_t *)Xcalloc(g_addoncount_mods, sizeof(useraddon_t));
 
-    for (i=0, j=0; i < g_numuseraddons; i++)
+    //copy data over
+    int grpidx = 0, tcidx = 0, modidx = 0;
+    for (int i = 0; i < s_numuseraddons; i++)
     {
-        useraddon_t & addon = g_useraddons[i];
-        if (!(addon.isValid() && (g_useraddons[i].gametype & g_gameType)))
-            Addon_FreeAddonContents(&g_useraddons[i]);
-        else
-            gooduseraddons[j++] = g_useraddons[i];
+        useraddon_t & addon = s_useraddons[i];
+        if (!addon.isValid()) continue;
+        else if (addon.isGrpInfoAddon()) g_useraddons_grpinfo[grpidx++] = addon;
+        else if (addon.isTotalConversion()) g_useraddons_tcs[tcidx++] = addon;
+        else g_useraddons_mods[modidx++] = addon;
     }
-    Xfree(g_useraddons);
-
-    g_useraddons = gooduseraddons;
-    g_numuseraddons = newaddoncount;
-    Addon_InitializeLoadOrder();
-
-    return 0;
 }
 
 static int32_t Addon_LoadPreviewDataFromFile(char const *fn, uint8_t *imagebuffer)
@@ -977,21 +791,18 @@ static int32_t Addon_LoadPreviewDataFromFile(char const *fn, uint8_t *imagebuffe
 #endif
 }
 
-// initializing of preview images requires access to palette, and is run after game content is loaded
-// hence this may depend on variables such as g_gameType or Logo Flags
-// must be run before loading tiles
-int32_t Addon_CachePreviewImages(void)
+static int32_t Addon_CachePreviewImagesForStruct(useraddon_t* & useraddons, int32_t & numuseraddons)
 {
-    if (!g_useraddons || g_numuseraddons <= 0 || (G_GetLogoFlags() & LOGO_NOADDONS))
+    if (!useraddons || numuseraddons <= 0 || (G_GetLogoFlags() & LOGO_NOADDONS))
         return 0;
 
     // use absolute paths to load addons
     int const bakpathsearchmode = pathsearchmode;
     pathsearchmode = 1;
 
-    for (int i = 0; i < g_numuseraddons; i++)
+    for (int i = 0; i < numuseraddons; i++)
     {
-        useraddon_t & addon = g_useraddons[i];
+        useraddon_t & addon = useraddons[i];
 
         // don't cache images for addons we won't see
         if (!(addon.isValid() && addon.jsondat.preview_path[0] && (addon.gametype & g_gameType)))
@@ -1026,64 +837,78 @@ int32_t Addon_CachePreviewImages(void)
     return 0;
 }
 
-int32_t Addon_LoadPreviewTile(useraddon_t * addon)
+// Only for mods, tcs and grpinfo excluded
+static int16_t Addon_InitLoadOrderFromConfig(void)
 {
-    if (!addon->image_data)
+    if (g_addoncount_mods <= 0 || !g_useraddons_mods)
         return -1;
 
-    walock[TILE_ADDONSHOT] = CACHE1D_PERMANENT;
-
-    if (waloff[TILE_ADDONSHOT] == 0)
-        g_cache.allocateBlock(&waloff[TILE_ADDONSHOT], PREVIEWTILE_XSIZE * PREVIEWTILE_YSIZE, &walock[TILE_ADDONSHOT]);
-
-    tilesiz[TILE_ADDONSHOT].x = PREVIEWTILE_XSIZE;
-    tilesiz[TILE_ADDONSHOT].y = PREVIEWTILE_YSIZE;
-
-    Bmemcpy((char *)waloff[TILE_ADDONSHOT], addon->image_data, PREVIEWTILE_XSIZE * PREVIEWTILE_YSIZE);
-    tileInvalidate(TILE_ADDONSHOT, 0, 255);
-    return 0;
-}
-
-void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB)
-{
-    useraddon_t & addonA = g_useraddons[indexA];
-    useraddon_t & addonB = g_useraddons[indexB];
-
-    int temp = addonA.loadorder_idx;
-    addonA.loadorder_idx = addonB.loadorder_idx;
-    addonB.loadorder_idx = temp;
-
-    addonA.updateMenuEntryName();
-    addonB.updateMenuEntryName();
-    Addon_SaveConfig();
-}
-
-int32_t Addon_LoadSelectedGrpInfoAddon(void)
-{
-    // skip
-    if (!(g_bootState & BOOTSTATE_ADDONS) || g_numuseraddons <= 0 || !g_useraddons)
-        return 0;
-
-    // do not load grpinfo files on first boot
-    if ((g_bootState & BOOTSTATE_INITIAL))
-        return 1;
-
-    // addons in load order
-    for (int i = 0; i < g_numuseraddons; i++)
+    int16_t maxLoadOrder = 0;
+    for (int i = 0; i < g_addoncount_mods; i++)
     {
-        useraddon_t & addon = g_useraddons[i];
-        if (addon.isValid() && addon.isGrpInfoAddon() && addon.isSelected()
-            && (addon.gametype & g_selectedGrp->type->game))
+        useraddon_t & addon = g_useraddons_mods[i];
+
+        // sanity checks in case something goes wrong
+        if (!addon.isValid() || addon.isTotalConversion() || addon.isGrpInfoAddon() || !(addon.gametype & g_gameType))
         {
-            if (!addon.grpfile)
-            {
-                LOG_F(ERROR, "No grp specified for addon: '%s'", addon.uniqueId);
-                continue;
-            }
-            g_selectedGrp = addon.grpfile;
-            break; // only a single file should be loaded, so we break here
+            DLOG_F(INFO, "Skip invalid addon in load order init: %s", addon.uniqueId);
+            continue;
         }
+
+        addon.loadorder_idx = CONFIG_GetAddonLoadOrder(addon.uniqueId);
+        if (addon.loadorder_idx < 0)
+            addon.loadorder_idx = 0;
+        else if (addon.loadorder_idx > maxLoadOrder)
+            maxLoadOrder = addon.loadorder_idx;
     }
+
+    return maxLoadOrder + 1;
+}
+
+static void Addon_SaveModsConfig(void)
+{
+    for (int i = 0; i < g_addoncount_mods; i++)
+    {
+        useraddon_t & addon = g_useraddons_mods[i];
+        // sanity checks in case something goes wrong
+        if (!addon.isValid() || addon.isTotalConversion() || addon.isGrpInfoAddon() || !(addon.gametype & g_gameType))
+        {
+            DLOG_F(WARNING, "Skip invalid addon in load order init: %s. This shouldn't be happening.", addon.uniqueId);
+            continue;
+        }
+
+        CONFIG_SetAddonActivationStatus(addon.uniqueId, addon.isSelected());
+        CONFIG_SetAddonLoadOrder(addon.uniqueId, addon.loadorder_idx);
+    }
+}
+
+static int32_t Addon_PruneInvalidAddonsForStruct(useraddon_t* & useraddons, int32_t & numuseraddons)
+{
+    if (!useraddons || numuseraddons <= 0)
+        return -1;
+
+    int i, j, newaddoncount = 0;
+    for (i = 0; i < numuseraddons; i++)
+    {
+        if (useraddons[i].gametype & g_gameType)
+            newaddoncount++;
+    }
+
+    useraddon_t * gooduseraddons = (useraddon_t *)Xcalloc(newaddoncount, sizeof(useraddon_t));
+
+    for (i=0, j=0; i < numuseraddons; i++)
+    {
+        useraddon_t & addon = useraddons[i];
+        if (!(addon.isValid() && (useraddons[i].gametype & g_gameType)))
+            Addon_FreeAddonContents(&useraddons[i]);
+        else
+            gooduseraddons[j++] = useraddons[i];
+    }
+    Xfree(useraddons);
+
+    useraddons = gooduseraddons;
+    numuseraddons = newaddoncount;
+    //TODO: move this elsewhere: Addon_InitializeLoadOrder();
 
     return 0;
 }
@@ -1132,30 +957,275 @@ static int32_t Addon_LoadSelectedUserAddon(useraddon_t* addon)
         LOG_F(INFO, "Using RTS file: %s", ud.rtsname);
     }
 
+    return 0;
+}
+
+static void freehashpreviewimage(const char *, intptr_t key)
+{
+    Xfree((void *)key);
+}
+
+
+
+// extern, track the found grp info addons
+useraddon_t* g_useraddons_grpinfo = nullptr;
+int32_t g_addoncount_grpinfo = 0;
+
+// extern, track the found total conversion addons
+useraddon_t* g_useraddons_tcs = nullptr;
+int32_t g_addoncount_tcs = 0;
+
+// extern, track the found module addons
+useraddon_t* g_useraddons_mods = nullptr;
+int32_t g_addoncount_mods = 0;
+
+// extern, whether mod loading failed
+bool g_addonstart_failed = false;
+
+// extern, menu specific globals
+int32_t m_addondesc_lblength = 0;
+int32_t m_addontitle_maxvisible = ADDON_MAXTITLE;
+
+void Addon_FreePreviewHashTable(void)
+{
+    hash_loop(&h_addonpreviews, freehashpreviewimage);
+    hash_free(&h_addonpreviews);
+}
+
+void Addon_FreeUserAddons(void)
+{
+    Addon_FreeUserAddonsForStruct(g_useraddons_grpinfo, g_addoncount_grpinfo);
+    Addon_FreeUserAddonsForStruct(g_useraddons_tcs, g_addoncount_tcs);
+    Addon_FreeUserAddonsForStruct(g_useraddons_mods, g_addoncount_mods);
+}
+
+// Important: this function is called before the setup window is shown
+// Hence it must not depend on any variables initialized from game content
+void Addon_ReadPackageDescriptors(void)
+{
+    // free previous storage
+    Addon_FreeUserAddons();
+
+    // initialize hash table if it doesn't exist yet
+    if (!h_addonpreviews.items)
+        hash_init(&h_addonpreviews);
+
+    // use absolute paths to load addons
+    int const bakpathsearchmode = pathsearchmode;
+    pathsearchmode = 1;
+
+    // create space for all potentially valid addons
+    int32_t maxaddons = Addon_CountPotentialAddons();
+    if (maxaddons <= 0)
+        return;
+
+    // these variables are updated over the following functions
+    s_useraddons = (useraddon_t *)Xcalloc(maxaddons, sizeof(useraddon_t));
+    s_numuseraddons = 0;
+
+    Addon_LoadGrpInfoAddons();
+
+    sjson_context * ctx = sjson_create_context(0, 0, nullptr);
+    char addonpathbuf[BMAX_PATH];
+    if (!Addon_GetLocalDir(addonpathbuf, BMAX_PATH))
+    {
+        fnlist_t fnlist = FNLIST_INITIALIZER;
+        fnlist_clearnames(&fnlist);
+        Addon_ReadLocalPackages(ctx, &fnlist, addonpathbuf);
+        Addon_ReadSubfolderAddons(ctx, &fnlist, addonpathbuf);
+    }
+
+    Addon_LoadWorkshopAddons(ctx);
+    sjson_destroy_context(ctx);
+
+    pathsearchmode = bakpathsearchmode;
+
+    if (s_numuseraddons > 0)
+        Addon_SeparatePackageTypes();
+
+    DO_FREE_AND_NULL(s_useraddons);
+    s_numuseraddons = 0;
+}
+
+// Remove addons for which the gametype doesn't match the current
+void Addon_PruneInvalidAddons(void)
+{
+    Addon_PruneInvalidAddonsForStruct(g_useraddons_tcs, g_addoncount_tcs);
+    Addon_PruneInvalidAddonsForStruct(g_useraddons_mods, g_addoncount_mods);
+}
+
+// initializing of preview images requires access to palette, and is run after game content is loaded
+// hence this may depend on variables such as g_gameType or Logo Flags
+void Addon_CachePreviewImages(void)
+{
+    Addon_CachePreviewImagesForStruct(g_useraddons_grpinfo, g_addoncount_grpinfo);
+    Addon_CachePreviewImagesForStruct(g_useraddons_tcs, g_addoncount_tcs);
+    Addon_CachePreviewImagesForStruct(g_useraddons_mods, g_addoncount_mods);
+}
+
+int32_t Addon_LoadPreviewTile(useraddon_t * addon)
+{
+    if (!addon->image_data)
+        return -1;
+
+    walock[TILE_ADDONSHOT] = CACHE1D_PERMANENT;
+
+    if (waloff[TILE_ADDONSHOT] == 0)
+        g_cache.allocateBlock(&waloff[TILE_ADDONSHOT], PREVIEWTILE_XSIZE * PREVIEWTILE_YSIZE, &walock[TILE_ADDONSHOT]);
+
+    tilesiz[TILE_ADDONSHOT].x = PREVIEWTILE_XSIZE;
+    tilesiz[TILE_ADDONSHOT].y = PREVIEWTILE_YSIZE;
+
+    Bmemcpy((char *)waloff[TILE_ADDONSHOT], addon->image_data, PREVIEWTILE_XSIZE * PREVIEWTILE_YSIZE);
+    tileInvalidate(TILE_ADDONSHOT, 0, 255);
+    return 0;
+}
+
+void Addon_InitializeLoadOrder(void)
+{
+    int32_t i, cl, maxBufSize;
+    if (g_addoncount_mods <= 0 || !g_useraddons_mods)
+        return;
+
+    int16_t maxLoadOrder = Addon_InitLoadOrderFromConfig();
+
+    // allocate enough space for the case where all load order indices are duplicates
+    maxBufSize = maxLoadOrder + g_addoncount_mods;
+    useraddon_t** lobuf = (useraddon_t**) Xcalloc(maxBufSize, sizeof(useraddon_t*));
+
+    // place pointers to menu addons corresponding to load order
+    for (i = 0; i < g_addoncount_mods; i++)
+    {
+        useraddon_t & addon = g_useraddons_mods[i];
+        if (addon.isTotalConversion() || addon.isGrpInfoAddon())
+            continue;
+
+        cl = addon.loadorder_idx;
+
+        if (cl < 0 || lobuf[cl])
+            lobuf[maxLoadOrder++] = &addon;
+        else
+            lobuf[cl] = &addon;
+    }
+
+    // clean up load order
+    int16_t newlo = 0;
+    for (i = 0; i < maxLoadOrder; i++)
+    {
+        if (lobuf[i])
+        {
+            lobuf[i]->loadorder_idx = newlo;
+            lobuf[i]->updateMenuEntryName();
+            newlo++;
+        }
+    }
+    Xfree(lobuf);
+    Addon_SaveModsConfig();
+}
+
+void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB)
+{
+    useraddon_t & addonA = g_useraddons_mods[indexA];
+    useraddon_t & addonB = g_useraddons_mods[indexB];
+
+    int temp = addonA.loadorder_idx;
+    addonA.loadorder_idx = addonB.loadorder_idx;
+    addonB.loadorder_idx = temp;
+
+    addonA.updateMenuEntryName();
+    addonB.updateMenuEntryName();
+    Addon_SaveModsConfig();
+}
+
+int32_t Addon_PrepareGrpInfoAddon(void)
+{
+    if (!(g_bootState & BOOTSTATE_ADDONS) || g_addoncount_grpinfo <= 0 || !g_useraddons_grpinfo)
+        return 0;
+
+    // do not load grpinfo files on first boot
+    if ((g_bootState & BOOTSTATE_INITIAL))
+        return 1;
+
+    // addons in load order
+    for (int i = 0; i < g_addoncount_grpinfo; i++)
+    {
+        useraddon_t & addon = g_useraddons_grpinfo[i];
+        if (!addon.isSelected() || !(addon.gametype & g_selectedGrp->type->game))
+            continue;
+
+        if (!addon.isValid() || addon.isTotalConversion() || !addon.isGrpInfoAddon() || !addon.grpfile)
+        {
+            DLOG_F(WARNING, "Skip invalid grpinfo in init: %s. This shouldn't be happening.", addon.uniqueId);
+            continue;
+        }
+
+        g_selectedGrp = addon.grpfile;
+        break; // only load one at most
+    }
 
     return 0;
 }
 
-int32_t Addon_PrepareUserAddons(void)
+int32_t Addon_PrepareUserTCs(void)
 {
-    if (!(g_bootState & BOOTSTATE_ADDONS) || g_numuseraddons <= 0 || !g_useraddons)
+    if (!(g_bootState & BOOTSTATE_ADDONS) || g_addoncount_tcs <= 0 || !g_useraddons_tcs)
         return 0;
 
     // use absolute paths to load addons
     int const bakpathsearchmode = pathsearchmode;
     pathsearchmode = 1;
 
-    // assume that load order already sanitized
-    useraddon_t** lobuf = (useraddon_t**) Xcalloc(g_numuseraddons, sizeof(useraddon_t*));
-    for (int i = 0; i < g_numuseraddons; i++)
-        lobuf[g_useraddons[i].loadorder_idx] = &g_useraddons[i];
+    // addons in load order
+    for (int i = 0; i < g_addoncount_tcs; i++)
+    {
+        useraddon_t & addon = g_useraddons_tcs[i];
+        if (!addon.isSelected() || !(addon.gametype & g_gameType))
+            continue;
+
+        // sanity checks
+        if (!addon.isValid() || !addon.isTotalConversion() || addon.isGrpInfoAddon())
+        {
+            DLOG_F(WARNING, "Skip invalid addon in TC init: %s. This shouldn't be happening.", addon.uniqueId);
+            continue;
+        }
+
+        Addon_LoadSelectedUserAddon(&addon);
+        break; // only load one at most
+    }
+
+    pathsearchmode = bakpathsearchmode;
+    return 0;
+}
+
+int32_t Addon_PrepareUserMods(void)
+{
+    if (!(g_bootState & BOOTSTATE_ADDONS) || g_addoncount_mods <= 0 || !g_useraddons_mods)
+        return 0;
+
+    // use absolute paths to load addons
+    int const bakpathsearchmode = pathsearchmode;
+    pathsearchmode = 1;
+
+    // assume that load order already sanitized, each index unique
+    useraddon_t** lobuf = (useraddon_t**) Xcalloc(g_addoncount_mods, sizeof(useraddon_t*));
+    for (int i = 0; i < g_addoncount_mods; i++)
+        lobuf[g_useraddons_mods[i].loadorder_idx] = &g_useraddons_mods[i];
 
     // addons in load order
-    for (int i = 0; i < g_numuseraddons; i++)
+    for (int i = 0; i < g_addoncount_mods; i++)
     {
-        useraddon_t* addon = lobuf[i];
-        if (addon->isValid() && !addon->isGrpInfoAddon() && addon->isSelected() && (addon->gametype & g_gameType))
-            Addon_LoadSelectedUserAddon(addon);
+        useraddon_t & addon = *lobuf[i];
+        if (!addon.isSelected() || !(addon.gametype & g_gameType))
+            continue;
+
+        // sanity checks
+        if (!addon.isValid() || addon.isTotalConversion() || addon.isGrpInfoAddon())
+        {
+            DLOG_F(WARNING, "Skip invalid addon in mod init: %s. This shouldn't be happening.", addon.uniqueId);
+            continue;
+        }
+
+        Addon_LoadSelectedUserAddon(&addon);
     }
 
     pathsearchmode = bakpathsearchmode;

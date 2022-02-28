@@ -6067,7 +6067,7 @@ static void G_BackupStartupValues(void)
 {
     // CommandGrps and CommandPaths do not need to be saved
     G_FreeBackupValues();
-    
+
     BACKUP_g_selectedGrp = g_selectedGrp;
 
     BACKUP_ud = ud;
@@ -6108,7 +6108,7 @@ static void G_RestoreStartupValues(void)
 {
     // CommandGrps and CommandPaths do not need to be restored
     g_selectedGrp = BACKUP_g_selectedGrp;
-    
+
     ud = BACKUP_ud;
 
     g_noLogo = BACKUP_g_noLogo;
@@ -7213,7 +7213,7 @@ SOFT_REBOOT:
     {
         LOG_F(ERROR, "Failed to launch selected addons, resetting to previous values...");
         g_bootState = BOOTSTATE_REBOOT;
-        g_addonfailed = true;
+        g_addonstart_failed = true;
         goto SOFT_REBOOT;
     }
 
@@ -7255,7 +7255,7 @@ SOFT_REBOOT:
         {
             LOG_F(ERROR, "Fatal engine error when attempting to launch addons, resetting to previous values...");
             g_bootState = BOOTSTATE_REBOOT;
-            g_addonfailed = true;
+            g_addonstart_failed = true;
             goto SOFT_REBOOT;
         }
         G_FatalEngineInitError();
