@@ -70,6 +70,26 @@ enum addonflags_t
     ADDFLAG_GRPFILE = 2,
 };
 
+enum version_comparator_t
+{
+    ADDV_NOOP = 0,
+    ADDV_EQ,
+    ADDV_GT_EQ,
+    ADDV_LT_EQ,
+    ADDV_GT,
+    ADDV_LT,
+};
+
+struct addondependency_t
+{
+    char uniqueId[ADDON_MAXUID];
+    char version[ADDON_MAXVERSION];
+    char title[ADDON_MAXTITLE];
+
+    bool fulfilled;
+    version_comparator_t comparisonOp;
+};
+
 struct addonjson_t
 {
     char title[ADDON_MAXTITLE];
@@ -101,6 +121,10 @@ struct useraddon_t
     addongame_t gametype;
     addonpackage_t loadtype;
     addonjson_t jsondat;
+
+    addondependency_t* dependencies;
+    addondependency_t* incompatibilities;
+    int32_t num_dependencies, num_incompats;
 
     uint8_t* image_data;
 
@@ -159,6 +183,8 @@ void Addon_PruneInvalidAddons(void);
 
 void Addon_InitializeLoadOrder(void);
 void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB);
+
+int32_t Addon_CheckDependencyFulfilled(addondependency_t* dep, useraddon_t* otherAddon);
 
 int32_t Addon_PrepareGrpInfoAddon(void);
 int32_t Addon_PrepareUserTCs(void);

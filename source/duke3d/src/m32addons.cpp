@@ -51,8 +51,21 @@ void Addon_ReadPackageDescriptors(void) { /* stub */ };
 void Addon_PruneInvalidAddons(void) { /* stub */ };
 
 void Addon_InitializeLoadOrder(void) { /* stub */ };
-void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB) { (void) indexA; (void) indexB; };
-int32_t Addon_PrepareGrpInfoAddon(void) { return 0; };
+void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB)
+{
+    // stub
+    (void) indexA;
+    (void) indexB;
+};
 
+int32_t Addon_CheckDependencyFulfilled(addondependency_t* dep, useraddon_t* otherAddon)
+{
+    // stub
+    UNREFERENCED_PARAMETER(dep);
+    UNREFERENCED_PARAMETER(otherAddon);
+    return 0;
+};
+
+int32_t Addon_PrepareGrpInfoAddon(void) { return 0; };
 int32_t Addon_PrepareUserTCs(void) { return 0; };
 int32_t Addon_PrepareUserMods(void) { return 0; };

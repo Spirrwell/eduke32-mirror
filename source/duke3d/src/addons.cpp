@@ -42,6 +42,8 @@ static const char jsonkey_game[] = "game";
 static const char jsonkey_title[] = "title";
 static const char jsonkey_author[] = "author";
 static const char jsonkey_version[] = "version";
+static const char jsonkey_dependencies[] = "dependencies";
+static const char jsonkey_incompatibilities[] = "incompats";
 static const char jsonkey_desc[] = "description";
 static const char jsonkey_image[] = "image";
 static const char jsonkey_con[] = "CON";
@@ -107,6 +109,7 @@ static void Addon_FreeAddonContents(useraddon_t * addon)
             Xfree(addon->jsondat.script_modules[j]);
         DO_FREE_AND_NULL(addon->jsondat.script_modules);
     }
+    addon->jsondat.num_script_modules = 0;
 
     if (addon->jsondat.def_modules)
     {
@@ -114,6 +117,15 @@ static void Addon_FreeAddonContents(useraddon_t * addon)
             Xfree(addon->jsondat.def_modules[j]);
         DO_FREE_AND_NULL(addon->jsondat.def_modules);
     }
+    addon->jsondat.num_def_modules = 0;
+
+    if (addon->dependencies)
+        DO_FREE_AND_NULL(addon->dependencies);
+    addon->num_dependencies = 0;
+
+    if (addon->incompatibilities)
+        DO_FREE_AND_NULL(addon->incompatibilities);
+    addon->num_incompats = 0;
 }
 
 static void Addon_FreeUserAddonsForStruct(useraddon_t* & useraddons, int32_t & addoncount)
@@ -182,6 +194,137 @@ static char* Addon_ProcessDescription(const char *description, int32_t const des
     }
     sanitized_desc[dstidx] = '\0';
     return Xstrdup(sanitized_desc);
+}
+
+static char Addon_ParseVersionSegment(const char* vString, int32_t & intBlock, int32_t & endIdx)
+{
+    // this function assumes that strings were previously verified with Addon_CheckVersionFormat()
+    // retrieves version number block converted from string to int, with start index of the next block
+    // also returns the last separator found
+    int k = 0; char c;
+    while((c = vString[k++])) if (c == '.' || c == '-') break;
+    endIdx = k;
+
+    char* textbuf = (char*) Xmalloc(endIdx * sizeof(char));
+    Bstrncpyz(textbuf, vString, endIdx);
+    intBlock = Batoi(textbuf);
+    Xfree(textbuf);
+
+    return c;
+}
+
+static int32_t Addon_CompareVersionStrings(const char* depVersion, const char* packVersion)
+{
+    // this function assumes that strings were previously verified with Addon_CheckVersionFormat()
+    // compares two version strings. Outputs 0 if equal, 1 if depVersion is greater, -1 if packVersion is greater.
+    char c1, c2;
+    int v1, v2, i = 0, j = 0;
+    while(depVersion[i] && packVersion[j])
+    {
+        c1 = Addon_ParseVersionSegment(&depVersion[i], v1, i);
+        c2 = Addon_ParseVersionSegment(&packVersion[j], v2, j);
+
+        if (v1 > v2)
+            return 1;
+        else if (v1 < v2)
+            return -1;
+        else if (c1 == '.' && (c2 == '\0' || c2 == '-'))
+            return 1;
+        else if ((c1 == '\0' || c1 == '-') && (c2 == '.'))
+            return -1;
+        else if ((c1 == '-') && (c2 == '\0'))
+            return 1;
+        else if ((c1 == '\0') && (c2 == '-'))
+            return -1;
+        else if (c1 == '\0' && c2 == '\0')
+            return 0;
+        else if (c1 == '-' && c2 == '-')
+        {
+            //switch to comparing each char
+            while (depVersion[i] && packVersion[j])
+            {
+                if (depVersion[i] > packVersion[j])
+                    return 0;
+                else if (depVersion[i] < packVersion[j])
+                    return -1;
+                i++; j++;
+            }
+        }
+    }
+
+    if (depVersion[i] == packVersion[j])
+        return 0;
+    if (depVersion[i] > packVersion[j])
+        return 1;
+    else
+        return -1;
+}
+
+static int32_t Addon_CheckVersionFormat(const char* versionString)
+{
+    // This awful function verifies that version strings adhere to the following format:
+    // REGEX: ((([1-9][0-9]*)|0)\.)*(([1-9][0-9]*))(\-[a-zA-Z0-9]+)?
+    // examples: {1.0, 1.0.3.4-alphanum123, 1, 1-a}
+    // REPLACE THIS IF A REGEX LIBRARY IS INTRODUCED
+    if (!versionString || !versionString[0])
+        return -1;
+
+    int k = 0;
+    char curChar = '\0'; char first;
+    while ((first = versionString[k]) && curChar != '-')
+    {
+        // first char must be a digit and not a leading zero followed by a digit
+        if (!isdigit(first) || (first == '0' && isdigit(versionString[k+1])))
+        {
+            // DLOG_F(WARNING, "Version grouping starts with invalid char: %c", first);
+            return -1;
+        }
+        k++;
+
+        // get to next period/dash
+        if (versionString[k])
+        {
+            while ((curChar = versionString[k++]))
+            {
+                if (curChar == '.' || curChar == '-')
+                    break;
+
+                if (!isdigit(curChar))
+                {
+                    // DLOG_F(WARNING, "Non-digit found in version grouping: %c", curChar);
+                    return -1;
+                }
+            }
+        }
+    }
+
+    // must not end with period
+    if (versionString[k - 1] == '.')
+    {
+        // DLOG_F(WARNING, "Version string cannot end with period char!");
+        return -1;
+    }
+
+    // allow arbitrary alpha-numerical string after dash
+    if (curChar == '-')
+    {
+        if (!versionString[k])
+        {
+            // DLOG_F(WARNING, "No characters following dash!");
+            return -1;
+        }
+
+        while ((curChar = versionString[k++]))
+        {
+            if (!isalnum(curChar))
+            {
+                // DLOG_F(WARNING, "Non-alphanum char found after dash: %c", curChar);
+                return -1;
+            }
+        }
+    }
+
+    return 0;
 }
 
 // utility to check if element is string typed
@@ -282,9 +425,35 @@ static int32_t Addon_ParseJson_FilePath(useraddon_t* addon, sjson_node* root, co
     return 0;
 }
 
-static int32_t Addon_ParseJson_Description(useraddon_t *addon, sjson_node *node, const char *key)
+static int32_t Addon_ParseJson_Version(useraddon_t *addon, sjson_node *root, const char *key)
 {
-    sjson_node * ele = sjson_find_member_nocase(node, key);
+    sjson_node * ele = sjson_find_member_nocase(root, key);
+    if (ele == nullptr || Addon_CheckJsonStringType(addon, ele, key))
+    {
+        addon->jsondat.version[0] = '\0';
+        return -1;
+    }
+
+    Bstrncpy(addon->jsondat.version, ele->string_, ADDON_MAXVERSION);
+    if (addon->jsondat.version[ADDON_MAXVERSION-1])
+    {
+        LOG_F(WARNING, "Member '%s' of addon '%s' exceeds maximum size of %d chars!", key, addon->uniqueId, ADDON_MAXVERSION);
+        addon->jsondat.version[ADDON_MAXVERSION-1] = '\0';
+    }
+
+    if (Addon_CheckVersionFormat(addon->jsondat.version))
+    {
+        LOG_F(WARNING, "Version string '%s' has incorrect format!", addon->jsondat.version);
+        addon->jsondat.version[0] = '\0';
+        return -1;
+    }
+
+    return 0;
+}
+
+static int32_t Addon_ParseJson_Description(useraddon_t *addon, sjson_node *root, const char *key)
+{
+    sjson_node * ele = sjson_find_member_nocase(root, key);
     if (ele == nullptr || Addon_CheckJsonStringType(addon, ele, key))
     {
         addon->jsondat.description = nullptr;
@@ -381,6 +550,162 @@ static int32_t Addon_ParseJson_Scripts(useraddon_t *addon, sjson_node* root, con
     return 0;
 }
 
+static int32_t Addon_SetupVersionDependency(addondependency_t * dep, const char* versionString)
+{
+    if (versionString == nullptr)
+    {
+        dep->version[0] = '\0';
+        dep->comparisonOp = ADDV_NOOP;
+        return 0;
+    }
+
+    // check for comparison operator
+    if (strlen(versionString) < 3)
+    {
+        LOG_F(WARNING, "Dependency version string '%s' is too short!", versionString);
+        dep->version[0] = '\0';
+        dep->comparisonOp = ADDV_NOOP;
+        return -1;
+    }
+
+    int k;
+    if (!Bstrncmp(versionString, "==", 2))
+    {
+        dep->comparisonOp = ADDV_EQ;
+        k = 2;
+    }
+    else if (!Bstrncmp(versionString, ">=", 2))
+    {
+        dep->comparisonOp = ADDV_GT_EQ;
+        k = 2;
+    }
+    else if (!Bstrncmp(versionString, "<=", 2))
+    {
+        dep->comparisonOp = ADDV_LT_EQ;
+        k = 2;
+    }
+    else if (versionString[0] == '>')
+    {
+        dep->comparisonOp = ADDV_GT;
+        k = 1;
+    }
+    else if (versionString[0] == '<')
+    {
+        dep->comparisonOp = ADDV_LT;
+        k = 1;
+    }
+    else
+    {
+        LOG_F(WARNING, "Missing comparison operator on '%s' or incorrect format!", versionString);
+        dep->version[0] = '\0';
+        dep->comparisonOp = ADDV_NOOP;
+        return -1;
+    }
+
+    Bstrncpy(dep->version, &versionString[k], ADDON_MAXVERSION);
+    if (dep->version[ADDON_MAXVERSION-1])
+    {
+        LOG_F(WARNING, "Dependency version '%s' exceeds maximum size of %d chars!", &versionString[k], ADDON_MAXVERSION);
+        dep->version[ADDON_MAXVERSION-1] = '\0';
+    }
+
+    if (Addon_CheckVersionFormat(dep->version))
+    {
+        LOG_F(WARNING, "Version string '%s' has incorrect format!", dep->version);
+        dep->version[0] = '\0';
+        dep->comparisonOp = ADDV_NOOP;
+        return -1;
+    }
+
+    return 0;
+}
+
+static int32_t Addon_ParseJson_Dependency(useraddon_t* addon, sjson_node* root, const char* key,
+                                          addondependency_t*& dep_ptr, int32_t& dep_ctr)
+{
+    sjson_node * nodes = sjson_find_member_nocase(root, key);
+    if (nodes == nullptr)
+        return -1;
+
+    if (nodes->tag != SJSON_ARRAY)
+    {
+        LOG_F(WARNING, "Content of member '%s' of addon '%s' is not an array!", key, addon->uniqueId);
+        return -1;
+    }
+
+    int const numchildren = sjson_child_count(nodes);
+
+    dep_ptr = (addondependency_t *) Xcalloc(numchildren, sizeof(addondependency_t));
+    dep_ctr = 0;
+
+    sjson_node *snode;
+    sjson_node *dep_uid, *dep_version, *dep_title;
+    sjson_foreach(snode, nodes)
+    {
+        if (snode->tag != SJSON_OBJECT)
+        {
+            LOG_F(WARNING, "Invalid type found in array of member '%s' of addon '%s'!", key, addon->uniqueId);
+            continue;
+        }
+
+        dep_uid = sjson_find_member_nocase(snode, jsonkey_uid);
+        if (dep_uid == nullptr || dep_uid->tag != SJSON_STRING)
+        {
+            LOG_F(WARNING, "Dependency UID in %s is missing or has invalid format in addon '%s'!", key, addon->uniqueId);
+            continue;
+        }
+
+        dep_version = sjson_find_member_nocase(snode, jsonkey_version);
+        if (dep_version != nullptr)
+        {
+            if (dep_version->tag != SJSON_STRING)
+            {
+                LOG_F(WARNING, "Dependency version %s has invalid format in addon '%s'!", dep_uid->string_, addon->uniqueId);
+                continue;
+            }
+        }
+
+        dep_title = sjson_find_member_nocase(snode, jsonkey_title);
+        if (dep_title != nullptr)
+        {
+            if (dep_title->tag != SJSON_STRING)
+            {
+                LOG_F(WARNING, "Dependency name for %s has invalid format in addon '%s'!", key, addon->uniqueId);
+                continue;
+            }
+        }
+
+        addondependency_t & adt = dep_ptr[dep_ctr];
+        adt.fulfilled = false;
+
+        // required
+        Bstrncpy(adt.uniqueId, dep_uid->string_, ADDON_MAXUID);
+
+        // dependency version is optional
+        char * vString = (dep_version != nullptr) ? dep_version->string_ : nullptr;
+        if (Addon_SetupVersionDependency(&adt, vString))
+        {
+            LOG_F(WARNING, "Dependency version %s has invalid format in addon '%s'!", dep_uid->string_, addon->uniqueId);
+            continue;
+        }
+
+        // optional
+        if (dep_title)
+            Bstrncpy(adt.title, dep_title->string_, ADDON_MAXTITLE);
+        else
+            adt.title[0] = '\0';
+
+        dep_ctr++;
+    }
+
+    if (dep_ctr == 0)
+        DO_FREE_AND_NULL(dep_ptr);
+    else
+        dep_ptr = (addondependency_t *) Xrealloc(dep_ptr, dep_ctr * sizeof(addondependency_t));
+
+    return 0;
+}
+
 static addongame_t Addon_ParseJson_GameFlag(useraddon_t* addon, sjson_node* root, const char* key)
 {
     sjson_node * ele = sjson_find_member_nocase(root, key);
@@ -455,15 +780,15 @@ static int32_t Addon_ParseJson(useraddon_t* addon, sjson_context* ctx, const cha
         return -1;
     }
 
+    // version string
+    Addon_ParseJson_Version(addon, root, jsonkey_version);
+
     // load visual descriptors
     if (Addon_ParseJson_String(addon, root, jsonkey_title, addon->jsondat.title, ADDON_MAXTITLE))
         Bstrncpy(addon->jsondat.title, pack_fn, ADDON_MAXTITLE);
 
     if (Addon_ParseJson_String(addon, root, jsonkey_author, addon->jsondat.author, ADDON_MAXAUTHOR))
         Bstrncpy(addon->jsondat.author, default_author, ADDON_MAXAUTHOR);
-
-    if (Addon_ParseJson_String(addon, root, jsonkey_version, addon->jsondat.version, ADDON_MAXVERSION))
-        Bstrncpy(addon->jsondat.version, default_version, ADDON_MAXVERSION);
 
     if (Addon_ParseJson_Description(addon, root, jsonkey_desc))
     {
@@ -486,6 +811,12 @@ static int32_t Addon_ParseJson(useraddon_t* addon, sjson_context* ctx, const cha
 
     // RTS file path
     Addon_ParseJson_FilePath(addon, root, jsonkey_rts, addon->jsondat.main_rts_path, basepath);
+
+    // dependencies
+    Addon_ParseJson_Dependency(addon, root, jsonkey_dependencies, addon->dependencies, addon->num_dependencies);
+
+    // incompatibilities
+    Addon_ParseJson_Dependency(addon, root, jsonkey_incompatibilities, addon->incompatibilities, addon->num_incompats);
 
     return 0;
 }
@@ -1173,6 +1504,40 @@ void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB)
     addonA.updateMenuEntryName();
     addonB.updateMenuEntryName();
     Addon_SaveModsConfig();
+}
+
+int32_t Addon_CheckDependencyFulfilled(addondependency_t* dep, useraddon_t* otherAddon)
+{
+    // returns 0 if dependency met, -1 otherwise
+    char * packUid = otherAddon->uniqueId;
+    char * packVersion = otherAddon->jsondat.version;
+
+    // if uid doesn't match, not fulfilled
+    if (Bstrcmp(dep->uniqueId, packUid))
+        return -1;
+
+    if (!packVersion[0] || dep->comparisonOp == ADDV_NOOP)
+    {
+        // if package or dependency has no version specified, match true
+        return 0;
+    }
+
+    int const result = Addon_CompareVersionStrings(dep->version, packVersion);
+    switch (dep->comparisonOp)
+    {
+        case ADDV_EQ:
+            return (result == 0) ? 0 : -1;
+        case ADDV_GT_EQ:
+            return (result >= 0) ? 0 : -1;
+        case ADDV_GT:
+            return (result > 0) ? 0 : -1;
+        case ADDV_LT_EQ:
+            return (result <= 0) ? 0 : -1;
+        case ADDV_LT:
+            return (result < 0) ? 0 : -1;
+        default:
+            return 0;
+    }
 }
 
 int32_t Addon_PrepareGrpInfoAddon(void)
