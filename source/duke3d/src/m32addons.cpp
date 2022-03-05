@@ -27,9 +27,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "duke3d.h"
 #include "addons.h"
 
-useraddon_t* g_useraddons_grpinfo = nullptr;
-useraddon_t* g_useraddons_tcs = nullptr;
-useraddon_t* g_useraddons_mods = nullptr;
+useraddon_t** g_useraddons_grpinfo = nullptr;
+useraddon_t** g_useraddons_tcs = nullptr;
+useraddon_t** g_useraddons_mods = nullptr;
 
 int32_t g_addoncount_grpinfo = 0;
 int32_t g_addoncount_tcs = 0;
@@ -39,7 +39,7 @@ bool g_addonstart_failed = false;
 
 void Addon_FreePreviewHashTable(void){ /* stub */ };
 void Addon_CachePreviewImages(void) { /* stub */ };
-int32_t Addon_LoadPreviewTile(useraddon_t* addon)
+int32_t Addon_LoadPreviewTile(const useraddon_t* addon)
 {
     // stub
     UNREFERENCED_PARAMETER(addon);
@@ -47,8 +47,12 @@ int32_t Addon_LoadPreviewTile(useraddon_t* addon)
 }
 
 void Addon_FreeUserAddons(void) { /* stub */ };
-void Addon_ReadPackageDescriptors(void) { /* stub */ };
-void Addon_PruneInvalidAddons(void) { /* stub */ };
+void Addon_LoadDescriptors(void) { /* stub */ };
+void Addon_PruneInvalidAddons(useraddon_t** & useraddons, int32_t & numuseraddons)
+{
+    UNREFERENCED_PARAMETER(useraddons);
+    UNREFERENCED_PARAMETER(numuseraddons);
+};
 
 void Addon_InitializeLoadOrder(void) { /* stub */ };
 void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB)
@@ -58,14 +62,23 @@ void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB)
     (void) indexB;
 };
 
-int32_t Addon_CheckDependencyFulfilled(addondependency_t* dep, useraddon_t* otherAddon)
+bool Addon_IsDependencyFulfilled(const addondependency_t* depPtr, const useraddon_t* otherAddonPtr)
 {
     // stub
-    UNREFERENCED_PARAMETER(dep);
-    UNREFERENCED_PARAMETER(otherAddon);
-    return 0;
+    UNREFERENCED_PARAMETER(depPtr);
+    UNREFERENCED_PARAMETER(otherAddonPtr);
+    return true;
 };
 
 int32_t Addon_PrepareGrpInfoAddon(void) { return 0; };
 int32_t Addon_PrepareUserTCs(void) { return 0; };
 int32_t Addon_PrepareUserMods(void) { return 0; };
+
+int32_t Addon_StrncpyTextWrap(char* dst, const char *src, int32_t const nsize, int32_t const lblen)
+{
+    UNREFERENCED_PARAMETER(dst);
+    (void) src;
+    (void) nsize;
+    (void) lblen;
+    return 0;
+}

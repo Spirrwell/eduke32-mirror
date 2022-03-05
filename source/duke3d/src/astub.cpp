@@ -10235,6 +10235,8 @@ void ExtUnInit(void)
     Xfree(helppage);
 #endif
 
+    G_CleanupCommandGrps();
+    G_CleanupCommandPaths();
     Duke_CommonCleanup();
 }
 

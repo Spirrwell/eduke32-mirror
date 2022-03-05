@@ -7115,7 +7115,7 @@ int app_main(int argc, char const* const* argv)
     G_ScanGroups();
 
     LOG_F(INFO, "Loading addon descriptors...");
-    Addon_ReadPackageDescriptors();
+    Addon_LoadDescriptors();
 
 #ifdef STARTUP_SETUP_WINDOW
     if (!Bgetenv("SteamTenfoot") && (readSetup < 0 || (!g_noSetup && (ud.configversion != BYTEVERSION_EDUKE32 || ud.setup.forcesetup)) || g_commandSetup))

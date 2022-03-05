@@ -27,22 +27,31 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 extern "C" {
 #endif
 
-#define ADDON_MINUID 8
-#define ADDON_MAXUID 64
+#define MAXUSERADDONS 1024
 
+// min and max character lengths for the strings stored in the addon structs
+#define ADDON_MAXID 64
 #define ADDON_MAXTITLE 128
 #define ADDON_MAXAUTHOR 128
 #define ADDON_MAXVERSION 32
-#define ADDON_MAXDESC 32768
 
+// this isn't allocated for each struct, but is a maximum value for sanity reasons
+#define ADDON_MAXDESC 8192
+
+// preview images must adhere to these dimensions
 #define PREVIEWTILE_XSIZE 320
 #define PREVIEWTILE_YSIZE 200
 
+#define ADDONFLAG_SELECTION (1 << 0)
 #define DEFAULT_LOADORDER_IDX (-1)
 
+// number of characters per line in the description until linebreak occurs
 extern int32_t m_addondesc_lblength;
+
+// maximum number of characters visible on the menu entry
 extern int32_t m_addontitle_maxvisible;
 
+// the addon will only show up in the menu if these gameflags are met
 enum addongame_t
 {
     BASEGAME_NONE = 0,
@@ -53,6 +62,7 @@ enum addongame_t
     BASEGAME_FURY = GAMEFLAG_FURY,
 };
 
+// identifies the origin of the addon content (bitmap for simplified checks)
 enum addonpackage_t
 {
     LT_INVALID = 0,
@@ -61,130 +71,145 @@ enum addonpackage_t
     LT_SSI = (1 << 2),      // Sunstorm
     LT_FOLDER = (1 << 3),   // Local Subfolder
     LT_WORKSHOP = (1 << 4), // Workshop Folder
-    LT_INTERNAL = (1 << 5), // For Official Addons
+    LT_GRPINFO = (1 << 5),  // internal and external grpinfo
 };
 
-enum addonflags_t
+enum vcomp_t
 {
-    ADDFLAG_SELECTED = 1,
-    ADDFLAG_GRPFILE = 2,
+    VCOMP_NOOP = 0,
+    VCOMP_EQ,
+    VCOMP_GT,
+    VCOMP_LT,
+    VCOMP_GTEQ,
+    VCOMP_LTEQ,
 };
 
-enum version_comparator_t
-{
-    ADDV_NOOP = 0,
-    ADDV_EQ,
-    ADDV_GT_EQ,
-    ADDV_LT_EQ,
-    ADDV_GT,
-    ADDV_LT,
-};
-
+// reference to another addon
 struct addondependency_t
 {
-    char uniqueId[ADDON_MAXUID];
-    char version[ADDON_MAXVERSION];
-    char title[ADDON_MAXTITLE];
+    int8_t fulfilled;
 
-    bool fulfilled;
-    version_comparator_t comparisonOp;
+    char depId[ADDON_MAXID];
+    char version[ADDON_MAXVERSION];
+    vcomp_t cOp;
+
+    void setFulfilled(bool status) { fulfilled = (int) status; }
+    bool isFulfilled() const { return (fulfilled != 0); }
 };
 
+// all data loaded from the json
 struct addonjson_t
 {
-    char title[ADDON_MAXTITLE];
-    char author[ADDON_MAXAUTHOR];
+    // required for version and dependency checks. Not necessarily unique since user-determined.
+    char externalId[ADDON_MAXID];
     char version[ADDON_MAXVERSION];
 
-    char* description;
-    int32_t desc_linecnt;
+    // these are purely visual properties
+    char title[ADDON_MAXTITLE];
+    char author[ADDON_MAXAUTHOR];
+    char* description = nullptr;
 
+    // important file paths
     char preview_path[BMAX_PATH];
     char main_script_path[BMAX_PATH];
     char main_def_path[BMAX_PATH];
     char main_rts_path[BMAX_PATH];
 
-    char** script_modules;
-    char** def_modules;
-    int32_t num_script_modules, num_def_modules;
+    // modules, unlike the mainscript  files, can be loaded cumulatively
+    char** script_modules = nullptr;
+    char** def_modules = nullptr;
+    int32_t num_script_modules = 0, num_def_modules = 0;
+
+    // dependencies and incompatibilities
+    addondependency_t* dependencies = nullptr;
+    addondependency_t* incompatibilities = nullptr;
+    int32_t num_dependencies = 0, num_incompats = 0;
 };
 
 struct useraddon_t
 {
-    char uniqueId[ADDON_MAXUID];
+    // unique id, automatically generated
+    char* internalId;
+
+    // this stores the text displayed on the menu entry, constructed below
     char menuentryname[ADDON_MAXTITLE];
+
+    // path that contains the addon's data
     char data_path[BMAX_PATH];
 
-    // only used for official addons
-    grpfile_t * grpfile;
+    // only used for internal or grpinfo addons
+    const grpfile_t* grpfile = nullptr;
 
+    // base game for which the addon will show up, type of package, and json contents
     addongame_t gametype;
+    int32_t gamecrc;
+
     addonpackage_t loadtype;
     addonjson_t jsondat;
 
-    addondependency_t* dependencies;
-    addondependency_t* incompatibilities;
-    int32_t num_dependencies, num_incompats;
-
+    // pointer to binary image data
     uint8_t* image_data;
 
-    uint16_t flags;
-    int16_t loadorder_idx;
+    // flag bitmap and load order
+    uint32_t flags = 0;
+    int32_t loadorder_idx = -1;
 
-    bool isSelected()
+    // getter and setter for selection status
+    void setSelected(bool status)
     {
-        return (flags & 1) != 0;
+        if (status) flags |= ADDONFLAG_SELECTION;
+        else flags &= ~ADDONFLAG_SELECTION;
+    }
+    bool isSelected() const
+    {
+        return (bool) (flags & ADDONFLAG_SELECTION);
     }
 
-    bool isGrpInfoAddon()
-    {
-        return (flags & 2) != 0;
-    }
+    bool isGrpInfoAddon() const { return loadtype == LT_GRPINFO; }
+    bool isTotalConversion() const { return jsondat.main_script_path[0] || jsondat.main_def_path[0]; }
+    bool isValid() const { return loadtype != LT_INVALID; }
 
-    bool isTotalConversion()
+    // the menu entry name is a truncated title, with load order prepended
+    void updateMenuEntryName(int const startIndex = 0)
     {
-        return jsondat.main_script_path[0] || jsondat.main_def_path[0];
-    }
-
-    bool isValid()
-    {
-        return loadtype != LT_INVALID;
-    }
-
-    void updateMenuEntryName(int const titleIdx = 0)
-    {
-        if (isGrpInfoAddon() || isTotalConversion())
-            Bstrncpyz(menuentryname, &jsondat.title[titleIdx], m_addontitle_maxvisible);
+        if (loadorder_idx >= 0)
+            Bsnprintf(menuentryname, m_addontitle_maxvisible, "%d: %s", loadorder_idx + 1, &jsondat.title[startIndex]);
         else
-            Bsnprintf(menuentryname, m_addontitle_maxvisible, "%d: %s", loadorder_idx + 1, &jsondat.title[titleIdx]);
+            Bstrncpyz(menuentryname, &jsondat.title[startIndex], m_addontitle_maxvisible);
     }
 
 };
 
-extern useraddon_t* g_useraddons_grpinfo;
-extern useraddon_t* g_useraddons_tcs;
-extern useraddon_t* g_useraddons_mods;
+// distinct types of addons, handled differently each
+extern useraddon_t** g_useraddons_grpinfo;
+extern useraddon_t** g_useraddons_tcs;
+extern useraddon_t** g_useraddons_mods;
 
+// counters for said addons
 extern int32_t g_addoncount_grpinfo;
 extern int32_t g_addoncount_tcs;
 extern int32_t g_addoncount_mods;
 
 #define TOTAL_ADDON_COUNT (g_addoncount_grpinfo + g_addoncount_tcs + g_addoncount_mods)
 
+// set to true if the game failed to launch when trying to load addons
 extern bool g_addonstart_failed;
 
+int32_t Addon_StrncpyTextWrap(char* dst, const char *src, int32_t const nsize, int32_t const lblen);
+
+// preview image binary data is cached so expensive palette conversion does not need to be repeated
 void Addon_FreePreviewHashTable(void);
 void Addon_CachePreviewImages(void);
-int32_t Addon_LoadPreviewTile(useraddon_t* addon);
+int32_t Addon_LoadPreviewTile(const useraddon_t* addon);
 
 void Addon_FreeUserAddons(void);
-void Addon_ReadPackageDescriptors(void);
-void Addon_PruneInvalidAddons(void);
+void Addon_LoadDescriptors(void);
+void Addon_PruneInvalidAddons(useraddon_t** & useraddons, int32_t & numuseraddons);
 
 void Addon_InitializeLoadOrder(void);
 void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB);
 
-int32_t Addon_CheckDependencyFulfilled(addondependency_t* dep, useraddon_t* otherAddon);
+bool Addon_IsDependencyFulfilled(const addondependency_t* depPtr, const useraddon_t* otherAddonPtr);
 
 int32_t Addon_PrepareGrpInfoAddon(void);
 int32_t Addon_PrepareUserTCs(void);
