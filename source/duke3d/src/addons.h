@@ -45,12 +45,6 @@ extern "C" {
 #define ADDONFLAG_SELECTION (1 << 0)
 #define DEFAULT_LOADORDER_IDX (-1)
 
-// number of characters per line in the description until linebreak occurs
-extern int32_t m_addondesc_lblength;
-
-// maximum number of characters visible on the menu entry
-extern int32_t m_addontitle_maxvisible;
-
 // the addon will only show up in the menu if these gameflags are met
 enum addongame_t
 {
@@ -170,12 +164,12 @@ struct useraddon_t
     bool isValid() const { return loadtype != LT_INVALID; }
 
     // the menu entry name is a truncated title, with load order prepended
-    void updateMenuEntryName(int const startIndex = 0)
+    void updateMenuEntryName(int const startidx, int const maxvis)
     {
         if (loadorder_idx >= 0)
-            Bsnprintf(menuentryname, m_addontitle_maxvisible, "%d: %s", loadorder_idx + 1, &jsondat.title[startIndex]);
+            Bsnprintf(menuentryname, maxvis, "%d: %s", loadorder_idx + 1, &jsondat.title[startidx]);
         else
-            Bstrncpyz(menuentryname, &jsondat.title[startIndex], m_addontitle_maxvisible);
+            Bstrncpyz(menuentryname, &jsondat.title[startidx], maxvis);
     }
 
 };
@@ -195,8 +189,6 @@ extern int32_t g_addoncount_mods;
 // set to true if the game failed to launch when trying to load addons
 extern bool g_addonstart_failed;
 
-int32_t Addon_StrncpyTextWrap(char* dst, const char *src, int32_t const nsize, int32_t const lblen);
-
 // preview image binary data is cached so expensive palette conversion does not need to be repeated
 void Addon_FreePreviewHashTable(void);
 void Addon_CachePreviewImages(void);
@@ -207,7 +199,7 @@ void Addon_LoadDescriptors(void);
 void Addon_PruneInvalidAddons(useraddon_t** & useraddons, int32_t & numuseraddons);
 
 void Addon_InitializeLoadOrder(void);
-void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB);
+void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB, int32_t const maxvis);
 
 bool Addon_IsDependencyFulfilled(const addondependency_t* depPtr, const useraddon_t* otherAddonPtr);
 

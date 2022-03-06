@@ -111,10 +111,6 @@ int32_t g_addoncount_mods = 0;
 // extern, whether mod loading failed
 bool g_addonstart_failed = false;
 
-// extern, menu specific globals
-int32_t m_addondesc_lblength = 0;
-int32_t m_addontitle_maxvisible = ADDON_MAXTITLE;
-
 // Check if the addon directory exists. This is always placed in the folder where the exe is found.
 static int32_t Addon_GetLocalDir(char * pathbuf, const int32_t buflen)
 {
@@ -1055,7 +1051,6 @@ static void Addon_ReadGrpInfo(void)
             Addon_GrpInfo_FakeJson(addonPtr, grp);
             addonPtr->setSelected(g_selectedGrp == grp);
 
-            addonPtr->updateMenuEntryName();
             s_numuseraddons++;
         }
     }
@@ -1119,8 +1114,6 @@ static void Addon_ReadLocalPackages(sjson_context* ctx, fnlist_t* fnlist, const 
             }
 
             addonPtr->setSelected(CONFIG_GetAddonActivationStatus(addonPtr->internalId));
-            addonPtr->updateMenuEntryName();
-
             Addon_PackageCleanup(grpfileidx);
             ++s_numuseraddons;
         }
@@ -1161,8 +1154,6 @@ static void Addon_ReadLocalSubfolders(sjson_context* ctx, fnlist_t* fnlist, cons
         }
 
         addonPtr->setSelected(CONFIG_GetAddonActivationStatus(addonPtr->internalId));
-        addonPtr->updateMenuEntryName();
-
         ++s_numuseraddons;
     }
     fnlist_clearnames(fnlist);
@@ -1464,48 +1455,6 @@ static void freehashpreviewimage(const char *, intptr_t key)
     Xfree((void *)key);
 }
 
-
-// string copy with textwrap
-int32_t Addon_StrncpyTextWrap(char* dst, const char *src, int32_t const nsize, int32_t const lblen)
-{
-    int i = 0, j = 0, ws_idx = 0;
-    int linesize = 0;
-
-    int32_t linecount = 1;
-    while (src[i] && (j < (nsize - 1)))
-    {
-        if (isspace(src[i])) ws_idx = j;
-        dst[j++] = src[i++];
-        linesize++;
-
-        if (src[i-1] == '\n')
-        {
-            linecount++;
-            linesize = 0;
-        }
-        else if (((lblen >> 2) > 0) && (linesize >= lblen))
-        {
-            if (j - ws_idx > (lblen >> 2))
-            {
-                // split word if last whitespace far away (don't care about syllables)
-                dst[j] = '-'; dst[j+1] = '\n';
-                ws_idx = j+1; j += 2;
-                linesize = 0;
-            }
-            else
-            {
-                // split at last whitespace if close enough
-                dst[ws_idx] = '\n';
-                linesize = j - ws_idx;
-            }
-            linecount++;
-        }
-    }
-
-    dst[j] = '\0';
-    return linecount;
-}
-
 void Addon_FreePreviewHashTable(void)
 {
     hash_loop(&h_addonpreviews, freehashpreviewimage);
@@ -1661,7 +1610,6 @@ void Addon_InitializeLoadOrder(void)
         if (lobuf[i])
         {
             lobuf[i]->loadorder_idx = newlo;
-            lobuf[i]->updateMenuEntryName();
             newlo++;
         }
     }
@@ -1669,7 +1617,7 @@ void Addon_InitializeLoadOrder(void)
     Addon_SaveModsConfig();
 }
 
-void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB)
+void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB, int32_t const maxvis)
 {
     useraddon_t* addonA = g_useraddons_mods[indexA];
     useraddon_t* addonB = g_useraddons_mods[indexB];
@@ -1678,8 +1626,9 @@ void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB)
     addonA->loadorder_idx = addonB->loadorder_idx;
     addonB->loadorder_idx = temp;
 
-    addonA->updateMenuEntryName();
-    addonB->updateMenuEntryName();
+    addonA->updateMenuEntryName(0, maxvis);
+    addonB->updateMenuEntryName(0, maxvis);
+
     Addon_SaveModsConfig();
 }
 

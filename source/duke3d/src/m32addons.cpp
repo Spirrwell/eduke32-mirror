@@ -55,11 +55,12 @@ void Addon_PruneInvalidAddons(useraddon_t** & useraddons, int32_t & numuseraddon
 };
 
 void Addon_InitializeLoadOrder(void) { /* stub */ };
-void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB)
+void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB, int32_t const maxvis)
 {
     // stub
     (void) indexA;
     (void) indexB;
+    (void) maxvis;
 };
 
 bool Addon_IsDependencyFulfilled(const addondependency_t* depPtr, const useraddon_t* otherAddonPtr)
@@ -73,12 +74,3 @@ bool Addon_IsDependencyFulfilled(const addondependency_t* depPtr, const useraddo
 int32_t Addon_PrepareGrpInfoAddon(void) { return 0; };
 int32_t Addon_PrepareUserTCs(void) { return 0; };
 int32_t Addon_PrepareUserMods(void) { return 0; };
-
-int32_t Addon_StrncpyTextWrap(char* dst, const char *src, int32_t const nsize, int32_t const lblen)
-{
-    UNREFERENCED_PARAMETER(dst);
-    (void) src;
-    (void) nsize;
-    (void) lblen;
-    return 0;
-}

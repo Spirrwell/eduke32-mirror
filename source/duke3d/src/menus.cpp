@@ -1230,10 +1230,13 @@ static MenuEntry_t ME_SAVE_NEW = MAKE_MENUENTRY( s_NewSaveGame, &MF_Minifont, &M
 static MenuEntry_t *ME_SAVE;
 static MenuEntry_t **MEL_SAVE;
 
-// required for scrolling the addon description
+// addon/user content menu
+static char m_addontitle_buffer[ADDON_MAXTITLE];
+static char m_addondesc_buffer[ADDON_MAXDESC];
 static int32_t m_addondesc_linecount = 0;
 static int32_t m_addondesc_shift = 0;
 
+#define MENU_ADDONTITLE_MAXVIS ((FURY) ? 40 : 42)
 #define MENU_ADDONTITLE_SHIFTDELAY 30
 static int32_t m_addontitleshift_lastticks = 0;
 static int32_t m_addontitleshift = 0;
@@ -1245,7 +1248,6 @@ static char m_addonmenu_defaultdesc[] = "\
 - Shift + Arrow Keys: Change the load order of the addons.\n\n\
 ";
 
-// addon/user content menu
 static int32_t m_addons_grpstartindex = 0;
 static int32_t m_addons_tcstartindex = 0;
 static int32_t m_addons_modstartindex = 0;
@@ -1294,6 +1296,47 @@ static useraddon_t* Menu_GetUserAddonForMenuIndex(int32_t menuIndex, int32_t & a
 
     addonIndex = -1;
     return nullptr;
+}
+
+
+static int32_t Menu_AddonTextWrap(char* dst, const char *src, int32_t const nsize, int32_t const lblen)
+{
+    int i = 0, j = 0, ws_idx = 0;
+    int linesize = 0;
+
+    int32_t linecount = 1;
+    while (src[i] && (j < (nsize - 1)))
+    {
+        if (isspace(src[i])) ws_idx = j;
+        dst[j++] = src[i++];
+        linesize++;
+
+        if (src[i-1] == '\n')
+        {
+            linecount++;
+            linesize = 0;
+        }
+        else if (((lblen >> 2) > 0) && (linesize >= lblen))
+        {
+            if (j - ws_idx > (lblen >> 2))
+            {
+                // split word if last whitespace far away (don't care about syllables)
+                dst[j] = '-'; dst[j+1] = '\n';
+                ws_idx = j+1; j += 2;
+                linesize = 0;
+            }
+            else
+            {
+                // split at last whitespace if close enough
+                dst[ws_idx] = '\n';
+                linesize = j - ws_idx;
+            }
+            linecount++;
+        }
+    }
+
+    dst[j] = '\0';
+    return linecount;
 }
 
 #ifdef __linux__
@@ -2450,8 +2493,6 @@ void Menu_Init(void)
     // Duplicate the minifont for addons menu display purposes
     if (!(G_GetLogoFlags() & LOGO_NOADDONS))
     {
-        m_addontitle_maxvisible = (FURY) ? 40 : 42;
-        m_addondesc_lblength = (FURY) ? 84 : 64;
         MF_Minifont_AddonEntry = MF_Minifont;
         MF_Minifont_ApplyAddon = MF_Minifont;
         MF_Minifont_AddonLabel = MF_Minifont;
@@ -3332,32 +3373,29 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
         mminitext(origin.x + (26<<16), origin.y + (115<<16), "Author:", MF_Minifont.pal_deselected_right);
         mminitext(origin.x + (26<<16), origin.y + (123<<16), "Version:", MF_Minifont.pal_deselected_right);
 
-        if (((int) Bstrlen(addonPtr->jsondat.title)) - m_addontitleshift > m_addontitle_maxvisible)
+        if (((int) Bstrlen(addonPtr->jsondat.title)) - m_addontitleshift > MENU_ADDONTITLE_MAXVIS)
         {
             if ((timer120() - m_addontitleshift_lastticks) >= MENU_ADDONTITLE_SHIFTDELAY)
             {
                 m_addontitleshift++;
                 m_addontitleshift_lastticks = timer120();
-                addonPtr->updateMenuEntryName(m_addontitleshift);
+                addonPtr->updateMenuEntryName(m_addontitleshift, MENU_ADDONTITLE_MAXVIS);
             }
         }
 
         if (addonPtr->isValid())
         {
-            // TODO: Textwrap elsewhere
-            //m_addondesc_linecount = addonPtr->jsondat.desc_linecnt;
-
             if (FURY)
             {
                 // title text
                 G_ScreenText(MF_Bluefont.tilenum, origin.x + (26<<16), origin.y + (135<<16), (65536L >> 1) + (65536L >> 2),
-                            0, 0, addonPtr->jsondat.title, 0, MF_Bluefont.pal, g_textstat, 0,
+                            0, 0, m_addontitle_buffer, 0, MF_Bluefont.pal, g_textstat, 0,
                             MF_Bluefont.emptychar.x, MF_Bluefont.emptychar.y, MF_Bluefont.between.x,
                             MF_Bluefont.between.y, MF_Bluefont.textflags, 0, 0, xdim-1, ydim-1);
 
                 // description
                 G_ScreenText(MF_Minifont.tilenum, origin.x + (26<<16), origin.y + (148<<16) + m_addondesc_shift, MF_Minifont.zoom,
-                        0, 0, addonPtr->jsondat.description, 0, MF_Minifont.pal, g_textstat, 0,
+                        0, 0, m_addondesc_buffer, 0, MF_Minifont.pal, g_textstat, 0,
                         MF_Minifont.emptychar.x, MF_Minifont.emptychar.y, MF_Minifont.between.x,
                         MF_Minifont.between.y, MF_Minifont.textflags, 0, (ydim * 23 / 32), xdim-1, (ydim * 15 / 16) -1);
 
@@ -3371,13 +3409,13 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
             {
                 // title text
                 G_ScreenText(MF_Bluefont.tilenum, origin.x + (26<<16), origin.y + (135<<16), (65536L >> 1) + (65536L >> 2),
-                            0, 0, addonPtr->jsondat.title, 0, MF_Bluefont.pal, g_textstat, 0,
+                            0, 0, m_addontitle_buffer, 0, MF_Bluefont.pal, g_textstat, 0,
                             MF_Bluefont.emptychar.x, MF_Bluefont.emptychar.y, MF_Bluefont.between.x,
                             MF_Bluefont.between.y, MF_Bluefont.textflags, 0, 0, xdim-1, ydim-1);
 
                 // description
                 G_ScreenText(MF_Minifont.tilenum, origin.x + (26<<16), origin.y + (144<<16) + m_addondesc_shift, MF_Minifont.zoom,
-                        0, 0, addonPtr->jsondat.description, 0, MF_Minifont.pal, g_textstat, 0,
+                        0, 0, m_addondesc_buffer, 0, MF_Minifont.pal, g_textstat, 0,
                         MF_Minifont.emptychar.x, MF_Minifont.emptychar.y, MF_Minifont.between.x,
                         MF_Minifont.between.y, MF_Minifont.textflags, 0, (ydim * 23 / 32), xdim-1, (ydim * 15 / 16) -1);
 
@@ -4007,6 +4045,14 @@ static void Menu_EntryFocus(/*MenuEntry_t *entry*/)
                 addonIndex = ADDONS_L2EMAP[M_ADDONS.currentEntry];
 
             useraddon_t* addonPtr = Menu_GetUserAddonForMenuIndex(M_ADDONS.currentEntry, addonIndex);
+
+            if (addonPtr && addonPtr->isValid())
+            {
+                Bstrncpyz(m_addontitle_buffer, addonPtr->jsondat.title, ADDON_MAXTITLE);
+                m_addondesc_linecount = Menu_AddonTextWrap(m_addondesc_buffer, addonPtr->jsondat.description,
+                                                                ADDON_MAXDESC, (FURY) ? 84 : 64);
+            }
+
             if (!addonPtr || !addonPtr->isValid() || Addon_LoadPreviewTile(addonPtr))
             {
                 // addon image not loaded
@@ -5445,6 +5491,7 @@ static void Menu_LoadAddonPackages()
         ME_ADDONS[k] = ME_ADDONS_ITEM;
         ADDONS_L2EMAP[k] = k;
 
+        g_useraddons_grpinfo[i]->updateMenuEntryName(0, MENU_ADDONTITLE_MAXVIS);
         ME_ADDONS[k].name = g_useraddons_grpinfo[i]->menuentryname;
         if (g_useraddons_grpinfo[i]->isSelected())
             ME_ADDONS[k].font = &MF_Minifont_SelectedAddon;
@@ -5474,6 +5521,7 @@ static void Menu_LoadAddonPackages()
         ME_ADDONS[k] = ME_ADDONS_ITEM;
         ADDONS_L2EMAP[k] = k;
 
+        g_useraddons_tcs[i]->updateMenuEntryName(0, MENU_ADDONTITLE_MAXVIS);
         ME_ADDONS[k].name = g_useraddons_tcs[i]->menuentryname;
         if (g_useraddons_tcs[i]->isSelected())
             ME_ADDONS[k].font = &MF_Minifont_SelectedAddon;
@@ -5504,6 +5552,7 @@ static void Menu_LoadAddonPackages()
         ME_ADDONS[k] = ME_ADDONS_ITEM;
         ADDONS_L2EMAP[listIdx] = k;
 
+        g_useraddons_mods[i]->updateMenuEntryName(0, MENU_ADDONTITLE_MAXVIS);
         ME_ADDONS[k].name = g_useraddons_mods[i]->menuentryname;
         if (g_useraddons_mods[i]->isSelected())
             ME_ADDONS[k].font = &MF_Minifont_SelectedAddon;
@@ -8391,7 +8440,8 @@ static void Menu_RunInput(Menu_t *cm)
                         int32_t addonIndex = ADDONS_L2EMAP[mIndex];
                         useraddon_t* addonPtr = Menu_GetUserAddonForMenuIndex(mIndex, addonIndex);
 
-                        if (addonPtr) addonPtr->updateMenuEntryName();
+                        // reset the shift of the current addon
+                        if (addonPtr) addonPtr->updateMenuEntryName(0, MENU_ADDONTITLE_MAXVIS);
 
                         // change load order
                         if (KB_KeyPressed(sc_LeftShift) || KB_KeyPressed(sc_RightShift))
@@ -8401,7 +8451,7 @@ static void Menu_RunInput(Menu_t *cm)
 
                             int32_t prevAddonIndex = ADDONS_L2EMAP[mIndex - 1];
                             Menu_GetUserAddonForMenuIndex(mIndex - 1, prevAddonIndex);
-                            Addon_SwapLoadOrder(prevAddonIndex, addonIndex);
+                            Addon_SwapLoadOrder(prevAddonIndex, addonIndex, MENU_ADDONTITLE_MAXVIS);
 
                             MenuEntry_t* me_temp = MEL_ADDONS[mIndex - 1];
                             MEL_ADDONS[mIndex - 1] = MEL_ADDONS[mIndex];
@@ -8430,7 +8480,9 @@ static void Menu_RunInput(Menu_t *cm)
 
                         int32_t addonIndex = ADDONS_L2EMAP[mIndex];
                         useraddon_t * addonPtr = Menu_GetUserAddonForMenuIndex(M_ADDONS.currentEntry, addonIndex);
-                        if (addonPtr) addonPtr->updateMenuEntryName();
+
+                        // reset shift of current selected entry
+                        if (addonPtr) addonPtr->updateMenuEntryName(0, MENU_ADDONTITLE_MAXVIS);
 
                         // change load order
                         if (KB_KeyPressed(sc_LeftShift) || KB_KeyPressed(sc_RightShift))
@@ -8440,7 +8492,7 @@ static void Menu_RunInput(Menu_t *cm)
 
                             int32_t nextAddonIndex = ADDONS_L2EMAP[mIndex + 1];
                             Menu_GetUserAddonForMenuIndex(mIndex + 1, nextAddonIndex);
-                            Addon_SwapLoadOrder(addonIndex, nextAddonIndex);
+                            Addon_SwapLoadOrder(addonIndex, nextAddonIndex, MENU_ADDONTITLE_MAXVIS);
 
                             MenuEntry_t* me_temp = MEL_ADDONS[mIndex];
                             MEL_ADDONS[mIndex] = MEL_ADDONS[mIndex + 1];
