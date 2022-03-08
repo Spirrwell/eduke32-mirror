@@ -35,6 +35,7 @@ int32_t g_addoncount_grpinfo = 0;
 int32_t g_addoncount_tcs = 0;
 int32_t g_addoncount_mods = 0;
 
+bool g_dependencies_strict = false;
 bool g_addonstart_failed = false;
 
 void Addon_FreePreviewHashTable(void){ /* stub */ };
@@ -63,14 +64,14 @@ void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB, int32_t con
     (void) maxvis;
 };
 
-bool Addon_IsDependencyFulfilled(const addondependency_t* depPtr, const useraddon_t* otherAddonPtr)
+void Addon_RefreshDependencyStates(void) { /* stub */ };
+int32_t Addon_CheckDependencyProblems(const useraddon_t* addonPtr)
 {
     // stub
-    UNREFERENCED_PARAMETER(depPtr);
-    UNREFERENCED_PARAMETER(otherAddonPtr);
-    return true;
+    (void) addonPtr;
+    return 0;
 };
 
-int32_t Addon_PrepareGrpInfoAddon(void) { return 0; };
+int32_t Addon_PrepareGrpInfoAddons(void) { return 0; };
 int32_t Addon_PrepareUserTCs(void) { return 0; };
 int32_t Addon_PrepareUserMods(void) { return 0; };

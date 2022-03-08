@@ -466,7 +466,7 @@ void G_LoadGroups(int32_t autoload)
         G_LoadAddon();
     // important: do not prune grpinfo addons because gametype is unknown at this stage!
     else if (g_useraddons_grpinfo && g_addoncount_grpinfo > 0)
-        Addon_PrepareGrpInfoAddon();
+        Addon_PrepareGrpInfoAddons();
 
     const char *grpfile;
     int32_t i;
@@ -510,10 +510,12 @@ void G_LoadGroups(int32_t autoload)
         G_LoadGroupsInDir(g_modDir);
 
     Addon_PruneInvalidAddons(g_useraddons_tcs, g_addoncount_tcs);
+    Addon_PruneInvalidAddons(g_useraddons_mods, g_addoncount_mods);
+    Addon_RefreshDependencyStates();
+
     if (g_useraddons_tcs && g_addoncount_tcs > 0)
         Addon_PrepareUserTCs();
 
-    Addon_PruneInvalidAddons(g_useraddons_mods, g_addoncount_mods);
     if (g_useraddons_mods && g_addoncount_mods > 0)
     {
         Addon_InitializeLoadOrder();

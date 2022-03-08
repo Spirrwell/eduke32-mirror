@@ -51,7 +51,7 @@ static const char jsonkey_rts[] = "RTS";
 static const char jsonkey_scripttype[] = "type";
 static const char jsonkey_scriptpath[] = "path";
 static const char jsonkey_dependencies[] = "dependencies";
-static const char jsonkey_incompatibilities[] = "incompats";
+static const char jsonkey_incompatibles[] = "incompatibles";
 
 // string sequences to identify different gametypes
 static const char jsonval_gt_any[] = "any";
@@ -96,19 +96,16 @@ static int32_t s_numuseraddons = 0;
 static const char addon_dir[] = "addons";
 static const char addonjsonfn[] = "addon.json";
 
-// extern, track the found grp info addons
+// extern variables
 useraddon_t** g_useraddons_grpinfo = nullptr;
-int32_t g_addoncount_grpinfo = 0;
-
-// extern, track the found total conversion addons
 useraddon_t** g_useraddons_tcs = nullptr;
-int32_t g_addoncount_tcs = 0;
-
-// extern, track the found module addons
 useraddon_t** g_useraddons_mods = nullptr;
+
+int32_t g_addoncount_grpinfo = 0;
+int32_t g_addoncount_tcs = 0;
 int32_t g_addoncount_mods = 0;
 
-// extern, whether mod loading failed
+bool g_dependencies_strict = true;
 bool g_addonstart_failed = false;
 
 // Check if the addon directory exists. This is always placed in the folder where the exe is found.
@@ -153,9 +150,9 @@ static void Addon_FreeAddonContents(useraddon_t * addonPtr)
         DO_FREE_AND_NULL(addonPtr->jsondat.dependencies);
     addonPtr->jsondat.num_dependencies = 0;
 
-    if (addonPtr->jsondat.incompatibilities)
-        DO_FREE_AND_NULL(addonPtr->jsondat.incompatibilities);
-    addonPtr->jsondat.num_incompats = 0;
+    if (addonPtr->jsondat.incompatibles)
+        DO_FREE_AND_NULL(addonPtr->jsondat.incompatibles);
+    addonPtr->jsondat.num_incompatibles = 0;
 }
 
 // free all addons of given array
@@ -204,23 +201,26 @@ static char Addon_ParseVersionSegment(const char* vString, int32_t & segment, in
 {
     // this function assumes that strings were previously verified with Addon_CheckVersionFormat()
     int k = 0; char c;
-    while((c = vString[k++])) if (c == '.' || c == '-') break;
-
+    while((c = vString[k++]))
+    {
+        nextSegmentStartIndex++;
+        if (c == '.' || c == '-')
+            break;
+    }
     segment = Batoi(vString);
-    nextSegmentStartIndex = k;
     return c;
 }
 
-// compares two version strings. Outputs 0 if equal, 1 if depVersion is greater, -1 if packVersion is greater.
-static int32_t Addon_CompareVersionStrings(const char* depVersion, const char* packVersion)
+// compares two version strings. Outputs 0 if equal, 1 if versionA is greater, -1 if versionB is greater.
+static int32_t Addon_CompareVersionStrings(const char* versionA, const char* versionB)
 {
     // this function assumes that strings were previously verified with Addon_CheckVersionFormat()
     char c1, c2;
     int v1, v2, i = 0, j = 0;
-    while(depVersion[i] && packVersion[j])
+    while(versionA[i] && versionB[j])
     {
-        c1 = Addon_ParseVersionSegment(&depVersion[i], v1, i);
-        c2 = Addon_ParseVersionSegment(&packVersion[j], v2, j);
+        c1 = Addon_ParseVersionSegment(&versionA[i], v1, i);
+        c2 = Addon_ParseVersionSegment(&versionB[j], v2, j);
 
         // first check segment value
         if (v1 > v2)
@@ -243,11 +243,11 @@ static int32_t Addon_CompareVersionStrings(const char* depVersion, const char* p
         // if both '-', check ASCI ordering in remaining string
         else if (c1 == '-' && c2 == '-')
         {
-            while (depVersion[i] && packVersion[j])
+            while (versionA[i] && versionB[j])
             {
-                if (depVersion[i] > packVersion[j])
+                if (versionA[i] > versionB[j])
                     return 1;
-                else if (depVersion[i] < packVersion[j])
+                else if (versionA[i] < versionB[j])
                     return -1;
                 i++; j++;
             }
@@ -255,10 +255,10 @@ static int32_t Addon_CompareVersionStrings(const char* depVersion, const char* p
         // if both are '.', loop continues
     }
 
-    // if we end up here, either depVersion[i] or depVersion[j] is null
-    if (depVersion[i] == packVersion[j])
+    // if we end up here, either versionA[i] or versionA[j] is null
+    if (versionA[i] == versionB[j])
         return 0;
-    else if (depVersion[i] > packVersion[j])
+    else if (versionA[i] > versionB[j])
         return 1;
     else
         return -1;
@@ -865,9 +865,9 @@ static int32_t Addon_ParseJson(useraddon_t* addonPtr, sjson_context* ctx, const 
     parseResult = Addon_ParseJson_Dependency(addonPtr, root, jsonkey_dependencies, addonPtr->jsondat.dependencies, addonPtr->jsondat.num_dependencies);
     if (parseResult == -1) jsonErrorCnt++;
 
-    // incompatibilities
-    parseResult = Addon_ParseJson_Dependency(addonPtr, root, jsonkey_incompatibilities,
-                                                    addonPtr->jsondat.incompatibilities, addonPtr->jsondat.num_incompats);
+    // incompatibles
+    parseResult = Addon_ParseJson_Dependency(addonPtr, root, jsonkey_incompatibles,
+                                                    addonPtr->jsondat.incompatibles, addonPtr->jsondat.num_incompatibles);
     if (parseResult == -1) jsonErrorCnt++;
 
     if (jsonErrorCnt > 0)
@@ -881,7 +881,8 @@ static int32_t Addon_ParseJson(useraddon_t* addonPtr, sjson_context* ctx, const 
 
 // GRP Info functions follow
 
-static void Addon_GrpInfo_GetIdentity(useraddon_t * addonPtr, const grpfile_t * agrpf)
+// set external identity of the grpinfo addon
+static void Addon_GrpInfo_SetExternalIdentity(useraddon_t * addonPtr, const grpfile_t * agrpf)
 {
     const char* identity = nullptr;
     switch (agrpf->type->crcval)
@@ -924,7 +925,8 @@ static void Addon_GrpInfo_GetIdentity(useraddon_t * addonPtr, const grpfile_t * 
         Bstrncpyz(addonPtr->jsondat.externalId, identity, ADDON_MAXID);
 }
 
-static void Addon_GrpInfo_GetAuthor(useraddon_t * addonPtr, const grpfile_t * agrpf)
+// set author of the grpinfo addon
+static void Addon_GrpInfo_SetAuthor(useraddon_t * addonPtr, const grpfile_t * agrpf)
 {
     const char* author;
     switch (agrpf->type->crcval)
@@ -961,7 +963,8 @@ static void Addon_GrpInfo_GetAuthor(useraddon_t * addonPtr, const grpfile_t * ag
     Bstrncpy(addonPtr->jsondat.author, author, ADDON_MAXAUTHOR);
 }
 
-static void Addon_GrpInfo_GetDescription(useraddon_t * addonPtr, const grpfile_t * agrpf)
+// set description
+static void Addon_GrpInfo_SetDescription(useraddon_t * addonPtr, const grpfile_t * agrpf)
 {
     const char* desc;
     switch (agrpf->type->crcval)
@@ -1004,15 +1007,16 @@ static void Addon_GrpInfo_GetDescription(useraddon_t * addonPtr, const grpfile_t
     Bstrncpyz(addonPtr->jsondat.description, desc, desclen);
 }
 
+// populate the contents of the addon json struct for grpinfo addons
 static void Addon_GrpInfo_FakeJson(useraddon_t * addonPtr, const grpfile_t * agrpf)
 {
-    Addon_GrpInfo_GetIdentity(addonPtr, agrpf);
+    Addon_GrpInfo_SetExternalIdentity(addonPtr, agrpf);
 
     // hack: version is set to hex crc
     Bsnprintf(addonPtr->jsondat.version, ADDON_MAXVERSION, "0-%x", agrpf->type->crcval);
     Bstrncpy(addonPtr->jsondat.title, agrpf->type->name, ADDON_MAXTITLE);
-    Addon_GrpInfo_GetAuthor(addonPtr, agrpf);
-    Addon_GrpInfo_GetDescription(addonPtr, agrpf);
+    Addon_GrpInfo_SetAuthor(addonPtr, agrpf);
+    Addon_GrpInfo_SetDescription(addonPtr, agrpf);
 
     // these aren't actually used, but we'll copy them for completeness
     Bstrncpy(addonPtr->jsondat.main_script_path, agrpf->type->scriptname, BMAX_PATH);
@@ -1027,11 +1031,12 @@ static void Addon_GrpInfo_FakeJson(useraddon_t * addonPtr, const grpfile_t * agr
 
     // dependencies are automatically loaded, not needed here
     addonPtr->jsondat.dependencies = nullptr;
-    addonPtr->jsondat.incompatibilities = nullptr;
+    addonPtr->jsondat.incompatibles = nullptr;
     addonPtr->jsondat.num_dependencies = 0;
-    addonPtr->jsondat.num_incompats = 0;
+    addonPtr->jsondat.num_incompatibles = 0;
 }
 
+// Search for addons in the currently detected grpfiles
 static void Addon_ReadGrpInfo(void)
 {
     for (const grpfile_t *grp = foundgrps; grp; grp=grp->next)
@@ -1123,6 +1128,7 @@ static void Addon_ReadLocalPackages(sjson_context* ctx, fnlist_t* fnlist, const 
     }
 }
 
+// find addons from subfolders
 static void Addon_ReadLocalSubfolders(sjson_context* ctx, fnlist_t* fnlist, const char* addondir)
 {
     // look for addon directories
@@ -1160,6 +1166,7 @@ static void Addon_ReadLocalSubfolders(sjson_context* ctx, fnlist_t* fnlist, cons
     fnlist_clearnames(fnlist);
 }
 
+// find addon from Steam Workshop folders
 static void Addon_ReadWorkshopItems(sjson_context* ctx)
 {
     // TODO
@@ -1201,7 +1208,7 @@ static int32_t Addon_CountPotentialAddons(void)
         fnlist_clearnames(&fnlist);
     }
 
-    // TODO: get number of workshop addon folders
+    // TODO: get number of Steam Workshop addon folders
 
     return numaddons;
 }
@@ -1238,6 +1245,7 @@ static void Addon_SplitAddonTypes(void)
     }
 }
 
+// Load preview image contents from an image file and convert it to palette
 static int32_t Addon_LoadPreviewDataFromFile(const char *fn, uint8_t *imagebuffer)
 {
 #ifdef WITHKPLIB
@@ -1280,7 +1288,7 @@ static int32_t Addon_LoadPreviewDataFromFile(const char *fn, uint8_t *imagebuffe
 #endif
 }
 
-// check if given addon matches current game
+// check if addon matches current game and crc, if specified
 static bool Addon_MatchesGame(const useraddon_t* addonPtr)
 {
     if ((addonPtr->gametype & g_gameType) == 0)
@@ -1306,6 +1314,7 @@ static bool Addon_MatchesGame(const useraddon_t* addonPtr)
     }
 }
 
+// load preview images from filesystem, convert to palette and cache them for later use
 static void Addon_CachePreviewImagesForStruct(useraddon_t** useraddons, int32_t const numuseraddons)
 {
     if (!useraddons || numuseraddons <= 0 || (G_GetLogoFlags() & LOGO_NOADDONS))
@@ -1350,7 +1359,7 @@ static void Addon_CachePreviewImagesForStruct(useraddon_t** useraddons, int32_t 
     pathsearchmode = bakpathsearchmode;
 }
 
-// Only for mods, tcs and grpinfo excluded
+// Initialize the load order for mods
 static int16_t Addon_InitLoadOrderFromConfig(void)
 {
     if (g_addoncount_mods <= 0 || !g_useraddons_mods)
@@ -1379,6 +1388,7 @@ static int16_t Addon_InitLoadOrderFromConfig(void)
     return maxLoadOrder + 1;
 }
 
+// save the mod load order
 static void Addon_SaveModsConfig(void)
 {
     for (int i = 0; i < g_addoncount_mods; i++)
@@ -1397,7 +1407,8 @@ static void Addon_SaveModsConfig(void)
     }
 }
 
-static int32_t Addon_LoadSelectedUserAddon(const useraddon_t* addonPtr)
+// Prepare the content from the given addon for loading
+static int32_t Addon_PrepareUserAddon(const useraddon_t* addonPtr)
 {
     if (!addonPtr->data_path[0])
     {
@@ -1451,6 +1462,88 @@ static int32_t Addon_LoadSelectedUserAddon(const useraddon_t* addonPtr)
     return 0;
 }
 
+// check whether the addon satisifies the dependency
+static int32_t Addon_DependencyMatch(const addondependency_t* depPtr, const useraddon_t* otherAddonPtr)
+{
+    // if uid doesn't match, not fulfilled
+    if (Bstrcmp(depPtr->depId, otherAddonPtr->jsondat.externalId))
+        return false;
+
+    const char* packVersion = otherAddonPtr->jsondat.version;
+    const char* depVersion = depPtr->version;
+
+    // if package or dependency has no version specified, match true
+    if (!packVersion[0] || !depVersion[0] || depPtr->cOp == VCOMP_NOOP)
+        return true;
+
+    int const result = Addon_CompareVersionStrings(packVersion, depVersion);
+    switch (depPtr->cOp)
+    {
+        case VCOMP_EQ:   return (result == 0);
+        case VCOMP_GT:   return (result > 0);
+        case VCOMP_GTEQ: return (result >= 0);
+        case VCOMP_LT:   return (result < 0);
+        case VCOMP_LTEQ: return (result <= 0);
+        default:
+            LOG_F(ERROR, "Unimplemented comparator %d for dependency %s. This shouldn't be happening.", depPtr->cOp, depPtr->depId);
+            return false;
+    }
+}
+
+// update an addon's dependency state (or incompatibles)
+static void Addon_UpdateDependencies(useraddon_t* addonPtr, addondependency_t* depList, const int32_t depCount)
+{
+    // grp info addons have no dependencies
+    if (addonPtr->isGrpInfoAddon())
+        return;
+
+    for (int i = 0; i < depCount; i++)
+    {
+        addondependency_t & dep = depList[i];
+        dep.setFulfilled(false);
+
+        // check selected grpinfo
+        for (int j = 0; j < g_addoncount_grpinfo; j++)
+        {
+            if (g_useraddons_grpinfo[j]->isSelected() && Addon_DependencyMatch(&dep, g_useraddons_grpinfo[j]))
+            {
+                dep.setFulfilled(true);
+                break;
+            }
+        }
+
+        if (dep.isFulfilled())
+            continue;
+
+        if (!addonPtr->isTotalConversion())
+        {
+            // TCs may depend on mods and grpinfo, but not other TCs
+            for (int j = 0; j < g_addoncount_tcs; j++)
+            {
+                if (g_useraddons_tcs[j]->isSelected() && Addon_DependencyMatch(&dep, g_useraddons_tcs[j]))
+                {
+                    dep.setFulfilled(true);
+                    break;
+                }
+            }
+
+            if (dep.isFulfilled())
+                continue;
+        }
+
+        // TODO: some mods may depend on load order, need some way to express this in the JSON
+        for (int j = 0; j < g_addoncount_mods; j++)
+        {
+            if (g_useraddons_mods[j]->isSelected() && Addon_DependencyMatch(&dep, g_useraddons_mods[j]))
+            {
+                dep.setFulfilled(true);
+                break;
+            }
+        }
+    }
+}
+
+// utility to free preview image storage
 static void freehashpreviewimage(const char *, intptr_t key)
 {
     Xfree((void *)key);
@@ -1518,6 +1611,7 @@ void Addon_LoadDescriptors(void)
 }
 
 // necessary evil because root GRP and gametype are not known before setup window is shown
+// removes all addons that are not available for the currently selected game
 void Addon_PruneInvalidAddons(useraddon_t** & useraddons, int32_t & numuseraddons)
 {
     if (!useraddons || numuseraddons <= 0)
@@ -1559,6 +1653,7 @@ void Addon_CachePreviewImages(void)
     Addon_CachePreviewImagesForStruct(g_useraddons_mods, g_addoncount_mods);
 }
 
+// Load data from cache into the tilespace
 int32_t Addon_LoadPreviewTile(const useraddon_t * addonPtr)
 {
     if (!addonPtr->image_data)
@@ -1577,6 +1672,7 @@ int32_t Addon_LoadPreviewTile(const useraddon_t * addonPtr)
     return 0;
 }
 
+// initialize load order for mods, and sanitize it so there are no gaps or duplicates
 void Addon_InitializeLoadOrder(void)
 {
     int32_t i, cl, maxBufSize;
@@ -1618,6 +1714,7 @@ void Addon_InitializeLoadOrder(void)
     Addon_SaveModsConfig();
 }
 
+// swap the load order between two addons
 void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB, int32_t const maxvis)
 {
     useraddon_t* addonA = g_useraddons_mods[indexA];
@@ -1633,34 +1730,46 @@ void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB, int32_t con
     Addon_SaveModsConfig();
 }
 
-bool Addon_IsDependencyFulfilled(const addondependency_t* depPtr, const useraddon_t* otherAddonPtr)
+// update dependency states of all addons, based on currently selected addons
+void Addon_RefreshDependencyStates(void)
 {
-    const char * packUid = otherAddonPtr->internalId;
-    const char * packVersion = otherAddonPtr->jsondat.version;
-
-    // if uid doesn't match, not fulfilled
-    if (Bstrcmp(depPtr->depId, packUid))
-        return false;
-
-    // if package or dependency has no version specified, match true
-    if (!packVersion[0] || !depPtr->version[0] || depPtr->cOp == VCOMP_NOOP)
-        return true;
-
-    int const result = Addon_CompareVersionStrings(depPtr->version, packVersion);
-    switch (depPtr->cOp)
+    for (int i = 0; i < g_addoncount_tcs; i++)
     {
-        case VCOMP_EQ:   return (result == 0);
-        case VCOMP_GT:   return (result > 0);
-        case VCOMP_GTEQ: return (result >= 0);
-        case VCOMP_LT:   return (result < 0);
-        case VCOMP_LTEQ: return (result <= 0);
-        default:
-            LOG_F(ERROR, "Unimplemented comparator %d for dependency %s. This shouldn't be happening.", depPtr->cOp, depPtr->depId);
-            return false;
+        useraddon_t* addonPtr = g_useraddons_tcs[i];
+        Addon_UpdateDependencies(addonPtr, addonPtr->jsondat.dependencies, addonPtr->jsondat.num_dependencies);
+        Addon_UpdateDependencies(addonPtr, addonPtr->jsondat.incompatibles, addonPtr->jsondat.num_incompatibles);
+    }
+
+    for (int i = 0; i < g_addoncount_mods; i++)
+    {
+        useraddon_t* addonPtr = g_useraddons_mods[i];
+        Addon_UpdateDependencies(addonPtr, addonPtr->jsondat.dependencies, addonPtr->jsondat.num_dependencies);
+        Addon_UpdateDependencies(addonPtr, addonPtr->jsondat.incompatibles, addonPtr->jsondat.num_incompatibles);
     }
 }
 
-int32_t Addon_PrepareGrpInfoAddon(void)
+// return -1 if there are unsatisfied dependencies or satisfied incompatibles
+int32_t Addon_CheckDependencyProblems(const useraddon_t* addonPtr)
+{
+    for (int i = 0; i < addonPtr->jsondat.num_dependencies; i++)
+    {
+        const addondependency_t & dep = addonPtr->jsondat.dependencies[i];
+        if (!dep.isFulfilled())
+            return -1;
+    }
+
+    for (int i = 0; i < addonPtr->jsondat.num_incompatibles; i++)
+    {
+        const addondependency_t & dep = addonPtr->jsondat.incompatibles[i];
+        if (dep.isFulfilled())
+            return -1;
+    }
+
+    return 0;
+}
+
+// iterate through all grp info addons, find selected one, change game grp
+int32_t Addon_PrepareGrpInfoAddons(void)
 {
     if (!(g_bootState & BOOTSTATE_ADDONS) || g_addoncount_grpinfo <= 0 || !g_useraddons_grpinfo)
         return 0;
@@ -1689,6 +1798,7 @@ int32_t Addon_PrepareGrpInfoAddon(void)
     return 0;
 }
 
+// iterate through all tcs, find selected one, initialize data
 int32_t Addon_PrepareUserTCs(void)
 {
     if (!(g_bootState & BOOTSTATE_ADDONS) || g_addoncount_tcs <= 0 || !g_useraddons_tcs)
@@ -1712,7 +1822,7 @@ int32_t Addon_PrepareUserTCs(void)
             continue;
         }
 
-        Addon_LoadSelectedUserAddon(addonPtr);
+        Addon_PrepareUserAddon(addonPtr);
         break; // only load one at most
     }
 
@@ -1720,6 +1830,7 @@ int32_t Addon_PrepareUserTCs(void)
     return 0;
 }
 
+// iterate through all mods in load order, find selected ones, initialize data
 int32_t Addon_PrepareUserMods(void)
 {
     if (!(g_bootState & BOOTSTATE_ADDONS) || g_addoncount_mods <= 0 || !g_useraddons_mods)
@@ -1748,7 +1859,7 @@ int32_t Addon_PrepareUserMods(void)
             continue;
         }
 
-        Addon_LoadSelectedUserAddon(addonPtr);
+        Addon_PrepareUserAddon(addonPtr);
     }
 
     pathsearchmode = bakpathsearchmode;

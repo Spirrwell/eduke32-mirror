@@ -117,8 +117,8 @@ struct addonjson_t
 
     // dependencies and incompatibilities
     addondependency_t* dependencies = nullptr;
-    addondependency_t* incompatibilities = nullptr;
-    int32_t num_dependencies = 0, num_incompats = 0;
+    addondependency_t* incompatibles = nullptr;
+    int32_t num_dependencies = 0, num_incompatibles = 0;
 };
 
 struct useraddon_t
@@ -194,6 +194,9 @@ extern int32_t g_addoncount_mods;
 // set to true if the game failed to launch when trying to load addons
 extern bool g_addonstart_failed;
 
+// if true, will disable incompatible addon menu entries, or addons with missing dependencies
+extern bool g_dependencies_strict;
+
 // preview image binary data is cached so expensive palette conversion does not need to be repeated
 void Addon_FreePreviewHashTable(void);
 void Addon_CachePreviewImages(void);
@@ -206,9 +209,10 @@ void Addon_PruneInvalidAddons(useraddon_t** & useraddons, int32_t & numuseraddon
 void Addon_InitializeLoadOrder(void);
 void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB, int32_t const maxvis);
 
-bool Addon_IsDependencyFulfilled(const addondependency_t* depPtr, const useraddon_t* otherAddonPtr);
+void Addon_RefreshDependencyStates(void);
+int32_t Addon_CheckDependencyProblems(const useraddon_t* addonPtr);
 
-int32_t Addon_PrepareGrpInfoAddon(void);
+int32_t Addon_PrepareGrpInfoAddons(void);
 int32_t Addon_PrepareUserTCs(void);
 int32_t Addon_PrepareUserMods(void);
 
