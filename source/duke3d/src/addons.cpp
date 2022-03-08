@@ -920,7 +920,7 @@ static void Addon_GrpInfo_SetExternalIdentity(useraddon_t * addonPtr, const grpf
     }
 
     if (identity == nullptr)
-        Bsnprintf(addonPtr->jsondat.externalId, ADDON_MAXID, "grpinfo_%d_%d", agrpf->type->crcval, agrpf->type->size);
+        Bsnprintf(addonPtr->jsondat.externalId, ADDON_MAXID, "grpinfo_%x_%d", agrpf->type->crcval, agrpf->type->size);
     else
         Bstrncpyz(addonPtr->jsondat.externalId, identity, ADDON_MAXID);
 }
@@ -1017,23 +1017,6 @@ static void Addon_GrpInfo_FakeJson(useraddon_t * addonPtr, const grpfile_t * agr
     Bstrncpy(addonPtr->jsondat.title, agrpf->type->name, ADDON_MAXTITLE);
     Addon_GrpInfo_SetAuthor(addonPtr, agrpf);
     Addon_GrpInfo_SetDescription(addonPtr, agrpf);
-
-    // these aren't actually used, but we'll copy them for completeness
-    Bstrncpy(addonPtr->jsondat.main_script_path, agrpf->type->scriptname, BMAX_PATH);
-    Bstrncpy(addonPtr->jsondat.main_def_path, agrpf->type->defname, BMAX_PATH);
-    Bstrncpy(addonPtr->jsondat.main_rts_path, agrpf->type->rtsname, BMAX_PATH);
-
-    // no modules on grpinfo
-    addonPtr->jsondat.script_modules = nullptr;
-    addonPtr->jsondat.def_modules = nullptr;
-    addonPtr->jsondat.num_script_modules = 0;
-    addonPtr->jsondat.num_def_modules = 0;
-
-    // dependencies are automatically loaded, not needed here
-    addonPtr->jsondat.dependencies = nullptr;
-    addonPtr->jsondat.incompatibles = nullptr;
-    addonPtr->jsondat.num_dependencies = 0;
-    addonPtr->jsondat.num_incompatibles = 0;
 }
 
 // Search for addons in the currently detected grpfiles
@@ -1045,6 +1028,7 @@ static void Addon_ReadGrpInfo(void)
         {
             s_useraddons[s_numuseraddons] = (useraddon_t*) Xcalloc(1, sizeof(useraddon_t));
             useraddon_t* addonPtr = s_useraddons[s_numuseraddons];
+            addonPtr->loadorder_idx = DEFAULT_LOADORDER_IDX;
 
             addonPtr->internalId = (char*) Xmalloc(ADDON_MAXID);
             Bsnprintf(addonPtr->internalId, ADDON_MAXID, "grpinfo_%x_%d", grp->type->crcval, grp->type->size);
