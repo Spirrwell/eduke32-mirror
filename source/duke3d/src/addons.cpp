@@ -496,12 +496,14 @@ static int32_t Addon_ParseJson_Scripts(useraddon_t *addonPtr, sjson_node* root, 
     int const numchildren = sjson_child_count(nodes);
     modulebuffers = (char **) Xmalloc(numchildren * sizeof(char*));
 
+    bool hasError = false;
     sjson_node *snode, *script_path, *script_type;
     sjson_foreach(snode, nodes)
     {
         if (snode->tag != SJSON_OBJECT)
         {
             LOG_F(ERROR, "Invalid type found in array of member '%s' of addon '%s'!", key, addonPtr->internalId);
+            hasError = true;
             continue;
         }
 
@@ -509,6 +511,7 @@ static int32_t Addon_ParseJson_Scripts(useraddon_t *addonPtr, sjson_node* root, 
         if (script_path == nullptr || script_path->tag != SJSON_STRING)
         {
             LOG_F(ERROR, "Script path missing or has invalid format in addon '%s'!", addonPtr->internalId);
+            hasError = true;
             continue;
         }
 
@@ -516,6 +519,7 @@ static int32_t Addon_ParseJson_Scripts(useraddon_t *addonPtr, sjson_node* root, 
         if (Addon_CheckFilePresence(scriptbuf))
         {
             LOG_F(ERROR, "Script file of addon '%s' at location '%s' does not exist!", addonPtr->internalId, scriptbuf);
+            hasError = true;
             continue;
         }
 
@@ -523,6 +527,7 @@ static int32_t Addon_ParseJson_Scripts(useraddon_t *addonPtr, sjson_node* root, 
         if (script_type == nullptr || script_type->tag != SJSON_STRING)
         {
             LOG_F(ERROR, "Script type missing or has invalid format in addon '%s'!", addonPtr->internalId);
+            hasError = true;
             continue;
         }
 
@@ -540,14 +545,24 @@ static int32_t Addon_ParseJson_Scripts(useraddon_t *addonPtr, sjson_node* root, 
         {
             LOG_F(ERROR, "Invalid script type '%s' specified in addon '%s'!", script_type->string_, addonPtr->internalId);
             LOG_F(INFO, "Valid types are: {\"%s\", \"%s\"}", jsonval_scriptmain, jsonval_scriptmodule);
+            hasError = true;
         }
     }
 
-    if (numValidChildren < numchildren)
+    // on error, abort and free valid items again
+    if (hasError)
+    {
+        for (int i = 0; i < numValidChildren; i++)
+            Xfree(modulebuffers[i]);
+        numValidChildren = 0;
+    }
+
+    // valid children may be zero from error or no modules specified
+    if (numValidChildren == 0)
     {
         DO_FREE_AND_NULL(modulebuffers);
         modulecount = 0;
-        return -1;
+        return (hasError) ? -1 : 0;
     }
     else
     {
@@ -857,7 +872,7 @@ static int32_t Addon_ParseJson(useraddon_t* addonPtr, sjson_context* ctx, const 
 
     if (jsonErrorCnt > 0)
     {
-        LOG_F(ERROR, "Found %d errors in addon descriptor of: '%s'", jsonErrorCnt, packfn);
+        LOG_F(ERROR, "Found %d errors in addon descriptor of: '%s'", jsonErrorCnt, addonPtr->internalId);
         return -1;
     }
 
