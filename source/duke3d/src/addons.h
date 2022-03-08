@@ -30,13 +30,14 @@ extern "C" {
 #define MAXUSERADDONS 1024
 
 // min and max character lengths for the strings stored in the addon structs
-#define ADDON_MAXID 64
-#define ADDON_MAXTITLE 128
-#define ADDON_MAXAUTHOR 128
+#define ADDON_MAXID 32
 #define ADDON_MAXVERSION 32
 
+#define ADDON_MAXTITLE 96
+#define ADDON_MAXAUTHOR 128
+
 // this isn't allocated for each struct, but is a maximum value for sanity reasons
-#define ADDON_MAXDESC 8192
+#define ADDON_MAXDESC 16384
 
 // preview images must adhere to these dimensions
 #define PREVIEWTILE_XSIZE 320
