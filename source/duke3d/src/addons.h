@@ -164,13 +164,17 @@ struct useraddon_t
     bool isTotalConversion() const { return jsondat.main_script_path[0] || jsondat.main_def_path[0]; }
     bool isValid() const { return loadtype != LT_INVALID; }
 
-    // the menu entry name is a truncated title, with load order prepended
-    void updateMenuEntryName(int const startidx, int const maxvis)
+    void updateMenuEntryName(int const startidx, int const maxVis)
     {
+        // truncation is intentional
+        int n = 0;
+        menuentryname[0] = '\0';
+
         if (loadorder_idx >= 0)
-            Bsnprintf(menuentryname, maxvis, "%d: %s", loadorder_idx + 1, &jsondat.title[startidx]);
-        else
-            Bstrncpyz(menuentryname, &jsondat.title[startidx], maxvis);
+            n = Bsnprintf(menuentryname, maxVis, "%d: ", loadorder_idx + 1);
+
+        if (n >= 0)
+            Bstrncat(menuentryname, &jsondat.title[startidx], maxVis - n);
     }
 
 };

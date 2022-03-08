@@ -922,9 +922,10 @@ static void Addon_GrpInfo_GetIdentity(useraddon_t * addonPtr, const grpfile_t * 
     {
         // derive external identity from filename, replace invalid characters
         // TODO: probably not a great approach, find another solution
-        char extIdent[ADDON_MAXID];
+        char extIdent[ADDON_MAXID - 8];
+
         int i = 0;
-        while (agrpf->filename[i] && (i < (ADDON_MAXID - 1)))
+        while (agrpf->filename[i] && (i < (ADDON_MAXID - 9)))
         {
             const char c = agrpf->filename[i];
             if (isspace(c)) extIdent[i] = '_';

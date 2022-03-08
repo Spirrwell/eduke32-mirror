@@ -1239,24 +1239,56 @@ static MenuEntry_t **MEL_SAVE;
 
 
 // addon variables and definitions
-
 #define MENU_ADDON_TITLESCROLL_MAXVIS 42
 #define MENU_ADDON_SCROLLDELAY 30
 
-#define MENU_ADDON_MAXTITLE (MENU_ADDON_TITLESCROLL_MAXVIS + 8)
-#define MENU_ADDON_MAXBODY (ADDON_MAXDESC + 1024)
-#define MENU_ADDON_MAXID (ADDON_MAXID)
-#define MENU_ADDON_MAXVERSION (ADDON_MAXVERSION)
+#define MENU_ADDON_MAXTITLE 48
+#define MENU_ADDON_VISTITLE (MENU_ADDON_MAXTITLE - 4)
+
+#define MENU_ADDON_MAXDESC (ADDON_MAXDESC + 2048)
+#define MENU_ADDON_MAXID (ADDON_MAXID + 16)
+#define MENU_ADDON_MAXVERSION (ADDON_MAXVERSION + 16)
+
+// Addon Body Text Properties
+#define ABT_TNUM      (MF_Minifont.tilenum)
+#define ABT_ZOOM      ((FURY) ? (15*1024) : (46*1024))
+#define ABT_BANGLE    (0)
+#define ABT_ORIENT    (g_textstat)
+#define ABT_XSPACE    (MF_Minifont.emptychar.x)
+#define ABT_YLINE     (MF_Minifont.emptychar.y)
+#define ABT_XBETWEEN  (MF_Minifont.between.x)
+#define ABT_YBETWEEN  (MF_Minifont.between.y + (3<<16))
+#define ABT_FLAGS     (MF_Minifont.textflags)
+
+// maximum visual line length in addon description
+#define ABT_MAX_XSIZE (248<<16)
+
+// maximum amount of empty space after linebreak
+#define ABT_MAX_WSDIST (25<<16)
+
+// amount of vertical space needed to allow scrolling
+#define ABT_SCROLL_THRESHOLD (36<<16)
+
+// amount of vertical space crossed each scroll input
+#define ABT_SCROLL_INC (4<<16)
+
+// retrieve x/y dimensions of the given string when displayed as the addon menu description
+#define ABT_GETXYSIZE(__textstr) G_ScreenTextSize(ABT_TNUM, 0, 0, ABT_ZOOM, ABT_BANGLE, __textstr, ABT_ORIENT,\
+                                    ABT_XSPACE, ABT_YLINE, ABT_XBETWEEN, ABT_YBETWEEN, ABT_FLAGS, 0, 0, xdim-1, ydim-1)
+
+// upper and lower display boundary for the addon menu description
+#define ABT_YBOUNDS_TOP     ((FURY) ? ((ydim * 45) / 64) : ((ydim * 23) / 32))
+#define ABT_YBOUNDS_BOTTOM  ((FURY) ? ((ydim * 29) / 32) : ((ydim * 15) / 16))
 
 // text display buffers on the addon mneu
 static char m_addontitle_buffer[MENU_ADDON_MAXTITLE];
-static char m_addoncontent_buffer[MENU_ADDON_MAXBODY];
+static char m_addondesc_buffer[MENU_ADDON_MAXDESC];
 static char m_addonidentity_buffer[MENU_ADDON_MAXID];
 static char m_addonversion_buffer[MENU_ADDON_MAXVERSION];
 
 // scroll position and number of lines of body (to determine whether scrolling should be enabled)
-static int32_t m_addonbody_linecount = 0;
-static int32_t m_addonbody_scrollpos = 0;
+static int32_t m_addondesc_scrollpos = 0;
+static vec2_t m_addondesc_xysize = {0, 0};
 
 // determines the horizontal text shift of the selected addon menu entry
 static int32_t m_addontitle_hscroll_lastticks = 0;
@@ -2051,45 +2083,43 @@ static void Menu_SetKeyboardScanCode(MenuCustom2Col_t* columnEntry, const int32_
                     ud.config.KeyboardKeys[columnEntry->linkIndex][1], key[1]);
 }
 
-// This function performs a strncpy, adding newlines to wrap text after a linesize limit is reached
-static int32_t Menu_AddonTextWrap(char* dst, const char *src, int32_t const nsize, int32_t const lblimit)
+// performs textwrap on the given string, storing it in the destination buffer
+// returns x/y dimensions of wrapped string
+static vec2_t Menu_Addon_BodyTextWrap(char* dst, const char *src, int32_t const n)
 {
-    int i = 0, j = 0, ws_idx = 0;
-    int linesize = 0;
+    // in case source is empty
+    dst[0] = '\0';
 
-    int32_t linecount = 1;
-    while (src[i] && (j < (nsize - 1)))
+    int i = 0, j = 0, ws_idx = 0, lb_idx = 0;
+    while (src[i] && (j < n-1))
     {
+        // check for linebreak and whitespace index
+        if (src[i] == '\n') lb_idx = j;
         if (isspace(src[i])) ws_idx = j;
-        dst[j++] = src[i++];
-        linesize++;
 
-        if (src[i-1] == '\n')
+        // copy single char, null terminate for display size function
+        dst[j++] = src[i++];
+        dst[j] = '\0';
+
+        // if we exceed max space, do linebreak
+        if (ABT_GETXYSIZE(&dst[lb_idx]).x > ABT_MAX_XSIZE)
         {
-            linecount++;
-            linesize = 0;
-        }
-        else if (((lblimit >> 2) > 0) && (linesize >= lblimit))
-        {
-            if (j - ws_idx > (lblimit >> 2))
+            // if last whitespace too far away, split at end of line
+            if ((ws_idx == 0) || dst[ws_idx] == '\n' || (ABT_GETXYSIZE(&dst[ws_idx]).x > ABT_MAX_WSDIST))
             {
-                // split word if last whitespace far away (don't care about syllables)
-                dst[j] = '-'; dst[j+1] = '\n';
-                ws_idx = j+1; j += 2;
-                linesize = 0;
+                // don't put dash if left or right is whitepsace
+                if (src[i] && !isspace(dst[j-1]) && !isspace(src[i]))
+                    dst[j++] = '-';
+                ws_idx = j++;
             }
-            else
-            {
-                // split at last whitespace if close enough
-                dst[ws_idx] = '\n';
-                linesize = j - ws_idx;
-            }
-            linecount++;
+
+            // place new linebreak
+            dst[ws_idx] = '\n';
+            lb_idx = ws_idx;
         }
     }
 
-    dst[j] = '\0';
-    return linecount;
+    return ABT_GETXYSIZE(dst);
 }
 
 // Given a list index from MEL_ADDONS, retrieve the addon pointer and index from its corresponding array
@@ -2253,20 +2283,25 @@ static void Menu_Addon_CheckProperties(useraddon_t* ua, int32_t & n_sel, int32_t
 static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
 {
     // local buffer for description contents, before it is passed to the text wrapper
-    char tempcontentbuf[ADDON_MAXDESC + 1024];
+    char tempcontentbuf[MENU_ADDON_MAXDESC + 1024];
     tempcontentbuf[0] = '\0';
 
     int const standardPal = MENUTEXTPAL_BLUE;
     if (addonPtr && addonPtr->isValid())
     {
-        if (strlen(addonPtr->jsondat.title) > 46)
-            Bsnprintf(m_addontitle_buffer, ADDON_MAXTITLE, "%.46s...", addonPtr->jsondat.title);
+        if (strlen(addonPtr->jsondat.title) >= MENU_ADDON_VISTITLE)
+        {
+            Bstrncpyz(m_addontitle_buffer, addonPtr->jsondat.title, MENU_ADDON_VISTITLE);
+            Bstrncat(m_addontitle_buffer, "...", MENU_ADDON_VISTITLE);
+        }
         else
-            Bstrcpy(m_addontitle_buffer, addonPtr->jsondat.title);
-        Bstrcpy(m_addonidentity_buffer, addonPtr->jsondat.externalId);
-        Bstrcpy(m_addonversion_buffer, addonPtr->jsondat.version);
-        if (!m_addonversion_buffer[0])
-            Bstrcpy(m_addonversion_buffer, "N/A");
+            Bstrncpy(m_addontitle_buffer,  addonPtr->jsondat.title, MENU_ADDON_MAXTITLE);
+
+        Bsnprintf(m_addonidentity_buffer, MENU_ADDON_MAXID, "^%dIdentity:^%d %s",
+                    MENUTEXTPAL_GRAY, MENUTEXTPAL_BLUE, addonPtr->jsondat.externalId);
+
+        Bsnprintf(m_addonversion_buffer, MENU_ADDON_MAXVERSION, "^%dVersion:^%d %s",
+                MENUTEXTPAL_GRAY, MENUTEXTPAL_BLUE, addonPtr->jsondat.version[0] ? addonPtr->jsondat.version : "N/A");
 
         if (addonPtr->jsondat.author[0])
         {
@@ -2343,7 +2378,7 @@ static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
         Bstrcat(tempcontentbuf, "- PgUp/PgDn/Mousewheel: Scroll addon description up/down.\n");
         Bstrcat(tempcontentbuf, "- Shift + Arrow Keys: Change the load order of the addons.\n");
     }
-    m_addonbody_linecount = Menu_AddonTextWrap(m_addoncontent_buffer, tempcontentbuf, ADDON_MAXDESC, (FURY) ? 84 : 88);
+    m_addondesc_xysize = Menu_Addon_BodyTextWrap(m_addondesc_buffer, tempcontentbuf, MENU_ADDON_MAXDESC);
 }
 
 static void Menu_LoadAddonPackages(void)
@@ -3708,80 +3743,92 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
             rotatesprite_fs(origin.x + (85<<16), origin.y + (109<<16), (65536L >> 1) + (65536L >> 2) + 1024,1024+512,WINDOWBORDER1,24,0,10);
         }
 
-        int32_t const desc_ybounds_top = (FURY) ? ((ydim * 45) / 64) : ((ydim * 23) / 32);
-        int32_t const desc_ybounds_bottom = (FURY) ? ((ydim * 29) / 32) : ((ydim * 15) / 16);
-
         // title text
-        G_ScreenText(MF_Bluefont.tilenum, origin.x + (30<<16), origin.y + (137<<16), (FURY) ? (22*1024) : (42*1024),
-                0, 0, m_addontitle_buffer, 0, MF_Bluefont.pal, g_textstat, 0, MF_Bluefont.emptychar.x,
-                MF_Bluefont.emptychar.y, MF_Bluefont.between.x, MF_Bluefont.between.y, MF_Bluefont.textflags,
-                0, 0, xdim-1, ydim-1);
+        int const title_xpos = origin.x + (30<<16);
+        int const title_ypos = origin.y + (137<<16);
+        int const title_zoom = (FURY) ? (22*1024) : (42*1024);
 
-        // description
-        G_ScreenText(MF_Minifont.tilenum, origin.x + (30<<16), origin.y + ((FURY) ? (149<<16) : (145<<16)) + m_addonbody_scrollpos,
-                (FURY) ? (15*1024) : (46*1024), 0, 0, m_addoncontent_buffer, 0, MF_Minifont.pal, g_textstat, 0, MF_Minifont.emptychar.x,
-                MF_Minifont.emptychar.y, MF_Minifont.between.x, MF_Minifont.between.y + (3<<16), MF_Minifont.textflags,
-                0, desc_ybounds_top, xdim-1, desc_ybounds_bottom);
+        G_ScreenText(MF_Bluefont.tilenum, title_xpos, title_ypos, title_zoom, 0, 0, m_addontitle_buffer,
+                0, MF_Bluefont.pal, g_textstat, 0, MF_Bluefont.emptychar.x, MF_Bluefont.emptychar.y,
+                MF_Bluefont.between.x, MF_Bluefont.between.y, MF_Bluefont.textflags, 0, 0, xdim-1, ydim-1);
 
+        // addon body text
+        int const body_xpos = origin.x + (30<<16);
+        int const body_ypos = origin.y + ((FURY) ? (149<<16) : (145<<16)) + m_addondesc_scrollpos;
+
+        G_ScreenText(ABT_TNUM, body_xpos, body_ypos, ABT_ZOOM, ABT_BANGLE, 0, m_addondesc_buffer,
+                0, MF_Minifont.pal, ABT_ORIENT, 0, ABT_XSPACE, ABT_YLINE, ABT_XBETWEEN, ABT_YBETWEEN,
+                ABT_FLAGS, 0, ABT_YBOUNDS_TOP, xdim-1, ABT_YBOUNDS_BOTTOM);
+
+        // check if an addon is selected
         int32_t addonIndex = -1;
         useraddon_t* addonPtr = Menu_GetUserAddonForMenuIndex(M_ADDONS.currentEntry, addonIndex);
 
         if (!addonPtr)
         {
-            G_ScreenText(MF_Bluefont.tilenum, origin.x + ((FURY) ? (38<<16) : (28<<16)),
-                        origin.y + ((FURY) ? (118<<16) : (119<<16)), (FURY) ? (22*1024) : (38*1024),
-                        0, 0, m_addonidentity_buffer, 6-MENU_GLOWSHADE, MF_Bluefont.pal, g_textstat,
+            int const notify_xpos = origin.x + ((FURY) ? (38<<16) : (28<<16));
+            int const notify_ypos = origin.y + ((FURY) ? (118<<16) : (119<<16));
+            int const notify_zoom = (FURY) ? (22*1024) : (38*1024);
+
+            // show large glowing notification in place of version/identity strings
+            G_ScreenText(MF_Bluefont.tilenum, notify_xpos, notify_ypos, notify_zoom, 0, 0,
+                        m_addonidentity_buffer, 6-MENU_GLOWSHADE, MF_Bluefont.pal, g_textstat,
                         0, MF_Bluefont.emptychar.x, MF_Bluefont.emptychar.y, MF_Bluefont.between.x,
                         MF_Bluefont.between.y, MF_Bluefont.textflags, 0, 0, xdim-1, ydim-1);
-            break;
         }
-
-        if (((int) Bstrlen(addonPtr->jsondat.title)) - m_addontitle_hscroll > MENU_ADDON_TITLESCROLL_MAXVIS)
-        {
-            // initial delay result in negative elapsed, cast to 64 bit to preserve timer value
-            int64_t const elapsed = ((int64_t) timer120()) - m_addontitle_hscroll_lastticks;
-            if (elapsed >= MENU_ADDON_SCROLLDELAY)
-            {
-                m_addontitle_hscroll++;
-                m_addontitle_hscroll_lastticks = timer120(); // no delay here
-                addonPtr->updateMenuEntryName(m_addontitle_hscroll, MENU_ADDON_TITLESCROLL_MAXVIS);
-            }
-        }
-
-        // identity text
-        G_ScreenText(MF_Minifont.tilenum, origin.x + (26<<16), origin.y + (116<<16), (FURY) ? (15*1024) : (50*1024),
-                    0, 0, "Identity:", 0, MENUTEXTPAL_GRAY, g_textstat, 0, MF_Minifont.emptychar.x, MF_Minifont.emptychar.y,
-                    MF_Minifont.between.x, MF_Minifont.between.y, MF_Minifont.textflags,
-                    0, 0, xdim-1, ydim-1);
-
-        G_ScreenText(MF_Minifont.tilenum, origin.x + (FURY ? (56<<16) : (60<<16)), origin.y + (116<<16),
-                    (FURY) ? (15*1024) : (50*1024), 0, 0, m_addonidentity_buffer, 0, MENUTEXTPAL_BLUE, g_textstat,
-                    0, MF_Minifont.emptychar.x, MF_Minifont.emptychar.y, MF_Minifont.between.x, MF_Minifont.between.y,
-                    MF_Minifont.textflags, 0, 0, xdim-1, ydim-1);
-
-        // version text
-        G_ScreenText(MF_Minifont.tilenum, origin.x + (26<<16), origin.y + (123<<16), (FURY) ? (15*1024) : (50*1024),
-                    0, 0, "Version:", 0, MENUTEXTPAL_GRAY, g_textstat, 0, MF_Minifont.emptychar.x,
-                    MF_Minifont.emptychar.y, MF_Minifont.between.x, MF_Minifont.between.y, MF_Minifont.textflags,
-                    0, 0, xdim-1, ydim-1);
-
-        G_ScreenText(MF_Minifont.tilenum, origin.x + (FURY ? (56<<16) : (60<<16)), origin.y + (123<<16),
-                    (FURY) ? (15*1024) : (50*1024), 0, 0, m_addonversion_buffer, 0, MENUTEXTPAL_BLUE, g_textstat,
-                    0, MF_Minifont.emptychar.x, MF_Minifont.emptychar.y, MF_Minifont.between.x, MF_Minifont.between.y,
-                    MF_Minifont.textflags, 0, 0, xdim-1, ydim-1);
-
-
-
-        // display addon shot if found, else N/A
-        if (waloff[TILE_ADDONSHOT])
-            rotatesprite_fs(origin.x + (83<<16), origin.y + (73<<16), (65536>>2) + (65536>>3), 0, TILE_ADDONSHOT, -32, 0, 10+64);
         else
         {
-            G_ScreenText(MF_Redfont.tilenum, origin.x + ((FURY) ? (44<<16) : (40<<16)), origin.y + (68<<16),
-                ((FURY) ? (20*1024) : 48*1024), 0, 0, "No Preview", 0, MF_Redfont.pal, g_textstat, 0, MF_Redfont.emptychar.x, MF_Redfont.emptychar.y,
-                MF_Redfont.between.x, MF_Redfont.between.y, MF_Redfont.textflags, 0, 0, xdim-1, ydim-1);
-        }
+            // scroll menu entry name horizontally at regular intervals
+            if (((int) Bstrlen(addonPtr->jsondat.title)) - m_addontitle_hscroll > MENU_ADDON_TITLESCROLL_MAXVIS)
+            {
+                // initial delay result in negative elapsed, cast to 64 bit to preserve timer value
+                int64_t const elapsed = ((int64_t) timer120()) - m_addontitle_hscroll_lastticks;
+                if (elapsed >= MENU_ADDON_SCROLLDELAY)
+                {
+                    m_addontitle_hscroll++;
+                    m_addontitle_hscroll_lastticks = timer120(); // no delay here
+                    addonPtr->updateMenuEntryName(m_addontitle_hscroll, MENU_ADDON_TITLESCROLL_MAXVIS);
+                }
+            }
 
+            int const vident_xpos = origin.x + (26<<16);
+            int const vident_ypos = origin.y + (116<<16);
+            int const vident_zoom = (FURY) ? (15*1024) : (50*1024);
+
+            // identity
+            G_ScreenText(MF_Minifont.tilenum, vident_xpos, vident_ypos, vident_zoom,
+                        0, 0, m_addonidentity_buffer, 0, MF_Minifont.pal, g_textstat, 0, MF_Minifont.emptychar.x, MF_Minifont.emptychar.y,
+                        MF_Minifont.between.x, MF_Minifont.between.y, MF_Minifont.textflags,
+                        0, 0, xdim-1, ydim-1);
+
+            // version
+            G_ScreenText(MF_Minifont.tilenum, vident_xpos, vident_ypos + (7<<16), vident_zoom,
+                        0, 0, m_addonversion_buffer, 0, MF_Minifont.pal, g_textstat, 0, MF_Minifont.emptychar.x,
+                        MF_Minifont.emptychar.y, MF_Minifont.between.x, MF_Minifont.between.y, MF_Minifont.textflags,
+                        0, 0, xdim-1, ydim-1);
+
+            // preview image content
+            if (waloff[TILE_ADDONSHOT])
+            {
+                int const preview_xpos = origin.x + (83<<16);
+                int const preview_ypos = origin.y + (73<<16);
+                int const preview_zoom = (24*1024);
+
+                rotatesprite_fs(preview_xpos, preview_ypos, preview_zoom, 0, TILE_ADDONSHOT, -32, 0, 10+64);
+            }
+            else
+            {
+                // text replacement if not found
+                int const mprev_xpos = origin.x + ((FURY) ? (44<<16) : (40<<16));
+                int const mprev_ypos = origin.y + (68<<16);
+                int const mprev_zoom = ((FURY) ? (20*1024) : (48*1024));
+                const char* mprev_text = "No Preview";
+
+                G_ScreenText(MF_Redfont.tilenum, mprev_xpos, mprev_ypos, mprev_zoom, 0, 0, mprev_text,
+                    0, MF_Redfont.pal, g_textstat, 0, MF_Redfont.emptychar.x, MF_Redfont.emptychar.y,
+                    MF_Redfont.between.x, MF_Redfont.between.y, MF_Redfont.textflags, 0, 0, xdim-1, ydim-1);
+            }
+        }
         break;
     }
 #ifdef EDUKE32_ANDROID_MENU
@@ -4377,7 +4424,7 @@ static void Menu_EntryFocus(/*MenuEntry_t *entry*/)
             m_addontitle_hscroll_lastticks = timer120() + 60; // 2 second delay until start shifting
 
             // reset description scroll position on each selection
-            m_addonbody_scrollpos = 0;
+            m_addondesc_scrollpos = 0;
 
             int32_t addonIndex = -1;
             useraddon_t* addonPtr = Menu_GetUserAddonForMenuIndex(M_ADDONS.currentEntry, addonIndex);
@@ -8631,8 +8678,8 @@ static void Menu_RunInput(Menu_t *cm)
                     if (g_currentMenu == MENU_ADDONS)
                     {
                         // scroll the text content up instead of entry list
-                        if (m_addonbody_linecount > 7)
-                            m_addonbody_scrollpos = min(0, m_addonbody_scrollpos + (4<<16));
+                        if (m_addondesc_xysize.y > ABT_SCROLL_THRESHOLD)
+                            m_addondesc_scrollpos = min(0, m_addondesc_scrollpos + ABT_SCROLL_INC);
                     }
                     else
                     {
@@ -8657,8 +8704,8 @@ static void Menu_RunInput(Menu_t *cm)
                     if (g_currentMenu == MENU_ADDONS)
                     {
                         // scroll the text content down instead of entry list
-                        if (m_addonbody_linecount > 7)
-                            m_addonbody_scrollpos = max((-m_addonbody_linecount) * (6<<16), m_addonbody_scrollpos - (4<<16));
+                        if (m_addondesc_xysize.y > ABT_SCROLL_THRESHOLD)
+                            m_addondesc_scrollpos = max(ABT_SCROLL_THRESHOLD - m_addondesc_xysize.y, m_addondesc_scrollpos - ABT_SCROLL_INC);
                     }
                     else
                     {
