@@ -4976,7 +4976,8 @@ badindex:
 
                 VM_ABORT_IF(bad_quote(nQuote), "invalid quote %d", nQuote);
 
-                communityapiUnlockAchievement(apStrings[nQuote]);
+                if (!g_achievementsDisabled)
+                    communityapiUnlockAchievement(apStrings[nQuote]);
                 dispatch();
             }
 

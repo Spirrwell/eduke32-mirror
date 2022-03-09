@@ -121,6 +121,7 @@ G_EXTERN int32_t g_scriptDebug;
 G_EXTERN int32_t g_showShareware;
 G_EXTERN int32_t g_spriteDeleteQueuePos;
 G_EXTERN int32_t g_bootState;
+G_EXTERN int32_t g_achievementsDisabled;
 G_EXTERN int32_t g_startArmorAmount;
 G_EXTERN int32_t g_tripbombLaserMode;
 G_EXTERN int32_t screenpeek;

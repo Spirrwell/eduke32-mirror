@@ -5347,7 +5347,10 @@ static void Menu_Verify(int32_t input)
         {
             // start the reboot
             g_addon_failedboot = false;
-            g_bootState = (BOOTSTATE_ADDONS | BOOTSTATE_REBOOT);
+            g_bootState = BOOTSTATE_REBOOT;
+
+            if (g_num_selected_addons > 0)
+                g_bootState |= BOOTSTATE_ADDONS;
 
             const char* bfn; int ln, vn;
             m_addons_launchmap = Addon_GetStartMap(bfn, ln, vn);

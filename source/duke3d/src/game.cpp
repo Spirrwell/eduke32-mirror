@@ -7135,6 +7135,7 @@ int app_main(int argc, char const* const* argv)
     if (ud.setup.launchuseraddons)
         g_bootState |= BOOTSTATE_ADDONS;
 
+
 SOFT_REBOOT:
     if (g_bootState & BOOTSTATE_REBOOT)
     {
@@ -7142,6 +7143,10 @@ SOFT_REBOOT:
         if (!g_useCwd)
             G_AddSearchPaths();
     }
+
+    g_achievementsDisabled = ((g_bootState & BOOTSTATE_ADDONS) != 0);
+    if (g_achievementsDisabled && communityapiEnabled())
+        LOG_F(INFO, "Achievements are disabled for this session.");
 
     G_LoadGroups(!g_noAutoLoad && !ud.setup.noautoload);
 
