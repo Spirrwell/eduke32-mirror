@@ -54,6 +54,7 @@ static const char jsonkey_scriptpath[] = "path";
 static const char jsonkey_dependencies[] = "dependencies";
 static const char jsonkey_incompatibles[] = "incompatibles";
 static const char jsonkey_rendmode[] = "rendmode";
+static const char jsonkey_startmap[] = "startmap";
 
 // string sequences to identify different gametypes
 static const char jsonval_gt_any[] = "any";
@@ -65,6 +66,11 @@ static const char jsonval_gt_fury[] = "fury";
 // string sequences to identify script type
 static const char jsonval_scriptmain[] = "main";
 static const char jsonval_scriptmodule[] = "module";
+
+// map start keys
+static const char jsonkey_mapvolume[] = "volume";
+static const char jsonkey_maplevel[] = "level";
+static const char jsonkey_mapfile[] = "file";
 
 // rendmodes
 static const char jsonval_rendmode_classic[] = "classic";
@@ -120,7 +126,7 @@ int32_t g_num_active_incompats = 0;
 int32_t g_addon_selrendmode = ADDON_RENDNONE;
 
 bool g_addon_strictdeps = true;
-bool g_addon_failedlaunch = false;
+bool g_addon_failedboot = false;
 
 // shorthands for common iteration types
 #define ITER_GRPINFO(_idx, _ptr) for (_idx = 0, _ptr = (g_addoncount_grpinfo > 0 ? g_useraddons_grpinfo[0] : nullptr);\
@@ -131,6 +137,7 @@ bool g_addon_failedlaunch = false;
 
 #define ITER_MODS(_idx, _ptr) for (_idx = 0, _ptr = (g_addoncount_mods > 0 ? g_useraddons_mods[0] : nullptr);\
                                      _idx < g_addoncount_mods; _ptr = g_useraddons_mods[min(++_idx, g_addoncount_mods-1)])
+
 
 // Check if the addon directory exists. This is always placed in the folder where the exe is found.
 static int32_t Addon_GetLocalDir(char * pathbuf, const int32_t buflen)
@@ -443,6 +450,7 @@ static int32_t Addon_ParseJson_FilePath(useraddon_t* addonPtr, sjson_node* root,
         return -1;
     }
 
+    Bcorrectfilename(dstbuf, 0);
     return 0;
 }
 
@@ -777,23 +785,85 @@ static int32_t Addon_ParseJson_GameCRC(useraddon_t* addonPtr, sjson_node* root, 
     return 0;
 }
 
+// start map
+static int32_t Addon_ParseJson_StartMap(useraddon_t* addonPtr, sjson_node* root, const char* key)
+{
+    sjson_node * ele = sjson_find_member_nocase(root, key);
+    addonPtr->jsondat.boardfilename[0] = '\0';
+    addonPtr->jsondat.startlevel = 0;
+    addonPtr->jsondat.startvolume = 0;
+    addonPtr->flags &= ~ADDONFLAG_STARTMAP;
+
+    if (ele == nullptr) return 1;
+    else if (ele->tag != SJSON_OBJECT)
+    {
+        LOG_F(ERROR, "Value for key '%s' of addon %s must be an object!", key, addonPtr->internalId);
+        return -1;
+    }
+
+    sjson_node* ele_mapfile = sjson_find_member_nocase(ele, jsonkey_mapfile);
+    if (ele_mapfile)
+    {
+        if (Addon_CheckJsonStringType(addonPtr, ele_mapfile, jsonkey_mapfile))
+            return -1;
+
+        // do not check for file existence
+        Bstrncpy(addonPtr->jsondat.boardfilename, ele_mapfile->string_, BMAX_PATH);
+        Bcorrectfilename(addonPtr->jsondat.boardfilename, 0);
+        addonPtr->jsondat.startlevel = 7;
+        addonPtr->jsondat.startvolume = 0;
+        addonPtr->flags |= ADDONFLAG_STARTMAP;
+        return 0;
+    }
+
+    sjson_node* ele_maplevel = sjson_find_member_nocase(ele, jsonkey_maplevel);
+    sjson_node* ele_mapvolume = sjson_find_member_nocase(ele, jsonkey_mapvolume);
+    if (ele_maplevel && ele_mapvolume)
+    {
+        if (ele_maplevel->tag != SJSON_NUMBER || ele_mapvolume->tag != SJSON_NUMBER)
+        {
+            LOG_F(ERROR, "Level and volume are not integers in addon: %s!", addonPtr->internalId);
+            return -1;
+        }
+
+        if ((ele_maplevel->number_ < 0 || ele_maplevel->number_ >= MAXLEVELS)
+            || (ele_mapvolume->number_ < 0 || ele_mapvolume->number_ >= MAXVOLUMES))
+        {
+            LOG_F(ERROR, "Level or Volume exceed boundaries in addon: %s!", addonPtr->internalId);
+            return -1;
+        }
+
+        addonPtr->jsondat.startlevel = ele_maplevel->number_;
+        addonPtr->jsondat.startvolume = ele_mapvolume->number_;
+        addonPtr->flags |= ADDONFLAG_STARTMAP;
+        return 0;
+    }
+    else
+    {
+        LOG_F(ERROR, "Invalid startmap structure for addon %s!", addonPtr->internalId);
+        LOG_F(INFO, "Valid keys are: {\"%s\", \"%s\", \"%s\"}", jsonkey_maplevel, jsonkey_mapvolume, jsonkey_mapfile);
+        return -1;
+    }
+}
+
+// required rendermode
 static int32_t Addon_ParseJson_Rendmode(useraddon_t* addonPtr, sjson_node* root, const char* key)
 {
     sjson_node * ele = sjson_find_member_nocase(root, key);
-    addonPtr->rendmode = ADDON_RENDNONE;
+    addonPtr->jsondat.rendmode = ADDON_RENDNONE;
 
     if (ele == nullptr) return 1;
     else if (Addon_CheckJsonStringType(addonPtr, ele, key)) return -1;
 
     const char* rmodestr = ele->string_;
     if (!Bstrncasecmp(rmodestr, jsonval_rendmode_classic, ARRAY_SIZE(jsonval_rendmode_classic)))
-        addonPtr->rendmode = ADDON_RENDCLASSIC;
+        addonPtr->jsondat.rendmode = ADDON_RENDCLASSIC;
     else if (!Bstrncasecmp(rmodestr, jsonval_rendmode_opengl, ARRAY_SIZE(jsonval_rendmode_opengl)))
-        addonPtr->rendmode = ADDON_RENDPOLYMOST;
+        addonPtr->jsondat.rendmode = ADDON_RENDPOLYMOST;
     else if (!Bstrncasecmp(rmodestr, jsonval_rendmode_polymost, ARRAY_SIZE(jsonval_rendmode_polymost)))
-        addonPtr->rendmode = ADDON_RENDPOLYMOST;
+        addonPtr->jsondat.rendmode = ADDON_RENDPOLYMOST;
     else if (!Bstrncasecmp(rmodestr, jsonval_rendmode_polymer, ARRAY_SIZE(jsonval_rendmode_polymer)))
-        addonPtr->rendmode = ADDON_RENDPOLYMER;
+        addonPtr->jsondat.rendmode = ADDON_RENDPOLYMER;
     else
     {
         LOG_F(ERROR, "Unknown rendmode '%s' in addon '%s'!", rmodestr, addonPtr->internalId);
@@ -913,6 +983,10 @@ static int32_t Addon_ParseJson(useraddon_t* addonPtr, sjson_context* ctx, const 
 
     // RTS file path
     parseResult = Addon_ParseJson_FilePath(addonPtr, root, jsonkey_rts, addonPtr->jsondat.main_rts_path, basepath);
+    if (parseResult == -1) jsonErrorCnt++;
+
+    // map to launch after reboot (can be omitted)
+    parseResult = Addon_ParseJson_StartMap(addonPtr, root, jsonkey_startmap);
     if (parseResult == -1) jsonErrorCnt++;
 
     // dependencies
@@ -1627,9 +1701,9 @@ static void Addon_UpdateSelectedRendmode(void)
 {
     int i; useraddon_t* addonPtr;
     g_addon_selrendmode = ADDON_RENDNONE;
-    ITER_GRPINFO(i, addonPtr) if (addonPtr->isSelected()) g_addon_selrendmode |= addonPtr->rendmode;
-    ITER_MODS(i, addonPtr) if (addonPtr->isSelected()) g_addon_selrendmode |= addonPtr->rendmode;
-    ITER_TCS(i, addonPtr) if (addonPtr->isSelected()) g_addon_selrendmode |= addonPtr->rendmode;
+    ITER_GRPINFO(i, addonPtr) if (addonPtr->isSelected()) g_addon_selrendmode |= addonPtr->jsondat.rendmode;
+    ITER_MODS(i, addonPtr) if (addonPtr->isSelected()) g_addon_selrendmode |= addonPtr->jsondat.rendmode;
+    ITER_TCS(i, addonPtr) if (addonPtr->isSelected()) g_addon_selrendmode |= addonPtr->jsondat.rendmode;
 }
 
 // utility to free preview image storage
@@ -1845,6 +1919,69 @@ void Addon_RefreshDependencyStates(void)
     // DLOG_F(INFO, "Number of addons that are incompatible with selected addons: %d", g_num_active_incompats);
 }
 
+bool Addon_GetStartMap(const char* & startfn, int32_t & startlevel, int32_t & startvolume)
+{
+    // assume that load order already sanitized, each index unique
+    useraddon_t** lobuf = (useraddon_t**) Xcalloc(g_addoncount_mods, sizeof(useraddon_t*));
+    for (int i = 0; i < g_addoncount_mods; i++)
+        lobuf[g_useraddons_mods[i]->loadorder_idx] = g_useraddons_mods[i];
+
+    // addons in reverse load order
+    for (int i = g_addoncount_mods-1; i >= 0; i--)
+    {
+        useraddon_t* addonPtr = lobuf[i];
+        if (!addonPtr->isValid() || !addonPtr->isSelected() || !Addon_MatchesGame(addonPtr))
+            continue;
+
+        if (addonPtr->flags & ADDONFLAG_STARTMAP)
+        {
+            startlevel = addonPtr->jsondat.startlevel;
+            startvolume = addonPtr->jsondat.startvolume;
+            startfn = addonPtr->jsondat.boardfilename;
+            return true;
+        }
+    }
+
+    // addons in reverse load order
+    for (int i = g_addoncount_tcs-1; i >= 0; i--)
+    {
+        useraddon_t* addonPtr = g_useraddons_tcs[i];
+        if (!addonPtr->isValid() || !addonPtr->isSelected() || !Addon_MatchesGame(addonPtr))
+            continue;
+
+        if (addonPtr->flags & ADDONFLAG_STARTMAP)
+        {
+            startlevel = addonPtr->jsondat.startlevel;
+            startvolume = addonPtr->jsondat.startvolume;
+            startfn = addonPtr->jsondat.boardfilename;
+            return true;
+        }
+    }
+
+    startlevel = -1;
+    startvolume = -1;
+    startfn = nullptr;
+    return false;
+}
+
+#ifdef USE_OPENGL
+int32_t Addon_GetBootRendmode(void)
+{
+    if (!(g_bootState & BOOTSTATE_ADDONS))
+        return -1;
+
+    switch (g_addon_selrendmode)
+    {
+        case ADDON_RENDCLASSIC: return REND_CLASSIC;
+        case ADDON_RENDPOLYMOST: return REND_POLYMOST;
+#ifdef POLYMER
+        case ADDON_RENDPOLYMER: return REND_POLYMER;
+#endif
+        default: return -1;
+    }
+}
+#endif
+
 // iterate through all grp info addons, find selected one, change game grp
 int32_t Addon_PrepareGrpInfoAddons(void)
 {
@@ -1889,7 +2026,7 @@ int32_t Addon_PrepareUserTCs(void)
     for (int i = 0; i < g_addoncount_tcs; i++)
     {
         const useraddon_t* addonPtr = g_useraddons_tcs[i];
-        if (!addonPtr->isSelected() || Addon_MatchesGame(addonPtr))
+        if (!addonPtr->isSelected() || !Addon_MatchesGame(addonPtr))
             continue;
 
         // sanity checks
@@ -1906,24 +2043,6 @@ int32_t Addon_PrepareUserTCs(void)
     pathsearchmode = bakpathsearchmode;
     return 0;
 }
-
-#ifdef USE_OPENGL
-int32_t Addon_GetBootRendmode(void)
-{
-    if (!(g_bootState & BOOTSTATE_ADDONS))
-        return -1;
-
-    switch (g_addon_selrendmode)
-    {
-        case ADDON_RENDCLASSIC: return REND_CLASSIC;
-        case ADDON_RENDPOLYMOST: return REND_POLYMOST;
-#ifdef POLYMER
-        case ADDON_RENDPOLYMER: return REND_POLYMER;
-#endif
-        default: return -1;
-    }
-}
-#endif
 
 // iterate through all mods in load order, find selected ones, initialize data
 int32_t Addon_PrepareUserMods(void)
@@ -1944,7 +2063,7 @@ int32_t Addon_PrepareUserMods(void)
     for (int i = 0; i < g_addoncount_mods; i++)
     {
         useraddon_t* addonPtr = lobuf[i];
-        if (!addonPtr->isSelected() || !(addonPtr->gametype & g_gameType))
+        if (!addonPtr->isSelected() || !Addon_MatchesGame(addonPtr))
             continue;
 
         // sanity checks

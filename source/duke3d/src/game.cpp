@@ -7225,7 +7225,7 @@ SOFT_REBOOT:
     {
         LOG_F(ERROR, "Failed to launch selected addons, resetting to previous values...");
         g_bootState = BOOTSTATE_REBOOT;
-        g_addon_failedlaunch = true;
+        g_addon_failedboot = true;
         goto SOFT_REBOOT;
     }
 
@@ -7267,7 +7267,7 @@ SOFT_REBOOT:
         {
             LOG_F(ERROR, "Fatal engine error when attempting to launch addons, resetting to previous values...");
             g_bootState = BOOTSTATE_REBOOT;
-            g_addon_failedlaunch = true;
+            g_addon_failedboot = true;
             goto SOFT_REBOOT;
         }
         G_FatalEngineInitError();

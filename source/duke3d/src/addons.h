@@ -44,6 +44,8 @@ extern "C" {
 #define PREVIEWTILE_YSIZE 200
 
 #define ADDONFLAG_SELECTION (1 << 0)
+#define ADDONFLAG_STARTMAP (1 << 1)
+
 #define DEFAULT_LOADORDER_IDX (-1)
 
 // the addon will only show up in the menu if these gameflags are met
@@ -124,6 +126,11 @@ struct addonjson_t
     char** def_modules = nullptr;
     int32_t num_script_modules = 0, num_def_modules = 0;
 
+    // map to start and rendmode
+    char boardfilename[BMAX_PATH];
+    int32_t startlevel, startvolume;
+    int32_t rendmode;
+
     // dependencies and incompatibilities
     addondependency_t* dependencies = nullptr;
     addondependency_t* incompatibles = nullptr;
@@ -157,7 +164,6 @@ struct useraddon_t
     uint32_t flags;
     int32_t loadorder_idx;
     int32_t mdeps, incompats;
-    int32_t rendmode;
 
     // getter and setter for selection status
     void setSelected(bool status)
@@ -234,7 +240,7 @@ extern int32_t g_num_active_incompats;
 
 extern int32_t g_addon_selrendmode;
 
-extern bool g_addon_failedlaunch;
+extern bool g_addon_failedboot;
 extern bool g_addon_strictdeps;
 
 // preview image binary data is cached so expensive palette conversion does not need to be repeated
@@ -249,6 +255,7 @@ void Addon_PruneInvalidAddons(useraddon_t** & useraddons, int32_t & numuseraddon
 void Addon_InitializeLoadOrder(void);
 void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB, int32_t const maxvis);
 
+bool Addon_GetStartMap(const char* & startfn, int32_t & startlevel, int32_t & startvolume);
 void Addon_RefreshDependencyStates(void);
 
 #ifdef USE_OPENGL

@@ -1287,6 +1287,9 @@ static char m_addondesc_buffer[MENU_ADDON_MAXDESC];
 static char m_addonidentity_buffer[MENU_ADDON_MAXID];
 static char m_addonversion_buffer[MENU_ADDON_MAXVERSION];
 
+// true if we should switch to skill menu and prepare map start
+static bool m_addons_launchmap = false;
+
 // scroll position and number of lines of body (to determine whether scrolling should be enabled)
 static int32_t m_addondesc_scrollpos = 0;
 static vec2_t m_addondesc_xysize = {0, 0};
@@ -2206,7 +2209,8 @@ static int32_t Menu_AddonMenuUpDown(int32_t const entryIndex, int32_t const othe
 
 static inline bool Menu_Addon_RendmodeConflict(void)
 {
-    return (((g_addon_selrendmode & ADDON_RENDMASK) != ADDON_RENDCLASSIC)
+    return ((g_addon_selrendmode != ADDON_RENDNONE)
+           && ((g_addon_selrendmode & ADDON_RENDMASK) != ADDON_RENDCLASSIC)
             && ((g_addon_selrendmode & ADDON_RENDMASK) != ADDON_RENDPOLYMOST)
              && ((g_addon_selrendmode & ADDON_RENDMASK) != ADDON_RENDPOLYMER));
 }
@@ -2218,17 +2222,17 @@ static void Menu_Addon_UpdateMenuEntryStatus(const useraddon_t* addonPtr, const 
 
     // unsupported rendmodes
 #ifndef POLYMER
-    hasIssue |= (addonPtr->rendmode & ADDON_RENDPOLYMER) != 0;
+    hasIssue |= (addonPtr->jsondat.rendmode & ADDON_RENDPOLYMER) != 0;
 #endif
 #ifndef USE_OPENGL
-    hasIssue |= (addonPtr->rendmode & ADDON_RENDPOLYMOST) != 0;
+    hasIssue |= (addonPtr->jsondat.rendmode & ADDON_RENDPOLYMOST) != 0;
 #endif
 
     if (addonPtr->isSelected())
     {
         // part of rendmode conflict
-        hasIssue |= ((addonPtr->rendmode != ADDON_RENDNONE) && (g_addon_selrendmode != ADDON_RENDNONE)
-                        && ((g_addon_selrendmode & ADDON_RENDMASK) != addonPtr->rendmode));
+        hasIssue |= ((addonPtr->jsondat.rendmode != ADDON_RENDNONE) && (g_addon_selrendmode != ADDON_RENDNONE)
+                        && ((g_addon_selrendmode & ADDON_RENDMASK) != addonPtr->jsondat.rendmode));
 
         if (hasIssue)
             ME_ADDONS[menuIndex].font = &MF_Minifont_Addon_Warning;
@@ -2238,8 +2242,8 @@ static void Menu_Addon_UpdateMenuEntryStatus(const useraddon_t* addonPtr, const 
     else
     {
         // prevent rendmode conflict
-        hasIssue |= ((addonPtr->rendmode != ADDON_RENDNONE) && (g_addon_selrendmode != ADDON_RENDNONE)
-                        && (g_addon_selrendmode != addonPtr->rendmode));
+        hasIssue |= ((addonPtr->jsondat.rendmode != ADDON_RENDNONE) && (g_addon_selrendmode != ADDON_RENDNONE)
+                        && (g_addon_selrendmode != addonPtr->jsondat.rendmode));
 
         MenuEntry_DisableOnCondition(&ME_ADDONS[menuIndex], g_addon_strictdeps && hasIssue);
         ME_ADDONS[menuIndex].font = &MF_Minifont_Addon_Entry;
@@ -3528,7 +3532,7 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
                 rotatesprite_fs(origin.x + ((MENU_MARGIN_CENTER+100)<<16), origin.y + (36<<16), 65536L,0,PLUTOPAKSPRITE+2,MENU_GLOWSHADE,0,2+8);
         }
 
-        if (g_addon_failedlaunch)
+        if (g_addon_failedboot)
         {
             if (FURY)
             {
@@ -5336,8 +5340,11 @@ static void Menu_Verify(int32_t input)
         if (input)
         {
             // start the reboot
-            g_addon_failedlaunch = false;
+            g_addon_failedboot = false;
             g_bootState = (BOOTSTATE_ADDONS | BOOTSTATE_REBOOT);
+
+            const char* bfn; int ln, vn;
+            m_addons_launchmap = Addon_GetStartMap(bfn, ln, vn);
         }
         break;
     case MENU_COLCORRRESETVERIFY:
@@ -8948,7 +8955,42 @@ void M_DisplayMenus(void)
     if ((g_player[myconnectindex].ps->gm&MODE_MENU) == 0)
     {
         walock[TILE_LOADSHOT] = CACHE1D_FREE;
+        walock[TILE_ADDONSHOT] = CACHE1D_FREE;
         return;
+    }
+
+    // TODO: this is pretty hacky, need a better location to change the menu
+    if (EDUKE32_PREDICT_FALSE(m_addons_launchmap))
+    {
+        // double check
+        const char* bfn; int ln, vn;
+        m_addons_launchmap = Addon_GetStartMap(bfn, ln, vn);
+        if (m_addons_launchmap)
+        {
+            if (bfn && bfn[0])
+            {
+                // launch specified filename in usermap slot
+                // TODO: fix leading slash issues
+                if (bfn[0] != '/')
+                {
+                    boardfilename[0] = '/';
+                    Bstrncpy(&boardfilename[1], bfn, BMAX_PATH-1);
+                }
+                else Bstrncpy(boardfilename, bfn, BMAX_PATH);
+                ud.m_level_number = 7;
+                ud.m_volume_number = 0;
+            }
+            else
+            {
+                // launch episode and level if no file specified
+                boardfilename[0] = '\0';
+                ud.m_level_number = ln;
+                ud.m_volume_number = vn;
+            }
+
+            Menu_Change(MENU_SKILL);
+            m_addons_launchmap = false;
+        }
     }
 
     if (!Menu_IsTextInput(m_currentMenu) && KB_KeyPressed(sc_Q))

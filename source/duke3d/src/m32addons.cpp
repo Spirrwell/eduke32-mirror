@@ -42,7 +42,7 @@ int32_t g_num_active_incompats = 0;
 int32_t g_addon_selrendmode = ADDON_RENDNONE;
 
 bool g_addon_strictdeps = false;
-bool g_addon_failedlaunch = false;
+bool g_addon_failedboot = false;
 
 void Addon_FreePreviewHashTable(void){ /* stub */ };
 void Addon_CachePreviewImages(void) { /* stub */ };
@@ -77,6 +77,14 @@ int32_t Addon_CheckDependencyProblems(const useraddon_t* addonPtr)
     (void) addonPtr;
     return 0;
 };
+
+bool Addon_GetStartMap(const char* & startfn, int32_t & startlevel, int32_t & startvolume)
+{
+    startlevel = 0;
+    startvolume = 0;
+    startfn = nullptr;
+    return false;
+}
 
 #ifdef USE_OPENGL
 int32_t Addon_GetBootRendmode(void) { return -1; };
