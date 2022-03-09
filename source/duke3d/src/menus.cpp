@@ -2215,12 +2215,20 @@ static inline bool Menu_Addon_RendmodeConflict(void)
              && ((g_addon_selrendmode & ADDON_RENDMASK) != ADDON_RENDPOLYMER));
 }
 
-// update font for the menu entry depending on status
-static void Menu_Addon_UpdateMenuEntryStatus(const useraddon_t* addonPtr, const int32_t menuIndex)
+static void Menu_Addon_ResetHorizontalScroll(void)
 {
-    bool hasIssue = addonPtr->mdeps || addonPtr->incompats;
+    // reset the title shift for the selected addon and record time of change
+    m_addontitle_hscroll = 0;
+    m_addontitle_hscroll_lastticks = timer120() + 60; // 2 second delay until start shifting
+}
 
-    // unsupported rendmodes
+// update font for the menu entry depending on status
+static void Menu_Addon_UpdateMenuEntryStatus(useraddon_t* addonPtr, int32_t const menuIndex)
+{
+    Menu_Addon_ResetHorizontalScroll();
+    addonPtr->updateMenuEntryName(0, MENU_ADDON_TITLESCROLL_MAXVIS);
+
+    bool hasIssue = addonPtr->mdeps || addonPtr->incompats;
 #ifndef POLYMER
     hasIssue |= (addonPtr->jsondat.rendmode & ADDON_RENDPOLYMER) != 0;
 #endif
@@ -2297,7 +2305,7 @@ static int32_t Menu_Addon_EntryLinkActivate(int32_t const entryIndex)
         for (int j = 0; j < M_ADDONS.numEntries; j++)
         {
             int iterAddonIndex = -1;
-            const useraddon_t * iterAddon = Menu_GetUserAddonForMenuIndex(ADDONS_L2EMAP[j], iterAddonIndex);
+            useraddon_t * iterAddon = Menu_GetUserAddonForMenuIndex(ADDONS_L2EMAP[j], iterAddonIndex);
             if (iterAddonIndex >= 0)
                 Menu_Addon_UpdateMenuEntryStatus(iterAddon, j);
         }
@@ -4467,9 +4475,7 @@ static void Menu_EntryFocus(/*MenuEntry_t *entry*/)
         break;
     case MENU_ADDONS:
         {
-            // reset the title shift for the selected addon and record time of change
-            m_addontitle_hscroll = 0;
-            m_addontitle_hscroll_lastticks = timer120() + 60; // 2 second delay until start shifting
+            Menu_Addon_ResetHorizontalScroll();
 
             // reset description scroll position on each selection
             m_addondesc_scrollpos = 0;

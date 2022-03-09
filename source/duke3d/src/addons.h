@@ -143,7 +143,7 @@ struct useraddon_t
     char* internalId;
 
     // this stores the text displayed on the menu entry, constructed below
-    char menuentryname[ADDON_MAXTITLE];
+    char menuentryname[ADDON_MAXTITLE + 16];
 
     // path that contains the addon's data
     char data_path[BMAX_PATH];
@@ -183,14 +183,23 @@ struct useraddon_t
     void updateMenuEntryName(int const startidx, int const maxVis)
     {
         // truncation is intentional
-        int n = 0;
+        int n = 0; char tempbuf[8]; int tempsize;
         menuentryname[0] = '\0';
 
-        if (loadorder_idx >= 0)
-            n = Bsnprintf(menuentryname, maxVis, "%d: ", loadorder_idx + 1);
+        tempsize = Bsnprintf(tempbuf, 8, "(%c) ", isSelected() ? 'x': ' ');
+        if (tempsize < 0) return;
+        Bstrncat(menuentryname, tempbuf, maxVis - n);
+        n += tempsize;
 
-        if (n >= 0)
-            Bstrncat(menuentryname, &jsondat.title[startidx], maxVis - n);
+        if (loadorder_idx >= 0)
+        {
+            tempsize = Bsnprintf(tempbuf, 8, "%d: ", loadorder_idx + 1);
+            if (tempsize < 0) return;
+            Bstrncat(menuentryname, tempbuf, maxVis - n);
+            n += tempsize;
+        }
+
+        Bstrncat(menuentryname, &jsondat.title[startidx], maxVis - n);
     }
 
     void countMissingDependencies(hashtable_t* h_temp = nullptr)
