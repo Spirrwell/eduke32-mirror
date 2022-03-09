@@ -1623,7 +1623,7 @@ int32_t registerosdcommands(void)
 
         { "cl_keybindorder", "default order for the keybind menu (overridden by custom order, requires a restart):\n 0: classic\n 1: modern", (void *)&cvar_kbo_type, CVAR_BOOL, 0, 1 },
         { "cl_kbconfirm", "on assigning a keyboard bind, will display a confirmation dialog if key is already assigned:\n 0: disabled\n 1: enabled", (void *)&cvar_kbconfirm, CVAR_BOOL, 0, 1 },
-
+        { "cl_addonmenu_strict", "prevent selecting addons that have conflicts with other addons:\n 0: disabled\n 1: enabled", (void *)&cvar_addonmenu_strict, CVAR_BOOL, 0, 1 },
 
         { "color", "player palette", (void *)&ud.color, CVAR_INT|CVAR_MULTI, 0, MAXPALOOKUPS-1 },
 

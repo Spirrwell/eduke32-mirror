@@ -250,7 +250,6 @@ extern int32_t g_num_active_incompats;
 extern int32_t g_addon_selrendmode;
 
 extern bool g_addon_failedboot;
-extern bool g_addon_strictdeps;
 
 // preview image binary data is cached so expensive palette conversion does not need to be repeated
 void Addon_FreePreviewHashTable(void);

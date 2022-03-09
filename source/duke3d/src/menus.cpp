@@ -311,6 +311,7 @@ static MenuOptionSet_t MEOS_Gamefuncs = MAKE_MENUOPTIONSET( MEOSN_Gamefuncs, MEO
 
 int32_t cvar_kbo_type = 1;
 int32_t cvar_kbconfirm = 1;
+int32_t cvar_addonmenu_strict = 1;
 
 static int g_lookAxis = -1;
 static int g_turnAxis = -1;
@@ -2253,7 +2254,7 @@ static void Menu_Addon_UpdateMenuEntryStatus(useraddon_t* addonPtr, int32_t cons
         hasIssue |= ((addonPtr->jsondat.rendmode != ADDON_RENDNONE) && (g_addon_selrendmode != ADDON_RENDNONE)
                         && (g_addon_selrendmode != addonPtr->jsondat.rendmode));
 
-        MenuEntry_DisableOnCondition(&ME_ADDONS[menuIndex], g_addon_strictdeps && hasIssue);
+        MenuEntry_DisableOnCondition(&ME_ADDONS[menuIndex], m_addons_strictmode && hasIssue);
         ME_ADDONS[menuIndex].font = &MF_Minifont_Addon_Entry;
     }
 

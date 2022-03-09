@@ -41,7 +41,6 @@ int32_t g_num_active_incompats = 0;
 
 int32_t g_addon_selrendmode = ADDON_RENDNONE;
 
-bool g_addon_strictdeps = false;
 bool g_addon_failedboot = false;
 
 void Addon_FreePreviewHashTable(void){ /* stub */ };

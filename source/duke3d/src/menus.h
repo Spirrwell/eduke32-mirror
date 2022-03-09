@@ -40,6 +40,7 @@ extern "C" {
 
 extern int32_t cvar_kbo_type;
 extern int32_t cvar_kbconfirm;
+extern int32_t cvar_addonmenu_strict;
 
 // #define EDUKE32_SIMPLE_MENU
 
