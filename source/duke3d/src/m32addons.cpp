@@ -35,6 +35,10 @@ int32_t g_addoncount_grpinfo = 0;
 int32_t g_addoncount_tcs = 0;
 int32_t g_addoncount_mods = 0;
 
+int32_t g_num_selected_addons = 0;
+int32_t g_num_active_mdeps = 0;
+int32_t g_num_active_incompats = 0;
+
 bool g_dependencies_strict = false;
 bool g_addonstart_failed = false;
 

@@ -2209,14 +2209,14 @@ static void Menu_Addon_UpdateMenuEntryStatus(const useraddon_t* addonPtr, const 
 {
     if (addonPtr->isSelected())
     {
-        if (Addon_CheckDependencyProblems(addonPtr))
+        if (addonPtr->mdeps || addonPtr->incompats)
             ME_ADDONS[menuIndex].font = &MF_Minifont_Addon_Warning;
         else
             ME_ADDONS[menuIndex].font = &MF_Minifont_Addon_Active;
     }
     else
     {
-        MenuEntry_DisableOnCondition(&ME_ADDONS[menuIndex], (g_dependencies_strict && Addon_CheckDependencyProblems(addonPtr)));
+        MenuEntry_DisableOnCondition(&ME_ADDONS[menuIndex], g_dependencies_strict && (addonPtr->mdeps || addonPtr->incompats));
         ME_ADDONS[menuIndex].font = &MF_Minifont_Addon_Entry;
     }
 
@@ -2277,43 +2277,6 @@ static int32_t Menu_Addon_EntryLinkActivate(int32_t const entryIndex)
     }
 
     return 0;
-}
-
-// utility, increments counters tracking various properties
-static void menuaddons_incrementcounters(useraddon_t** addonlist, const int32_t addoncount,
-                                        int32_t & n_sel, int32_t & m_deps, int32_t & n_incompats)
-{
-    for (int i = 0; i < addoncount; i++)
-    {
-        const useraddon_t* addonPtr = addonlist[i];
-        if (addonPtr->isSelected())
-        {
-            n_sel++;
-
-            int i;
-            // count missing dependencies
-            for (i = 0; i < addonPtr->jsondat.num_dependencies; i++)
-            {
-                if (!addonPtr->jsondat.dependencies[i].isFulfilled())
-                    m_deps++;
-            }
-
-            // count fulfilled incompatibilities
-            for (i = 0; i < addonPtr->jsondat.num_incompatibles; i++)
-            {
-                if (addonPtr->jsondat.incompatibles[i].isFulfilled())
-                    n_incompats++;
-            }
-        }
-    }
-}
-
-// utility, increments counters tracking various properties
-static void Menu_Addon_CountAddonProperties(int32_t & n_sel, int32_t & m_deps, int32_t & n_incompats)
-{
-    menuaddons_incrementcounters(g_useraddons_grpinfo, g_addoncount_grpinfo, n_sel, m_deps, n_incompats);
-    menuaddons_incrementcounters(g_useraddons_tcs, g_addoncount_tcs, n_sel, m_deps, n_incompats);
-    menuaddons_incrementcounters(g_useraddons_mods, g_addoncount_mods, n_sel, m_deps, n_incompats);
 }
 
 // Refresh contents of text buffers (argument may be null)
@@ -2382,22 +2345,18 @@ static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
         m_addonidentity_buffer[0] = '\0';
         Bstrcpy(m_addontitle_buffer, "How to use:");
 
-        int n_sel = 0, n_incompats = 0, m_deps = 0;
-        Menu_Addon_CountAddonProperties(n_sel, m_deps, n_incompats);
-
-        if (n_sel == 0)
+        if (g_num_selected_addons == 0)
         {
-            const char* fmtstring = (FURY) ? "^%dDisable User Content" : "^%dDisable Current Addons";
+            const char* fmtstring = (FURY) ? "^%dUnload User Content" : "^%dUnload Current Addons";
             Bsnprintf(m_addonidentity_buffer, MENU_ADDON_MAXID, fmtstring, MENUTEXTPAL_BLUE);
         }
-        else if (n_incompats)
+        else if (g_num_active_incompats > 0)
         {
-            const char* fmtstring = (FURY) ? "^%dIncompatible Content!" : "^%d Incompatible Addons!";
-            Bsnprintf(m_addonidentity_buffer, MENU_ADDON_MAXID, fmtstring, MENUTEXTPAL_RED);
+            Bsnprintf(m_addonidentity_buffer, MENU_ADDON_MAXID, "^%dIncompatible Addons: %d", MENUTEXTPAL_RED, g_num_active_incompats);
         }
-        else if (m_deps)
+        else if (g_num_active_mdeps > 0)
         {
-            Bsnprintf(m_addonidentity_buffer, MENU_ADDON_MAXID, "^%dMissing Dependencies!", MENUTEXTPAL_RED);
+            Bsnprintf(m_addonidentity_buffer, MENU_ADDON_MAXID, "^%dMissing Dependencies: %d", MENUTEXTPAL_RED, g_num_active_mdeps);
         }
         else
         {
@@ -3897,8 +3856,15 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
 
     case MENU_ADDONSVERIFY:
         videoFadeToBlack(1);
-        Bsprintf(tempbuf, "Load the selected addons?\n\nThis will restart the current game.");
-        Menu_DrawVerifyPrompt(origin.x, origin.y, tempbuf, 3);
+        if (g_num_selected_addons == 0)
+            Bsprintf(tempbuf, "Unload all custom content?\nThis will restart the current game.");
+        else if (g_num_active_incompats > 0)
+            Bsprintf(tempbuf, "^%dWARNING: Incompatible addons selected!\nLaunch anyways?", MENUTEXTPAL_RED);
+        else if (g_num_active_mdeps > 0)
+            Bsprintf(tempbuf, "^%dWARNING: There are missing dependencies!\nLaunch anyways?", MENUTEXTPAL_RED);
+        else
+            Bsprintf(tempbuf, "Load the selected content?\nThis will restart the current game.");
+        Menu_DrawVerifyPrompt(origin.x, origin.y, tempbuf, 2);
         break;
 
     case MENU_LOADVERIFY:

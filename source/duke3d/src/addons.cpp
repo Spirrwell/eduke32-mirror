@@ -30,6 +30,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 // cache for preview images, as palette conversion is slow
 static hashtable_t h_addonpreviews = { MAXUSERADDONS, NULL };
+static hashtable_t h_addontemp = { MAXUSERADDONS, NULL };
 
 // supported extensions
 static const char grp_ext[] = "*.grp";
@@ -105,8 +106,22 @@ int32_t g_addoncount_grpinfo = 0;
 int32_t g_addoncount_tcs = 0;
 int32_t g_addoncount_mods = 0;
 
+int32_t g_num_selected_addons = 0;
+int32_t g_num_active_mdeps = 0;
+int32_t g_num_active_incompats = 0;
+
 bool g_dependencies_strict = true;
 bool g_addonstart_failed = false;
+
+// shorthands for common iteration types
+#define ITER_GRPINFO(_idx, _ptr) for (_idx = 0, _ptr = (g_addoncount_grpinfo > 0 ? g_useraddons_grpinfo[0] : nullptr);\
+                                    _idx < g_addoncount_grpinfo; _ptr = g_useraddons_grpinfo[min(++_idx, g_addoncount_grpinfo-1)])
+
+#define ITER_TCS(_idx, _ptr) for (_idx = 0, _ptr = (g_addoncount_tcs > 0 ? g_useraddons_tcs[0] : nullptr);\
+                                     _idx < g_addoncount_tcs; _ptr = g_useraddons_tcs[min(++_idx, g_addoncount_tcs-1)])
+
+#define ITER_MODS(_idx, _ptr) for (_idx = 0, _ptr = (g_addoncount_mods > 0 ? g_useraddons_mods[0] : nullptr);\
+                                     _idx < g_addoncount_mods; _ptr = g_useraddons_mods[min(++_idx, g_addoncount_mods-1)])
 
 // Check if the addon directory exists. This is always placed in the folder where the exe is found.
 static int32_t Addon_GetLocalDir(char * pathbuf, const int32_t buflen)
@@ -1527,6 +1542,48 @@ static void Addon_UpdateDependencies(useraddon_t* addonPtr, addondependency_t* d
     }
 }
 
+// update global counter for selected addons
+static void Addon_UpdateCount_SelectedAddons(void)
+{
+    int i; useraddon_t * addonPtr;
+    g_num_selected_addons = 0;
+    ITER_GRPINFO(i, addonPtr) g_num_selected_addons += addonPtr->isSelected();
+    ITER_MODS(i, addonPtr) g_num_selected_addons += addonPtr->isSelected();
+    ITER_TCS(i, addonPtr) g_num_selected_addons += addonPtr->isSelected();
+}
+
+// update global counter for active missing dependencies
+static void increment_global_mdepscounter(const char*, intptr_t) { g_num_active_mdeps++; } //hack
+static void Addon_UpdateCount_MissingDependencies(void)
+{
+    int i; useraddon_t * addonPtr;
+    hash_init(&h_addontemp);
+
+    g_num_active_mdeps = 0;
+    ITER_GRPINFO(i, addonPtr) addonPtr->countMissingDependencies((addonPtr->isSelected()) ?  &h_addontemp : nullptr);
+    ITER_TCS(i, addonPtr) addonPtr->countMissingDependencies((addonPtr->isSelected()) ?  &h_addontemp : nullptr);
+    ITER_MODS(i, addonPtr) addonPtr->countMissingDependencies((addonPtr->isSelected()) ?  &h_addontemp : nullptr);
+
+    hash_loop(&h_addontemp, increment_global_mdepscounter);
+    hash_free(&h_addontemp);
+}
+
+// update global counter for active incompatibilities
+static void increment_global_incompatiblescounter(const char*, intptr_t) { g_num_active_incompats++; } //hack
+static void Addon_UpdateCount_ActiveIncompatibles(void)
+{
+    int i; useraddon_t * addonPtr;
+    hash_init(&h_addontemp);
+
+    g_num_active_incompats = 0;
+    ITER_GRPINFO(i, addonPtr) addonPtr->countIncompatibleAddons((addonPtr->isSelected()) ?  &h_addontemp : nullptr);
+    ITER_TCS(i, addonPtr) addonPtr->countIncompatibleAddons((addonPtr->isSelected()) ?  &h_addontemp : nullptr);
+    ITER_MODS(i, addonPtr) addonPtr->countIncompatibleAddons((addonPtr->isSelected()) ?  &h_addontemp : nullptr);
+
+    hash_loop(&h_addontemp, increment_global_incompatiblescounter);
+    hash_free(&h_addontemp);
+}
+
 // utility to free preview image storage
 static void freehashpreviewimage(const char *, intptr_t key)
 {
@@ -1717,39 +1774,26 @@ void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB, int32_t con
 // update dependency states of all addons, based on currently selected addons
 void Addon_RefreshDependencyStates(void)
 {
-    for (int i = 0; i < g_addoncount_tcs; i++)
+    int i; useraddon_t * addonPtr;
+    ITER_TCS(i, addonPtr)
     {
-        useraddon_t* addonPtr = g_useraddons_tcs[i];
         Addon_UpdateDependencies(addonPtr, addonPtr->jsondat.dependencies, addonPtr->jsondat.num_dependencies);
         Addon_UpdateDependencies(addonPtr, addonPtr->jsondat.incompatibles, addonPtr->jsondat.num_incompatibles);
     }
 
-    for (int i = 0; i < g_addoncount_mods; i++)
+    ITER_MODS(i, addonPtr)
     {
-        useraddon_t* addonPtr = g_useraddons_mods[i];
         Addon_UpdateDependencies(addonPtr, addonPtr->jsondat.dependencies, addonPtr->jsondat.num_dependencies);
         Addon_UpdateDependencies(addonPtr, addonPtr->jsondat.incompatibles, addonPtr->jsondat.num_incompatibles);
     }
-}
 
-// return -1 if there are unsatisfied dependencies or satisfied incompatibles
-int32_t Addon_CheckDependencyProblems(const useraddon_t* addonPtr)
-{
-    for (int i = 0; i < addonPtr->jsondat.num_dependencies; i++)
-    {
-        const addondependency_t & dep = addonPtr->jsondat.dependencies[i];
-        if (!dep.isFulfilled())
-            return -1;
-    }
+    Addon_UpdateCount_SelectedAddons();
+    Addon_UpdateCount_MissingDependencies();
+    Addon_UpdateCount_ActiveIncompatibles();
 
-    for (int i = 0; i < addonPtr->jsondat.num_incompatibles; i++)
-    {
-        const addondependency_t & dep = addonPtr->jsondat.incompatibles[i];
-        if (dep.isFulfilled())
-            return -1;
-    }
-
-    return 0;
+    // DLOG_F(INFO, "Number of selected addons: %d", g_num_selected_addons);
+    // DLOG_F(INFO, "Number of missing dependencies of selected addons: %d", g_num_active_mdeps);
+    // DLOG_F(INFO, "Number of addons that are incompatible with selected addons: %d", g_num_active_incompats);
 }
 
 // iterate through all grp info addons, find selected one, change game grp

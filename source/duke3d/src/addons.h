@@ -146,8 +146,11 @@ struct useraddon_t
     uint8_t* image_data;
 
     // flag bitmap and load order
-    uint32_t flags = 0;
-    int32_t loadorder_idx = -1;
+    uint32_t flags;
+    int32_t loadorder_idx;
+
+    // missing dependency and incompatibility counter
+    int32_t mdeps, incompats;
 
     // getter and setter for selection status
     void setSelected(bool status)
@@ -177,6 +180,32 @@ struct useraddon_t
             Bstrncat(menuentryname, &jsondat.title[startidx], maxVis - n);
     }
 
+    void countMissingDependencies(hashtable_t* h_temp = nullptr)
+    {
+        mdeps = 0;
+        for (int i = 0; i < jsondat.num_dependencies; i++)
+        {
+            if (!jsondat.dependencies[i].isFulfilled())
+            {
+                if (h_temp) hash_add(h_temp, jsondat.dependencies[i].depId, (intptr_t) -1, true);
+                mdeps++;
+            }
+        }
+    }
+
+    void countIncompatibleAddons(hashtable_t* h_temp = nullptr)
+    {
+        incompats = 0;
+        for (int i = 0; i < jsondat.num_incompatibles; i++)
+        {
+            if (jsondat.incompatibles[i].isFulfilled())
+            {
+                if (h_temp) hash_add(h_temp, jsondat.incompatibles[i].depId, (intptr_t) -1, true);
+                incompats++;
+            }
+        }
+    }
+
 };
 
 // distinct types of addons, handled differently each
@@ -191,11 +220,16 @@ extern int32_t g_addoncount_mods;
 
 #define TOTAL_ADDON_COUNT (g_addoncount_grpinfo + g_addoncount_tcs + g_addoncount_mods)
 
-// set to true if the game failed to launch when trying to load addons
-extern bool g_addonstart_failed;
-
 // if true, will disable incompatible addon menu entries, or addons with missing dependencies
 extern bool g_dependencies_strict;
+
+// global counters (selected, missing dependencies, incompatible addons)
+extern int32_t g_num_selected_addons;
+extern int32_t g_num_active_mdeps;
+extern int32_t g_num_active_incompats;
+
+// set to true if the game failed to launch when trying to load addons
+extern bool g_addonstart_failed;
 
 // preview image binary data is cached so expensive palette conversion does not need to be repeated
 void Addon_FreePreviewHashTable(void);
@@ -210,7 +244,6 @@ void Addon_InitializeLoadOrder(void);
 void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB, int32_t const maxvis);
 
 void Addon_RefreshDependencyStates(void);
-int32_t Addon_CheckDependencyProblems(const useraddon_t* addonPtr);
 
 int32_t Addon_PrepareGrpInfoAddons(void);
 int32_t Addon_PrepareUserTCs(void);
