@@ -39,8 +39,10 @@ int32_t g_num_selected_addons = 0;
 int32_t g_num_active_mdeps = 0;
 int32_t g_num_active_incompats = 0;
 
-bool g_dependencies_strict = false;
-bool g_addonstart_failed = false;
+int32_t g_addon_selrendmode = ADDON_RENDNONE;
+
+bool g_addon_strictdeps = false;
+bool g_addon_failedlaunch = false;
 
 void Addon_FreePreviewHashTable(void){ /* stub */ };
 void Addon_CachePreviewImages(void) { /* stub */ };
@@ -75,6 +77,10 @@ int32_t Addon_CheckDependencyProblems(const useraddon_t* addonPtr)
     (void) addonPtr;
     return 0;
 };
+
+#ifdef USE_OPENGL
+int32_t Addon_GetBootRendmode(void) { return -1; };
+#endif
 
 int32_t Addon_PrepareGrpInfoAddons(void) { return 0; };
 int32_t Addon_PrepareUserTCs(void) { return 0; };

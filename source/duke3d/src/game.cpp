@@ -7148,6 +7148,18 @@ SOFT_REBOOT:
     if (!g_useCwd)
         G_CleanupSearchPaths();
 
+#ifdef USE_OPENGL
+    if (g_bootState & BOOTSTATE_ADDONS)
+    {
+        int32_t rmode = Addon_GetBootRendmode();
+        if (rmode != -1)
+        {
+            glrendmode = rmode;
+            ud.setup.bpp = (rmode == REND_CLASSIC) ? 8 : 32;
+        }
+    }
+#endif
+
     G_ResetCheats();
 #ifndef EDUKE32_STANDALONE
     G_RenameCheatsForAddons();
@@ -7213,7 +7225,7 @@ SOFT_REBOOT:
     {
         LOG_F(ERROR, "Failed to launch selected addons, resetting to previous values...");
         g_bootState = BOOTSTATE_REBOOT;
-        g_addonstart_failed = true;
+        g_addon_failedlaunch = true;
         goto SOFT_REBOOT;
     }
 
@@ -7255,7 +7267,7 @@ SOFT_REBOOT:
         {
             LOG_F(ERROR, "Fatal engine error when attempting to launch addons, resetting to previous values...");
             g_bootState = BOOTSTATE_REBOOT;
-            g_addonstart_failed = true;
+            g_addon_failedlaunch = true;
             goto SOFT_REBOOT;
         }
         G_FatalEngineInitError();

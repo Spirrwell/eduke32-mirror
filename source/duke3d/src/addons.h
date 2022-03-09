@@ -57,6 +57,15 @@ enum addongame_t
     BASEGAME_FURY = GAMEFLAG_FURY,
 };
 
+enum
+{
+    ADDON_RENDNONE = 0,
+    ADDON_RENDCLASSIC = (1 << 0),
+    ADDON_RENDPOLYMOST = (1 << 1),
+    ADDON_RENDPOLYMER = (1 << 2),
+    ADDON_RENDMASK = (1 << 3) - 1,
+};
+
 // identifies the origin of the addon content (bitmap for simplified checks)
 enum addonpackage_t
 {
@@ -133,7 +142,7 @@ struct useraddon_t
     char data_path[BMAX_PATH];
 
     // only used for internal or grpinfo addons
-    const grpfile_t* grpfile = nullptr;
+    const grpfile_t* grpfile;
 
     // base game for which the addon will show up, type of package, and json contents
     addongame_t gametype;
@@ -145,12 +154,10 @@ struct useraddon_t
     // pointer to binary image data
     uint8_t* image_data;
 
-    // flag bitmap and load order
     uint32_t flags;
     int32_t loadorder_idx;
-
-    // missing dependency and incompatibility counter
     int32_t mdeps, incompats;
+    int32_t rendmode;
 
     // getter and setter for selection status
     void setSelected(bool status)
@@ -220,16 +227,15 @@ extern int32_t g_addoncount_mods;
 
 #define TOTAL_ADDON_COUNT (g_addoncount_grpinfo + g_addoncount_tcs + g_addoncount_mods)
 
-// if true, will disable incompatible addon menu entries, or addons with missing dependencies
-extern bool g_dependencies_strict;
-
 // global counters (selected, missing dependencies, incompatible addons)
 extern int32_t g_num_selected_addons;
 extern int32_t g_num_active_mdeps;
 extern int32_t g_num_active_incompats;
 
-// set to true if the game failed to launch when trying to load addons
-extern bool g_addonstart_failed;
+extern int32_t g_addon_selrendmode;
+
+extern bool g_addon_failedlaunch;
+extern bool g_addon_strictdeps;
 
 // preview image binary data is cached so expensive palette conversion does not need to be repeated
 void Addon_FreePreviewHashTable(void);
@@ -244,6 +250,10 @@ void Addon_InitializeLoadOrder(void);
 void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB, int32_t const maxvis);
 
 void Addon_RefreshDependencyStates(void);
+
+#ifdef USE_OPENGL
+int32_t Addon_GetBootRendmode(void);
+#endif
 
 int32_t Addon_PrepareGrpInfoAddons(void);
 int32_t Addon_PrepareUserTCs(void);

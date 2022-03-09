@@ -464,8 +464,10 @@ void G_LoadGroups(int32_t autoload)
 
     if (g_addonNum)
         G_LoadAddon();
+
     // important: do not prune grpinfo addons because gametype is unknown at this stage!
-    else if (g_useraddons_grpinfo && g_addoncount_grpinfo > 0)
+    // grpinfo addons are never launched through the startup checkbox so this is not a problem
+    if (g_useraddons_grpinfo && g_addoncount_grpinfo > 0)
         Addon_PrepareGrpInfoAddons();
 
     const char *grpfile;
@@ -509,18 +511,17 @@ void G_LoadGroups(int32_t autoload)
     if (g_modDir[0] != '/')
         G_LoadGroupsInDir(g_modDir);
 
+    // prepare addons when g_gameType is known, but before parsing DEF files
     Addon_PruneInvalidAddons(g_useraddons_tcs, g_addoncount_tcs);
     Addon_PruneInvalidAddons(g_useraddons_mods, g_addoncount_mods);
+    Addon_InitializeLoadOrder();
     Addon_RefreshDependencyStates();
 
     if (g_useraddons_tcs && g_addoncount_tcs > 0)
         Addon_PrepareUserTCs();
 
     if (g_useraddons_mods && g_addoncount_mods > 0)
-    {
-        Addon_InitializeLoadOrder();
         Addon_PrepareUserMods();
-    }
 
 #ifndef EDUKE32_STANDALONE
     if (g_defNamePtr == NULL)

@@ -53,6 +53,7 @@ static const char jsonkey_scripttype[] = "type";
 static const char jsonkey_scriptpath[] = "path";
 static const char jsonkey_dependencies[] = "dependencies";
 static const char jsonkey_incompatibles[] = "incompatibles";
+static const char jsonkey_rendmode[] = "rendmode";
 
 // string sequences to identify different gametypes
 static const char jsonval_gt_any[] = "any";
@@ -64,6 +65,12 @@ static const char jsonval_gt_fury[] = "fury";
 // string sequences to identify script type
 static const char jsonval_scriptmain[] = "main";
 static const char jsonval_scriptmodule[] = "module";
+
+// rendmodes
+static const char jsonval_rendmode_classic[] = "classic";
+static const char jsonval_rendmode_opengl[] = "opengl";
+static const char jsonval_rendmode_polymost[] = "polymost";
+static const char jsonval_rendmode_polymer[] = "polymer";
 
 // default addon strings
 static const char missing_author[] = "N/A";
@@ -110,8 +117,10 @@ int32_t g_num_selected_addons = 0;
 int32_t g_num_active_mdeps = 0;
 int32_t g_num_active_incompats = 0;
 
-bool g_dependencies_strict = true;
-bool g_addonstart_failed = false;
+int32_t g_addon_selrendmode = ADDON_RENDNONE;
+
+bool g_addon_strictdeps = true;
+bool g_addon_failedlaunch = false;
 
 // shorthands for common iteration types
 #define ITER_GRPINFO(_idx, _ptr) for (_idx = 0, _ptr = (g_addoncount_grpinfo > 0 ? g_useraddons_grpinfo[0] : nullptr);\
@@ -768,6 +777,32 @@ static int32_t Addon_ParseJson_GameCRC(useraddon_t* addonPtr, sjson_node* root, 
     return 0;
 }
 
+static int32_t Addon_ParseJson_Rendmode(useraddon_t* addonPtr, sjson_node* root, const char* key)
+{
+    sjson_node * ele = sjson_find_member_nocase(root, key);
+    addonPtr->rendmode = ADDON_RENDNONE;
+
+    if (ele == nullptr) return 1;
+    else if (Addon_CheckJsonStringType(addonPtr, ele, key)) return -1;
+
+    const char* rmodestr = ele->string_;
+    if (!Bstrncasecmp(rmodestr, jsonval_rendmode_classic, ARRAY_SIZE(jsonval_rendmode_classic)))
+        addonPtr->rendmode = ADDON_RENDCLASSIC;
+    else if (!Bstrncasecmp(rmodestr, jsonval_rendmode_opengl, ARRAY_SIZE(jsonval_rendmode_opengl)))
+        addonPtr->rendmode = ADDON_RENDPOLYMOST;
+    else if (!Bstrncasecmp(rmodestr, jsonval_rendmode_polymost, ARRAY_SIZE(jsonval_rendmode_polymost)))
+        addonPtr->rendmode = ADDON_RENDPOLYMOST;
+    else if (!Bstrncasecmp(rmodestr, jsonval_rendmode_polymer, ARRAY_SIZE(jsonval_rendmode_polymer)))
+        addonPtr->rendmode = ADDON_RENDPOLYMER;
+    else
+    {
+        LOG_F(ERROR, "Unknown rendmode '%s' in addon '%s'!", rmodestr, addonPtr->internalId);
+        return -1;
+    }
+
+    return 0;
+}
+
 // Load data from json file into addon -- assumes that unique ID for the addon has been defined!
 static int32_t Addon_ParseJson(useraddon_t* addonPtr, sjson_context* ctx, const char* basepath, const char* packfn)
 {
@@ -857,6 +892,10 @@ static int32_t Addon_ParseJson(useraddon_t* addonPtr, sjson_context* ctx, const 
     }
     else if (parseResult == -1)
         jsonErrorCnt++;
+
+    // rendmode (can be omitted)
+    parseResult = Addon_ParseJson_Rendmode(addonPtr, root, jsonkey_rendmode);
+    if (parseResult == -1) jsonErrorCnt++;
 
     // CON script paths (optional)
     parseResult = Addon_ParseJson_Scripts(addonPtr, root, jsonkey_con, basepath,
@@ -1584,6 +1623,15 @@ static void Addon_UpdateCount_ActiveIncompatibles(void)
     hash_free(&h_addontemp);
 }
 
+static void Addon_UpdateSelectedRendmode(void)
+{
+    int i; useraddon_t* addonPtr;
+    g_addon_selrendmode = ADDON_RENDNONE;
+    ITER_GRPINFO(i, addonPtr) if (addonPtr->isSelected()) g_addon_selrendmode |= addonPtr->rendmode;
+    ITER_MODS(i, addonPtr) if (addonPtr->isSelected()) g_addon_selrendmode |= addonPtr->rendmode;
+    ITER_TCS(i, addonPtr) if (addonPtr->isSelected()) g_addon_selrendmode |= addonPtr->rendmode;
+}
+
 // utility to free preview image storage
 static void freehashpreviewimage(const char *, intptr_t key)
 {
@@ -1716,10 +1764,10 @@ int32_t Addon_LoadPreviewTile(const useraddon_t * addonPtr)
 // initialize load order for mods, and sanitize it so there are no gaps or duplicates
 void Addon_InitializeLoadOrder(void)
 {
-    int32_t i, cl, maxBufSize;
     if (g_addoncount_mods <= 0 || !g_useraddons_mods)
         return;
 
+    int32_t i, cl, maxBufSize;
     int16_t maxLoadOrder = Addon_InitLoadOrderFromConfig();
 
     // allocate enough space for the case where all load order indices are duplicates
@@ -1790,6 +1838,7 @@ void Addon_RefreshDependencyStates(void)
     Addon_UpdateCount_SelectedAddons();
     Addon_UpdateCount_MissingDependencies();
     Addon_UpdateCount_ActiveIncompatibles();
+    Addon_UpdateSelectedRendmode();
 
     // DLOG_F(INFO, "Number of selected addons: %d", g_num_selected_addons);
     // DLOG_F(INFO, "Number of missing dependencies of selected addons: %d", g_num_active_mdeps);
@@ -1857,6 +1906,24 @@ int32_t Addon_PrepareUserTCs(void)
     pathsearchmode = bakpathsearchmode;
     return 0;
 }
+
+#ifdef USE_OPENGL
+int32_t Addon_GetBootRendmode(void)
+{
+    if (!(g_bootState & BOOTSTATE_ADDONS))
+        return -1;
+
+    switch (g_addon_selrendmode)
+    {
+        case ADDON_RENDCLASSIC: return REND_CLASSIC;
+        case ADDON_RENDPOLYMOST: return REND_POLYMOST;
+#ifdef POLYMER
+        case ADDON_RENDPOLYMER: return REND_POLYMER;
+#endif
+        default: return -1;
+    }
+}
+#endif
 
 // iterate through all mods in load order, find selected ones, initialize data
 int32_t Addon_PrepareUserMods(void)
