@@ -2224,29 +2224,27 @@ static void Menu_Addon_ResetHorizontalScroll(void)
 }
 
 // update font for the menu entry depending on status
-static void Menu_Addon_UpdateMenuEntryStatus(useraddon_t* addonPtr, int32_t const menuIndex)
+static void Menu_Addon_UpdateMenuEntryStatus(MenuEntry_t* menuEntry, useraddon_t* addonPtr)
 {
-    Menu_Addon_ResetHorizontalScroll();
     addonPtr->updateMenuEntryName(0, MENU_ADDON_TITLESCROLL_MAXVIS);
 
     bool hasIssue = addonPtr->mdeps || addonPtr->incompats;
+
 #ifndef POLYMER
     hasIssue |= (addonPtr->jsondat.rendmode & ADDON_RENDPOLYMER) != 0;
 #endif
+
 #ifndef USE_OPENGL
     hasIssue |= (addonPtr->jsondat.rendmode & ADDON_RENDPOLYMOST) != 0;
 #endif
 
     if (addonPtr->isSelected())
     {
-        // part of rendmode conflict
+        // active rendmode conflict
         hasIssue |= ((addonPtr->jsondat.rendmode != ADDON_RENDNONE) && (g_addon_selrendmode != ADDON_RENDNONE)
                         && ((g_addon_selrendmode & ADDON_RENDMASK) != addonPtr->jsondat.rendmode));
 
-        if (hasIssue)
-            ME_ADDONS[menuIndex].font = &MF_Minifont_Addon_Warning;
-        else
-            ME_ADDONS[menuIndex].font = &MF_Minifont_Addon_Active;
+        menuEntry->font = (hasIssue) ? &MF_Minifont_Addon_Warning : &MF_Minifont_Addon_Active;
     }
     else
     {
@@ -2254,10 +2252,9 @@ static void Menu_Addon_UpdateMenuEntryStatus(useraddon_t* addonPtr, int32_t cons
         hasIssue |= ((addonPtr->jsondat.rendmode != ADDON_RENDNONE) && (g_addon_selrendmode != ADDON_RENDNONE)
                         && (g_addon_selrendmode != addonPtr->jsondat.rendmode));
 
-        MenuEntry_DisableOnCondition(&ME_ADDONS[menuIndex], m_addons_strictmode && hasIssue);
-        ME_ADDONS[menuIndex].font = &MF_Minifont_Addon_Entry;
+        MenuEntry_DisableOnCondition(menuEntry, cvar_addonmenu_strict && hasIssue);
+        menuEntry->font = &MF_Minifont_Addon_Entry;
     }
-
 }
 
 // return -1 if an unusual error occurred
@@ -2266,7 +2263,6 @@ static int32_t Menu_Addon_EntryLinkActivate(int32_t const entryIndex)
     if (!ADDONS_L2EMAP) return -1;
 
     int32_t addonIndex = -1;
-    const int32_t origEntryIndex  = ADDONS_L2EMAP[entryIndex];
     useraddon_t* addonPtr = Menu_GetUserAddonForMenuIndex(entryIndex, addonIndex);
 
     // if an addon was found for this menu entry, select it to be launched on next reboot
@@ -2274,44 +2270,43 @@ static int32_t Menu_Addon_EntryLinkActivate(int32_t const entryIndex)
     {
         if (addonPtr->isGrpInfoAddon())
         {
+            // unselect all other grp info addons
             for (int i = 0; i < g_addoncount_grpinfo; i++)
             {
                 if (i == addonIndex) continue;
                 g_useraddons_grpinfo[i]->setSelected(false);
-                ME_ADDONS[m_addons_grpstartindex + i].font = &MF_Minifont_Addon_Entry;
             }
-            addonPtr->setSelected(!addonPtr->isSelected());
         }
         else if (addonPtr->isTotalConversion())
         {
-            for (int i = 0; i < g_addoncount_tcs; i++)
+            // unselect other total conversions only if strict mode set
+            if (cvar_addonmenu_strict)
             {
-                if (i == addonIndex) continue;
-                g_useraddons_tcs[i]->setSelected(false);
-                CONFIG_SetAddonActivationStatus(g_useraddons_tcs[i]->internalId, false);
-                ME_ADDONS[m_addons_tcstartindex + i].font = &MF_Minifont_Addon_Entry;
+                for (int i = 0; i < g_addoncount_tcs; i++)
+                {
+                    if (i == addonIndex) continue;
+                    g_useraddons_tcs[i]->setSelected(false);
+                    CONFIG_SetAddonActivationStatus(g_useraddons_tcs[i]->internalId, false);
+                }
             }
+        }
 
-            addonPtr->setSelected(!addonPtr->isSelected());
+        addonPtr->setSelected(!addonPtr->isSelected());
+        if (!addonPtr->isGrpInfoAddon())
             CONFIG_SetAddonActivationStatus(addonPtr->internalId, addonPtr->isSelected());
-        }
-        else
-        {
-            addonPtr->setSelected(!addonPtr->isSelected());
-            CONFIG_SetAddonActivationStatus(addonPtr->internalId, addonPtr->isSelected());
-        }
 
         Addon_RefreshDependencyStates();
 
+        // update menu entries
         for (int j = 0; j < M_ADDONS.numEntries; j++)
         {
             int iterAddonIndex = -1;
-            useraddon_t * iterAddon = Menu_GetUserAddonForMenuIndex(ADDONS_L2EMAP[j], iterAddonIndex);
+            useraddon_t * iterAddon = Menu_GetUserAddonForMenuIndex(j, iterAddonIndex);
             if (iterAddonIndex >= 0)
-                Menu_Addon_UpdateMenuEntryStatus(iterAddon, j);
+                Menu_Addon_UpdateMenuEntryStatus(&ME_ADDONS[ADDONS_L2EMAP[j]], iterAddon);
         }
 
-        Menu_Addon_UpdateMenuEntryStatus(addonPtr, origEntryIndex);
+        Menu_Addon_ResetHorizontalScroll();
     }
 
     return 0;
@@ -2478,7 +2473,7 @@ static void Menu_LoadAddonPackages(void)
 
         g_useraddons_grpinfo[i]->updateMenuEntryName(0, MENU_ADDON_TITLESCROLL_MAXVIS);
         ME_ADDONS[k].name = g_useraddons_grpinfo[i]->menuentryname;
-        Menu_Addon_UpdateMenuEntryStatus(g_useraddons_grpinfo[i], k);
+        Menu_Addon_UpdateMenuEntryStatus(&ME_ADDONS[k], g_useraddons_grpinfo[i]);
         k++;
     }
 
@@ -2509,7 +2504,7 @@ static void Menu_LoadAddonPackages(void)
 
         g_useraddons_tcs[i]->updateMenuEntryName(0, MENU_ADDON_TITLESCROLL_MAXVIS);
         ME_ADDONS[k].name = g_useraddons_tcs[i]->menuentryname;
-        Menu_Addon_UpdateMenuEntryStatus(g_useraddons_tcs[i], k);
+        Menu_Addon_UpdateMenuEntryStatus(&ME_ADDONS[k], g_useraddons_tcs[i]);
         k++;
     }
 
@@ -2541,7 +2536,7 @@ static void Menu_LoadAddonPackages(void)
 
         g_useraddons_mods[i]->updateMenuEntryName(0, MENU_ADDON_TITLESCROLL_MAXVIS);
         ME_ADDONS[k].name = g_useraddons_mods[i]->menuentryname;
-        Menu_Addon_UpdateMenuEntryStatus(g_useraddons_mods[i], k);
+        Menu_Addon_UpdateMenuEntryStatus(&ME_ADDONS[k], g_useraddons_mods[i]);
         k++;
     }
 

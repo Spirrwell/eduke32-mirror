@@ -2036,7 +2036,7 @@ int32_t Addon_PrepareUserTCs(void)
         }
 
         Addon_PrepareUserAddon(addonPtr);
-        break; // only load one at most
+        // break;
     }
 
     pathsearchmode = bakpathsearchmode;
