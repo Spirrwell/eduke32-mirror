@@ -514,7 +514,7 @@ void G_LoadGroups(int32_t autoload)
     // prepare addons when g_gameType is known, but before parsing DEF files
     Addon_PruneInvalidAddons(g_useraddons_tcs, g_addoncount_tcs);
     Addon_PruneInvalidAddons(g_useraddons_mods, g_addoncount_mods);
-    Addon_InitializeLoadOrder();
+    Addon_InitializeLoadOrders();
     Addon_RefreshDependencyStates();
 
     if (g_useraddons_tcs && g_addoncount_tcs > 0)

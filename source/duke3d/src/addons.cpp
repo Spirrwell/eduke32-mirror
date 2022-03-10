@@ -520,33 +520,6 @@ static bool Addon_MatchesGame(const useraddon_t* addonPtr)
     }
 }
 
-// Initialize the load order for mods
-static int16_t Addon_InitLoadOrderFromConfig(void)
-{
-    if (g_addoncount_mods <= 0 || !g_useraddons_mods)
-        return -1;
-
-    int16_t maxLoadOrder = 0;
-    for_modaddons(addonPtr,
-    {
-        // sanity checks in case something goes wrong
-        if (!addonPtr->isValid() || !Addon_MatchesGame(addonPtr)
-                || addonPtr->isTotalConversion() || addonPtr->isGrpInfoAddon())
-        {
-            DLOG_F(WARNING, "Skip invalid addon in load order init: %s", addonPtr->internalId);
-            continue;
-        }
-
-        addonPtr->loadorder_idx = CONFIG_GetAddonLoadOrder(addonPtr->internalId);
-        if (addonPtr->loadorder_idx < 0)
-            addonPtr->loadorder_idx = 0;
-        else if (addonPtr->loadorder_idx > maxLoadOrder)
-            maxLoadOrder = addonPtr->loadorder_idx;
-    });
-
-    return maxLoadOrder + 1;
-}
-
 // check whether the addon satisifies the dependency
 static int32_t Addon_DependencyMatch(const addondependency_t* depPtr, const useraddon_t* otherAddonPtr)
 {
@@ -673,7 +646,6 @@ static void Addon_UpdateSelectedRendmode(void)
     for_grpaddons(addonPtr, if (addonPtr->isSelected()) g_addon_compatrendmode &= addonPtr->jsondat.compat_rendmodes);
     for_tcaddons(addonPtr, if (addonPtr->isSelected()) g_addon_compatrendmode &= addonPtr->jsondat.compat_rendmodes);
     for_modaddons(addonPtr, if (addonPtr->isSelected()) g_addon_compatrendmode &= addonPtr->jsondat.compat_rendmodes);
-    LOG_F(ERROR, "compat rendmode %d", g_addon_compatrendmode);
 }
 
 // Important: this function is called before the setup window is shown
@@ -813,30 +785,35 @@ int32_t Addon_LoadPreviewTile(const useraddon_t * addonPtr)
     return 0;
 }
 
-// initialize load order for mods, and sanitize it so there are no gaps or duplicates
-void Addon_InitializeLoadOrder(void)
+static int32_t Addon_InitLoadOrderFromConfig(useraddon_t** addonlist, int32_t const numaddons)
 {
-    if (g_addoncount_mods <= 0 || !g_useraddons_mods)
-        return;
+    int32_t maxLoadOrder = 0;
+    for (int i = 0; i < numaddons; i++)
+    {
+        useraddon_t* addonPtr = addonlist[i];
+        int32_t k = CONFIG_GetAddonLoadOrder(addonPtr->internalId);
+        addonPtr->loadorder_idx = (k >= 0) ? k : 0;
+        maxLoadOrder = (k > maxLoadOrder) ? k : maxLoadOrder;
+    }
+    return maxLoadOrder + 1;
+}
 
+static void Addon_InitAndSanitizeLoadOrder(useraddon_t** addonlist, int32_t const numaddons)
+{
     int32_t i, cl, maxBufSize;
-    int16_t maxLoadOrder = Addon_InitLoadOrderFromConfig();
+    int16_t maxLoadOrder = Addon_InitLoadOrderFromConfig(addonlist, numaddons);
 
     // allocate enough space for the case where all load order indices are duplicates
-    maxBufSize = maxLoadOrder + g_addoncount_mods;
+    maxBufSize = maxLoadOrder + numaddons;
     useraddon_t** lobuf = (useraddon_t**) Xcalloc(maxBufSize, sizeof(useraddon_t*));
 
-    // place pointers to menu addons corresponding to load order
-    for_modaddons(addonPtr,
+    for (int i = 0; i < numaddons; i++)
     {
-        if (addonPtr->isTotalConversion() || addonPtr->isGrpInfoAddon())
-            continue;
-
+        useraddon_t* addonPtr = addonlist[i];
         cl = addonPtr->loadorder_idx;
-
         if (cl < 0 || lobuf[cl]) lobuf[maxLoadOrder++] = addonPtr;
         else lobuf[cl] = addonPtr;
-    });
+    }
 
     // clean up load order
     int16_t newlo = 0;
@@ -844,17 +821,19 @@ void Addon_InitializeLoadOrder(void)
     {
         if (lobuf[i])
         {
-            lobuf[i]->loadorder_idx = newlo;
-            newlo++;
+            lobuf[i]->loadorder_idx = newlo++;
+            CONFIG_SetAddonActivationStatus(lobuf[i]->internalId, lobuf[i]->isSelected());
+            CONFIG_SetAddonLoadOrder(lobuf[i]->internalId, lobuf[i]->loadorder_idx);
         }
     }
     Xfree(lobuf);
+}
 
-    for_modaddons(addonPtr,
-    {
-        CONFIG_SetAddonActivationStatus(addonPtr->internalId, addonPtr->isSelected());
-        CONFIG_SetAddonLoadOrder(addonPtr->internalId, addonPtr->loadorder_idx);
-    });
+// initialize load order for mods, and sanitize it so there are no gaps or duplicates
+void Addon_InitializeLoadOrders(void)
+{
+    Addon_InitAndSanitizeLoadOrder(g_useraddons_tcs, g_addoncount_tcs);
+    Addon_InitAndSanitizeLoadOrder(g_useraddons_mods, g_addoncount_mods);
 }
 
 // update dependency states of all addons, based on currently selected addons
@@ -880,7 +859,8 @@ void Addon_RefreshDependencyStates(void)
     // DLOG_F(INFO, "Number of addons that are incompatible with selected addons: %d", g_num_active_incompats);
 }
 
-bool Addon_GetStartMap(const char* & startfn, int32_t & startlevel, int32_t & startvolume)
+
+const char* Addon_RetrieveStartMap(int32_t & startlevel, int32_t & startvolume)
 {
     // assume that load order already sanitized, each index unique
     useraddon_t** lobuf = (useraddon_t**) Xcalloc(g_addoncount_mods, sizeof(useraddon_t*));
@@ -890,38 +870,41 @@ bool Addon_GetStartMap(const char* & startfn, int32_t & startlevel, int32_t & st
     for (int i = g_addoncount_mods-1; i >= 0; i--)
     {
         useraddon_t* addonPtr = lobuf[i];
-        if (!addonPtr->isValid() || !addonPtr->isSelected() || !Addon_MatchesGame(addonPtr))
+        if (!(addonPtr->isValid() && addonPtr->isSelected() && Addon_MatchesGame(addonPtr)))
             continue;
 
         if (addonPtr->flags & ADDONFLAG_STARTMAP)
         {
+            xfree(lobuf);
             startlevel = addonPtr->jsondat.startlevel;
             startvolume = addonPtr->jsondat.startvolume;
-            startfn = addonPtr->jsondat.boardfilename;
-            return true;
+            return addonPtr->jsondat.boardfilename;
+
         }
     }
 
     // also go through TCs in reverse order
+    lobuf = (useraddon_t**) Xrealloc(lobuf, g_addoncount_tcs * sizeof(useraddon_t*));
+    for_tcaddons(addonPtr, lobuf[addonPtr->loadorder_idx] = addonPtr);
     for (int i = g_addoncount_tcs-1; i >= 0; i--)
     {
-        useraddon_t* addonPtr = g_useraddons_tcs[i];
-        if (!addonPtr->isValid() || !addonPtr->isSelected() || !Addon_MatchesGame(addonPtr))
+        useraddon_t* addonPtr = lobuf[i];
+        if (!(addonPtr->isValid() && addonPtr->isSelected() && Addon_MatchesGame(addonPtr)))
             continue;
 
         if (addonPtr->flags & ADDONFLAG_STARTMAP)
         {
+            xfree(lobuf);
             startlevel = addonPtr->jsondat.startlevel;
             startvolume = addonPtr->jsondat.startvolume;
-            startfn = addonPtr->jsondat.boardfilename;
-            return true;
+            return addonPtr->jsondat.boardfilename;
         }
     }
+    xfree(lobuf);
 
     startlevel = -1;
     startvolume = -1;
-    startfn = nullptr;
-    return false;
+    return nullptr;
 }
 
 #ifdef USE_OPENGL
@@ -1059,8 +1042,13 @@ int32_t Addon_PrepareUserTCs(void)
     int const bakpathsearchmode = pathsearchmode;
     pathsearchmode = 1;
 
-    for_tcaddons(addonPtr,
+    // assume that load order already sanitized, each index unique
+    useraddon_t** lobuf = (useraddon_t**) Xcalloc(g_addoncount_tcs, sizeof(useraddon_t*));
+    for_tcaddons(addonPtr, lobuf[addonPtr->loadorder_idx] = addonPtr);
+
+    for (int i = 0; i < g_addoncount_tcs; i++)
     {
+        useraddon_t* addonPtr = lobuf[i];
         if (!addonPtr->isSelected() || !Addon_MatchesGame(addonPtr))
             continue;
 
@@ -1072,10 +1060,11 @@ int32_t Addon_PrepareUserTCs(void)
         }
 
         Addon_PrepareUserAddon(addonPtr);
-        // break;
-    });
+    }
 
     pathsearchmode = bakpathsearchmode;
+    Xfree(lobuf);
+
     return 0;
 }
 

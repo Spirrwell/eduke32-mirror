@@ -60,7 +60,7 @@ void Addon_PruneInvalidAddons(useraddon_t** & useraddons, int32_t & numuseraddon
     UNREFERENCED_PARAMETER(numuseraddons);
 };
 
-void Addon_InitializeLoadOrder(void) { /* stub */ };
+void Addon_InitializeLoadOrders(void) { /* stub */ };
 
 void Addon_RefreshDependencyStates(void) { /* stub */ };
 int32_t Addon_CheckDependencyProblems(const useraddon_t* addonPtr)
@@ -70,12 +70,11 @@ int32_t Addon_CheckDependencyProblems(const useraddon_t* addonPtr)
     return 0;
 };
 
-bool Addon_GetStartMap(const char* & startfn, int32_t & startlevel, int32_t & startvolume)
+const char* Addon_RetrieveStartMap(int32_t & startlevel, int32_t & startvolume)
 {
     startlevel = 0;
     startvolume = 0;
-    startfn = nullptr;
-    return false;
+    return nullptr;
 }
 
 #ifdef USE_OPENGL

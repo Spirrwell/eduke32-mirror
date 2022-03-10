@@ -2154,13 +2154,6 @@ static int32_t Menu_AddonMenuUpDown(int32_t const entryIndex, int32_t const othe
         if (!otherAddon)
             return 1;
 
-        MenuEntry_t* me_temp = MEL_ADDONS[entryIndex];
-        MEL_ADDONS[entryIndex] = MEL_ADDONS[otherIndex];
-        MEL_ADDONS[otherIndex] = me_temp;
-
-        EL2ADDONS[entryIndex] = otherAddon;
-        EL2ADDONS[otherIndex] = thisAddon;
-
         // update load orders and entries
         int32_t const temp_lo = otherAddon->loadorder_idx;
         otherAddon->loadorder_idx = thisAddon->loadorder_idx;
@@ -2171,6 +2164,14 @@ static int32_t Menu_AddonMenuUpDown(int32_t const entryIndex, int32_t const othe
 
         Menu_Addon_UpdateMenuEntryStatus(MEL_ADDONS[entryIndex], thisAddon);
         Menu_Addon_UpdateMenuEntryStatus(MEL_ADDONS[otherIndex], otherAddon);
+
+        MenuEntry_t* me_temp = MEL_ADDONS[entryIndex];
+        MEL_ADDONS[entryIndex] = MEL_ADDONS[otherIndex];
+        MEL_ADDONS[otherIndex] = me_temp;
+
+        EL2ADDONS[entryIndex] = otherAddon;
+        EL2ADDONS[otherIndex] = thisAddon;
+
     }
 
     if (thisAddon) thisAddon->updateMenuEntryName(0, MENU_ADDON_TITLESCROLL_MAXVIS);
@@ -2359,7 +2360,7 @@ static void Menu_PopulateAddonsMenu(void)
     Addon_PruneInvalidAddons(g_useraddons_tcs, g_addoncount_tcs);
     Addon_PruneInvalidAddons(g_useraddons_mods, g_addoncount_mods);
 
-    Addon_InitializeLoadOrder();
+    Addon_InitializeLoadOrders();
     Addon_RefreshDependencyStates();
     Addon_LoadPreviewImages();
 
@@ -2392,20 +2393,24 @@ static void Menu_PopulateAddonsMenu(void)
 
     // tc addons
     if (g_addoncount_tcs > 0) Menu_Addon_SetupMenuSpacer(k, m_addontext_tclabel);
-    for_tcaddons(addonPtr, Menu_Addon_SetupMenuEntry(addonPtr, k));
+    useraddon_t** lobuf = (useraddon_t**) Xcalloc(g_addoncount_tcs, sizeof(useraddon_t*));
+    for_tcaddons(addonPtr, lobuf[addonPtr->loadorder_idx] = addonPtr);
+    for (int i = 0; i < g_addoncount_tcs; i++)
+    {
+        useraddon_t* addonPtr = lobuf[i];
+        Menu_Addon_SetupMenuEntry(addonPtr, k);
+    }
 
     // mod addons
     if (g_addoncount_mods > 0) Menu_Addon_SetupMenuSpacer(k, m_addontext_modlabel);
-
-    // assume that load order already sanitized, each index unique
-    useraddon_t** lobuf = (useraddon_t**) Xcalloc(g_addoncount_mods, sizeof(useraddon_t*));
+    lobuf = (useraddon_t**) Xrealloc(lobuf, g_addoncount_mods * sizeof(useraddon_t*));
     for_modaddons(addonPtr, lobuf[addonPtr->loadorder_idx] = addonPtr);
-
     for (int i = 0; i < g_addoncount_mods; i++)
     {
         useraddon_t* addonPtr = lobuf[i];
         Menu_Addon_SetupMenuEntry(addonPtr, k);
     }
+    Xfree(lobuf);
 
     // finalize
     M_ADDONS.entrylist = MEL_ADDONS;
@@ -5203,8 +5208,8 @@ static void Menu_Verify(int32_t input)
             if (g_num_selected_addons > 0)
                 g_bootState |= BOOTSTATE_ADDONS;
 
-            const char* bfn; int ln, vn;
-            m_addons_launchmap = Addon_GetStartMap(bfn, ln, vn);
+            int ln, vn;
+            m_addons_launchmap = (Addon_RetrieveStartMap(ln, vn) != nullptr);
         }
         break;
     case MENU_COLCORRRESETVERIFY:
@@ -8822,35 +8827,31 @@ void M_DisplayMenus(void)
     // TODO: this is pretty hacky, need a better location to change the menu
     if (EDUKE32_PREDICT_FALSE(m_addons_launchmap))
     {
-        // double check
-        const char* bfn; int ln, vn;
-        m_addons_launchmap = Addon_GetStartMap(bfn, ln, vn);
-        if (m_addons_launchmap)
+        int ln, vn;
+        const char* bfn = Addon_RetrieveStartMap(ln, vn);
+        if (bfn && bfn[0])
         {
-            if (bfn && bfn[0])
+            // launch specified filename in usermap slot
+            // TODO: fix leading slash issues
+            if (bfn[0] != '/')
             {
-                // launch specified filename in usermap slot
-                // TODO: fix leading slash issues
-                if (bfn[0] != '/')
-                {
-                    boardfilename[0] = '/';
-                    Bstrncpy(&boardfilename[1], bfn, BMAX_PATH-1);
-                }
-                else Bstrncpy(boardfilename, bfn, BMAX_PATH);
-                ud.m_level_number = 7;
-                ud.m_volume_number = 0;
+                boardfilename[0] = '/';
+                Bstrncpy(&boardfilename[1], bfn, BMAX_PATH-1);
             }
-            else
-            {
-                // launch episode and level if no file specified
-                boardfilename[0] = '\0';
-                ud.m_level_number = ln;
-                ud.m_volume_number = vn;
-            }
-
-            Menu_Change(MENU_SKILL);
-            m_addons_launchmap = false;
+            else Bstrncpy(boardfilename, bfn, BMAX_PATH);
+            ud.m_level_number = 7;
+            ud.m_volume_number = 0;
         }
+        else
+        {
+            // launch episode and level if no file specified
+            boardfilename[0] = '\0';
+            ud.m_level_number = ln;
+            ud.m_volume_number = vn;
+        }
+
+        Menu_Change(MENU_SKILL);
+        m_addons_launchmap = false;
     }
 
     if (!Menu_IsTextInput(m_currentMenu) && KB_KeyPressed(sc_Q))

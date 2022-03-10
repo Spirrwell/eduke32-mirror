@@ -232,7 +232,7 @@ struct useraddon_t
         Bstrncat(menuentryname, tempbuf, maxVis - n);
         n += tempsize;
 
-        if (loadorder_idx >= 0)
+        if (!isTotalConversion() && (loadorder_idx >= 0))
         {
             tempsize = Bsnprintf(tempbuf, 8, "%d: ", loadorder_idx + 1);
             if (tempsize < 0) return;
@@ -323,9 +323,9 @@ void Addon_FreeUserAddons(void);
 void Addon_LoadDescriptors(void);
 void Addon_PruneInvalidAddons(useraddon_t** & useraddons, int32_t & numuseraddons);
 
-void Addon_InitializeLoadOrder(void);
+void Addon_InitializeLoadOrders(void);
 
-bool Addon_GetStartMap(const char* & startfn, int32_t & startlevel, int32_t & startvolume);
+const char* Addon_RetrieveStartMap(int32_t & startlevel, int32_t & startvolume);
 void Addon_RefreshDependencyStates(void);
 
 #ifdef USE_OPENGL
