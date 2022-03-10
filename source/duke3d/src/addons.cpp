@@ -49,12 +49,31 @@ static const char jsonkey_image[] = "preview";
 static const char jsonkey_con[] = "CON";
 static const char jsonkey_def[] = "DEF";
 static const char jsonkey_rts[] = "RTS";
-static const char jsonkey_scripttype[] = "type";
-static const char jsonkey_scriptpath[] = "path";
 static const char jsonkey_dependencies[] = "dependencies";
 static const char jsonkey_incompatibles[] = "incompatibles";
 static const char jsonkey_rendmodes[] = "rendmodes";
 static const char jsonkey_startmap[] = "startmap";
+
+static const char* json_basekeys[] =
+{
+    jsonkey_depid, jsonkey_game, jsonkey_gamecrc, jsonkey_version,jsonkey_title,
+    jsonkey_author, jsonkey_desc, jsonkey_image, jsonkey_con, jsonkey_def, jsonkey_rts,
+    jsonkey_dependencies,jsonkey_incompatibles,jsonkey_rendmodes,jsonkey_startmap
+};
+
+// script subkeys
+static const char jsonkey_scripttype[] = "type";
+static const char jsonkey_scriptpath[] = "path";
+static const char* json_scriptkeys[] = {jsonkey_scripttype, jsonkey_scriptpath};
+
+// dependency subkeys
+static const char* json_dependencykeys[] = {jsonkey_depid, jsonkey_version};
+
+// map start subkeys
+static const char jsonkey_mapvolume[] = "volume";
+static const char jsonkey_maplevel[] = "level";
+static const char jsonkey_mapfile[] = "file";
+static const char* json_startmapkeys[] = {jsonkey_mapvolume, jsonkey_maplevel, jsonkey_mapfile};
 
 // string sequences to identify different gametypes
 static const char jsonval_gt_any[] = "any";
@@ -66,11 +85,6 @@ static const char jsonval_gt_fury[] = "fury";
 // string sequences to identify script type
 static const char jsonval_scriptmain[] = "main";
 static const char jsonval_scriptmodule[] = "module";
-
-// map start keys
-static const char jsonkey_mapvolume[] = "volume";
-static const char jsonkey_maplevel[] = "level";
-static const char jsonkey_mapfile[] = "file";
 
 // rendmodes
 static const char jsonval_rendmode_classic[] = "classic";
@@ -214,6 +228,31 @@ static int32_t Addon_CheckFilePresence(const char* filepath)
     }
 
     return -1;
+}
+
+static void Addon_ParseJson_VerifyKeys(const char* json_fn, sjson_node *node, const char* parentkey,
+                                        const char **keylist, int32_t const numkeys)
+{
+    sjson_node* child;
+    sjson_foreach(child, node)
+    {
+        bool foundkey = false;
+        for (int k = 0; k < numkeys; k++)
+        {
+            if (!Bstrcasecmp(child->key, keylist[k]))
+            {
+                foundkey = true;
+                break;
+            }
+        }
+        if (!foundkey)
+        {
+            if (parentkey != nullptr)
+                LOG_F(WARNING, "Unknown key \"%s\" of parent \"%s\" in json of: %s", child->key, parentkey, json_fn);
+            else
+                LOG_F(WARNING, "Unknown root key \"%s\" in json of: %s", child->key, json_fn);
+        }
+    }
 }
 
 // remove leading slashes and other non-alpha chars
@@ -538,6 +577,8 @@ static int32_t Addon_ParseJson_Scripts(useraddon_t *addonPtr, sjson_node* root, 
             continue;
         }
 
+        Addon_ParseJson_VerifyKeys(addonPtr->internalId, snode, key, json_scriptkeys, ARRAY_SIZE(json_scriptkeys));
+
         script_path = sjson_find_member_nocase(snode, jsonkey_scriptpath);
         if (script_path == nullptr || script_path->tag != SJSON_STRING)
         {
@@ -686,6 +727,8 @@ static int32_t Addon_ParseJson_Dependency(useraddon_t* addonPtr, sjson_node* roo
             continue;
         }
 
+        Addon_ParseJson_VerifyKeys(addonPtr->internalId, snode, key, json_dependencykeys, ARRAY_SIZE(json_dependencykeys));
+
         dep_uid = sjson_find_member_nocase(snode, jsonkey_depid);
         if (dep_uid == nullptr || dep_uid->tag != SJSON_STRING)
         {
@@ -800,6 +843,8 @@ static int32_t Addon_ParseJson_StartMap(useraddon_t* addonPtr, sjson_node* root,
         return -1;
     }
 
+    Addon_ParseJson_VerifyKeys(addonPtr->internalId, ele, key, json_startmapkeys, ARRAY_SIZE(json_startmapkeys));
+
     sjson_node* ele_mapfile = sjson_find_member_nocase(ele, jsonkey_mapfile);
     if (ele_mapfile)
     {
@@ -877,7 +922,6 @@ static int32_t Addon_ParseJson_Rendmode(useraddon_t* addonPtr, sjson_node* root,
     }
     else if (ele->tag == SJSON_ARRAY)
     {
-
         sjson_node *child;
         sjson_foreach(child, ele)
         {
@@ -937,6 +981,8 @@ static int32_t Addon_ParseJson(useraddon_t* addonPtr, sjson_context* ctx, const 
     int32_t parseResult, jsonErrorCnt = 0;
     sjson_node * root = sjson_decode(ctx, jsonTextBuf);
     Xfree(jsonTextBuf);
+
+    Addon_ParseJson_VerifyKeys(addonPtr->internalId, root, nullptr, json_basekeys, ARRAY_SIZE(json_basekeys));
 
     // game type is required to identify for which game the addon should be shown in the menu
     addonPtr->gametype = Addon_ParseJson_GameFlag(addonPtr, root, jsonkey_game);
