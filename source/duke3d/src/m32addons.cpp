@@ -39,7 +39,7 @@ int32_t g_num_selected_addons = 0;
 int32_t g_num_active_mdeps = 0;
 int32_t g_num_active_incompats = 0;
 
-int32_t g_addon_selrendmode = ADDON_RENDNONE;
+uint32_t g_addon_compatrendmode = ADDON_RENDMASK;
 
 bool g_addon_failedboot = false;
 
@@ -86,7 +86,11 @@ bool Addon_GetStartMap(const char* & startfn, int32_t & startlevel, int32_t & st
 }
 
 #ifdef USE_OPENGL
-int32_t Addon_GetBootRendmode(void) { return -1; };
+int32_t Addon_GetBootRendmode(int32_t const rendmode)
+{
+    (void) rendmode;
+    return -1;
+};
 #endif
 
 int32_t Addon_PrepareGrpInfoAddons(void) { return 0; };

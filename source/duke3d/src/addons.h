@@ -68,6 +68,14 @@ enum
     ADDON_RENDMASK = (1 << 3) - 1,
 };
 
+#if defined(POLYMER) && defined(USE_OPENGL)
+#define ADDON_SUPPORTED_RENDMODES (ADDON_RENDMASK)
+#elif defined(USE_OPENGL)
+#define ADDON_SUPPORTED_RENDMODES (ADDON_RENDCLASSIC | ADDON_RENDPOLYMOST)
+#else
+#define ADDON_SUPPORTED_RENDMODES (ADDON_RENDCLASSIC)
+#endif
+
 // identifies the origin of the addon content (bitmap for simplified checks)
 enum addonpackage_t
 {
@@ -129,7 +137,7 @@ struct addonjson_t
     // map to start and rendmode
     char boardfilename[BMAX_PATH];
     int32_t startlevel, startvolume;
-    int32_t rendmode;
+    uint32_t compat_rendmodes;
 
     // dependencies and incompatibilities
     addondependency_t* dependencies = nullptr;
@@ -178,7 +186,16 @@ struct useraddon_t
 
     bool isGrpInfoAddon() const { return loadtype == LT_GRPINFO; }
     bool isTotalConversion() const { return jsondat.main_script_path[0] || jsondat.main_def_path[0]; }
-    bool isValid() const { return loadtype != LT_INVALID; }
+    bool isValid() const
+    {
+        // this is only for sanity checking
+        if (loadtype == LT_INVALID || !jsondat.compat_rendmodes)
+        {
+            DLOG_F(ERROR, "Addon failed to pass sanity checks: %s", internalId);
+            return false;
+        }
+        return true;
+    }
 
     void updateMenuEntryName(int const startidx, int const maxVis)
     {
@@ -247,7 +264,7 @@ extern int32_t g_num_selected_addons;
 extern int32_t g_num_active_mdeps;
 extern int32_t g_num_active_incompats;
 
-extern int32_t g_addon_selrendmode;
+extern uint32_t g_addon_compatrendmode;
 
 extern bool g_addon_failedboot;
 
@@ -267,7 +284,7 @@ bool Addon_GetStartMap(const char* & startfn, int32_t & startlevel, int32_t & st
 void Addon_RefreshDependencyStates(void);
 
 #ifdef USE_OPENGL
-int32_t Addon_GetBootRendmode(void);
+int32_t Addon_GetBootRendmode(int32_t const rendmode);
 #endif
 
 int32_t Addon_PrepareGrpInfoAddons(void);

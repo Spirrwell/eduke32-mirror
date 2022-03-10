@@ -7156,11 +7156,11 @@ SOFT_REBOOT:
 #ifdef USE_OPENGL
     if (g_bootState & BOOTSTATE_ADDONS)
     {
-        int32_t rmode = Addon_GetBootRendmode();
-        if (rmode != -1)
+        int32_t newmode = Addon_GetBootRendmode(glrendmode);
+        if (newmode != -1)
         {
-            glrendmode = rmode;
-            ud.setup.bpp = (rmode == REND_CLASSIC) ? 8 : 32;
+            glrendmode = newmode;
+            ud.setup.bpp = (newmode == REND_CLASSIC) ? 8 : 32;
         }
     }
 #endif

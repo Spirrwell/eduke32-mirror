@@ -53,7 +53,7 @@ static const char jsonkey_scripttype[] = "type";
 static const char jsonkey_scriptpath[] = "path";
 static const char jsonkey_dependencies[] = "dependencies";
 static const char jsonkey_incompatibles[] = "incompatibles";
-static const char jsonkey_rendmode[] = "rendmode";
+static const char jsonkey_rendmodes[] = "rendmodes";
 static const char jsonkey_startmap[] = "startmap";
 
 // string sequences to identify different gametypes
@@ -90,7 +90,7 @@ static const char dukenw_description[] = "There's diabolical danger in the north
 static const char dukezone_description[] = "Features 3 new episodes that contain 7 levels each. These maps take Duke across urban arctic wastelands, underground passages, canyons, fun houses, bars and a toxic chemical processing plant. Does not include the 500 levels packaged with the original release of the addon.";
 static const char dukepentp_description[] = "Set between the third and fourth episode of Duke Nukem 3D. While Duke was trying to establish a little \"beach-head,\" the aliens have dropped in to break up his fun in the sun and spoil a couple of Penthouse photo shoots to boot. It's up to Duke Nukem to save the day - again.";
 
-// dependency IDs for hardoced addons
+// dependency IDs for hardcoded addons
 static const char dukevaca_id[] = "dukevaca";
 static const char dukedc_id[] = "dukedc";
 static const char dukenw_id[] = "dukenw";
@@ -123,7 +123,7 @@ int32_t g_num_selected_addons = 0;
 int32_t g_num_active_mdeps = 0;
 int32_t g_num_active_incompats = 0;
 
-int32_t g_addon_selrendmode = ADDON_RENDNONE;
+uint32_t g_addon_compatrendmode = ADDON_RENDMASK;
 
 bool g_addon_failedboot = false;
 
@@ -845,24 +845,16 @@ static int32_t Addon_ParseJson_StartMap(useraddon_t* addonPtr, sjson_node* root,
     }
 }
 
-// required rendermode
-static int32_t Addon_ParseJson_Rendmode(useraddon_t* addonPtr, sjson_node* root, const char* key)
+static int32_t Addon_SetRendmodeFromString(useraddon_t* addonPtr, const char* rmodestr)
 {
-    sjson_node * ele = sjson_find_member_nocase(root, key);
-    addonPtr->jsondat.rendmode = ADDON_RENDNONE;
-
-    if (ele == nullptr) return 1;
-    else if (Addon_CheckJsonStringType(addonPtr, ele, key)) return -1;
-
-    const char* rmodestr = ele->string_;
     if (!Bstrncasecmp(rmodestr, jsonval_rendmode_classic, ARRAY_SIZE(jsonval_rendmode_classic)))
-        addonPtr->jsondat.rendmode = ADDON_RENDCLASSIC;
+        addonPtr->jsondat.compat_rendmodes |= ADDON_RENDCLASSIC;
     else if (!Bstrncasecmp(rmodestr, jsonval_rendmode_opengl, ARRAY_SIZE(jsonval_rendmode_opengl)))
-        addonPtr->jsondat.rendmode = ADDON_RENDPOLYMOST;
+        addonPtr->jsondat.compat_rendmodes |= ADDON_RENDPOLYMOST;
     else if (!Bstrncasecmp(rmodestr, jsonval_rendmode_polymost, ARRAY_SIZE(jsonval_rendmode_polymost)))
-        addonPtr->jsondat.rendmode = ADDON_RENDPOLYMOST;
+        addonPtr->jsondat.compat_rendmodes |= ADDON_RENDPOLYMOST;
     else if (!Bstrncasecmp(rmodestr, jsonval_rendmode_polymer, ARRAY_SIZE(jsonval_rendmode_polymer)))
-        addonPtr->jsondat.rendmode = ADDON_RENDPOLYMER;
+        addonPtr->jsondat.compat_rendmodes |= ADDON_RENDPOLYMER;
     else
     {
         LOG_F(ERROR, "Unknown rendmode '%s' in addon '%s'!", rmodestr, addonPtr->internalId);
@@ -870,6 +862,38 @@ static int32_t Addon_ParseJson_Rendmode(useraddon_t* addonPtr, sjson_node* root,
     }
 
     return 0;
+}
+
+// required rendermode
+static int32_t Addon_ParseJson_Rendmode(useraddon_t* addonPtr, sjson_node* root, const char* key)
+{
+    addonPtr->jsondat.compat_rendmodes = ADDON_RENDNONE;
+    sjson_node * ele = sjson_find_member_nocase(root, key);
+    if (ele == nullptr) return 1;
+
+    if (ele->tag == SJSON_STRING)
+    {
+        return Addon_SetRendmodeFromString(addonPtr, ele->string_);
+    }
+    else if (ele->tag == SJSON_ARRAY)
+    {
+
+        sjson_node *child;
+        sjson_foreach(child, ele)
+        {
+            if (child->tag != SJSON_STRING || Addon_SetRendmodeFromString(addonPtr, child->string_))
+            {
+                LOG_F(ERROR, "Invalid type in array of key %s for addon: '%s'!", key, addonPtr->internalId);
+                return -1;
+            }
+        }
+        return 0;
+    }
+    else
+    {
+        LOG_F(ERROR, "Invalid value type for key '%s' in addon :'%s'!", key, addonPtr->internalId);
+        return -1;
+    }
 }
 
 // Load data from json file into addon -- assumes that unique ID for the addon has been defined!
@@ -963,8 +987,13 @@ static int32_t Addon_ParseJson(useraddon_t* addonPtr, sjson_context* ctx, const 
         jsonErrorCnt++;
 
     // rendmode (can be omitted)
-    parseResult = Addon_ParseJson_Rendmode(addonPtr, root, jsonkey_rendmode);
+    parseResult = Addon_ParseJson_Rendmode(addonPtr, root, jsonkey_rendmodes);
     if (parseResult == -1) jsonErrorCnt++;
+    else if (parseResult == 1)
+    {
+        // compatible with all modes if unspecified
+        addonPtr->jsondat.compat_rendmodes = ADDON_RENDMASK;
+    }
 
     // CON script paths (optional)
     parseResult = Addon_ParseJson_Scripts(addonPtr, root, jsonkey_con, basepath,
@@ -1144,6 +1173,7 @@ static void Addon_GrpInfo_FakeJson(useraddon_t * addonPtr, const grpfile_t * agr
     Bstrncpy(addonPtr->jsondat.title, agrpf->type->name, ADDON_MAXTITLE);
     Addon_GrpInfo_SetAuthor(addonPtr, agrpf);
     Addon_GrpInfo_SetDescription(addonPtr, agrpf);
+    addonPtr->jsondat.compat_rendmodes = ADDON_RENDMASK;
 }
 
 // Search for addons in the currently detected grpfiles
@@ -1699,10 +1729,11 @@ static void Addon_UpdateCount_ActiveIncompatibles(void)
 static void Addon_UpdateSelectedRendmode(void)
 {
     int i; useraddon_t* addonPtr;
-    g_addon_selrendmode = ADDON_RENDNONE;
-    ITER_GRPINFO(i, addonPtr) if (addonPtr->isSelected()) g_addon_selrendmode |= addonPtr->jsondat.rendmode;
-    ITER_MODS(i, addonPtr) if (addonPtr->isSelected()) g_addon_selrendmode |= addonPtr->jsondat.rendmode;
-    ITER_TCS(i, addonPtr) if (addonPtr->isSelected()) g_addon_selrendmode |= addonPtr->jsondat.rendmode;
+    g_addon_compatrendmode = ADDON_RENDMASK;
+    ITER_GRPINFO(i, addonPtr) if (addonPtr->isSelected()) g_addon_compatrendmode &= addonPtr->jsondat.compat_rendmodes;
+    ITER_MODS(i, addonPtr) if (addonPtr->isSelected()) g_addon_compatrendmode &= addonPtr->jsondat.compat_rendmodes;
+    ITER_TCS(i, addonPtr) if (addonPtr->isSelected()) g_addon_compatrendmode &= addonPtr->jsondat.compat_rendmodes;
+    LOG_F(ERROR, "compat rendmode %d", g_addon_compatrendmode);
 }
 
 // utility to free preview image storage
@@ -1964,20 +1995,43 @@ bool Addon_GetStartMap(const char* & startfn, int32_t & startlevel, int32_t & st
 }
 
 #ifdef USE_OPENGL
-int32_t Addon_GetBootRendmode(void)
+int32_t Addon_GetBootRendmode(int32_t const rendmode)
 {
+    // change current rendmode if it is incompatible
     if (!(g_bootState & BOOTSTATE_ADDONS))
         return -1;
 
-    switch (g_addon_selrendmode)
+    uint32_t tr_rendmode;
+    switch (rendmode)
     {
-        case ADDON_RENDCLASSIC: return REND_CLASSIC;
-        case ADDON_RENDPOLYMOST: return REND_POLYMOST;
+        case REND_CLASSIC:
+            tr_rendmode = ADDON_RENDCLASSIC;
+            break;
+        case REND_POLYMOST:
+            tr_rendmode = ADDON_RENDPOLYMOST;
+            break;
 #ifdef POLYMER
-        case ADDON_RENDPOLYMER: return REND_POLYMER;
+        case REND_POLYMER:
+            tr_rendmode = ADDON_RENDPOLYMER;
+            break;
 #endif
-        default: return -1;
+        default:
+            tr_rendmode = ADDON_RENDNONE;
+            break;
     }
+
+    if ((tr_rendmode & g_addon_compatrendmode) == 0)
+    {
+#ifdef POLYMER
+        if (g_addon_compatrendmode & ADDON_RENDPOLYMER) return REND_POLYMER;
+        else
+#endif
+        {
+            if (g_addon_compatrendmode & ADDON_RENDPOLYMOST) return REND_POLYMOST;
+            else if (g_addon_compatrendmode & ADDON_RENDCLASSIC) return REND_CLASSIC;
+        }
+    }
+    return -1;
 }
 #endif
 

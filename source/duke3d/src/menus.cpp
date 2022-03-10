@@ -2208,14 +2208,6 @@ static int32_t Menu_AddonMenuUpDown(int32_t const entryIndex, int32_t const othe
     return 0;
 }
 
-static inline bool Menu_Addon_RendmodeConflict(void)
-{
-    return ((g_addon_selrendmode != ADDON_RENDNONE)
-           && ((g_addon_selrendmode & ADDON_RENDMASK) != ADDON_RENDCLASSIC)
-            && ((g_addon_selrendmode & ADDON_RENDMASK) != ADDON_RENDPOLYMOST)
-             && ((g_addon_selrendmode & ADDON_RENDMASK) != ADDON_RENDPOLYMER));
-}
-
 static void Menu_Addon_ResetHorizontalScroll(void)
 {
     // reset the title shift for the selected addon and record time of change
@@ -2229,29 +2221,14 @@ static void Menu_Addon_UpdateMenuEntryStatus(MenuEntry_t* menuEntry, useraddon_t
     addonPtr->updateMenuEntryName(0, MENU_ADDON_TITLESCROLL_MAXVIS);
 
     bool hasIssue = addonPtr->mdeps || addonPtr->incompats;
-
-#ifndef POLYMER
-    hasIssue |= (addonPtr->jsondat.rendmode & ADDON_RENDPOLYMER) != 0;
-#endif
-
-#ifndef USE_OPENGL
-    hasIssue |= (addonPtr->jsondat.rendmode & ADDON_RENDPOLYMOST) != 0;
-#endif
+    hasIssue |= (addonPtr->jsondat.compat_rendmodes & (g_addon_compatrendmode & ADDON_SUPPORTED_RENDMODES)) == 0;
 
     if (addonPtr->isSelected())
     {
-        // active rendmode conflict
-        hasIssue |= ((addonPtr->jsondat.rendmode != ADDON_RENDNONE) && (g_addon_selrendmode != ADDON_RENDNONE)
-                        && ((g_addon_selrendmode & ADDON_RENDMASK) != addonPtr->jsondat.rendmode));
-
         menuEntry->font = (hasIssue) ? &MF_Minifont_Addon_Warning : &MF_Minifont_Addon_Active;
     }
     else
     {
-        // prevent rendmode conflict
-        hasIssue |= ((addonPtr->jsondat.rendmode != ADDON_RENDNONE) && (g_addon_selrendmode != ADDON_RENDNONE)
-                        && (g_addon_selrendmode != addonPtr->jsondat.rendmode));
-
         MenuEntry_DisableOnCondition(menuEntry, cvar_addonmenu_strict && hasIssue);
         menuEntry->font = &MF_Minifont_Addon_Entry;
     }
@@ -2387,23 +2364,14 @@ static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
             Bsnprintf(m_addonidentity_buffer, MENU_ADDON_MAXID, "^%dIncompatible Addons: %d", MENUTEXTPAL_RED, g_num_active_incompats);
         else if (g_num_active_mdeps > 0)
             Bsnprintf(m_addonidentity_buffer, MENU_ADDON_MAXID, "^%dMissing Dependencies: %d", MENUTEXTPAL_RED, g_num_active_mdeps);
-        else if (Menu_Addon_RendmodeConflict())
+        else if (!g_addon_compatrendmode)
             Bsnprintf(m_addonidentity_buffer, MENU_ADDON_MAXID, "^%dRendermode Conflict!", MENUTEXTPAL_RED);
+        else if ((g_addon_compatrendmode & ADDON_SUPPORTED_RENDMODES) == 0)
+            Bsnprintf(m_addonidentity_buffer, MENU_ADDON_MAXID, "^%dUnsupported Rendmode!", MENUTEXTPAL_RED);
         else
         {
-#if !defined(POLYMER) || !defined(USE_OPENGL)
-#ifndef USE_OPENGL
-            if (g_addon_selrendmode & (ADDON_RENDPOLYMOST | ADDON_RENDPOLYMER))
-#else
-            if (g_addon_selrendmode & (ADDON_RENDPOLYMER))
-#endif
-                Bsnprintf(m_addonidentity_buffer, MENU_ADDON_MAXID, "^%dUnsupported Rendmode!", MENUTEXTPAL_RED);
-            else
-#endif
-            {
-                const char* fmtstring = (FURY) ? "^%dLaunch User Content" : "^%dLaunch Selected Addons";
-                Bsnprintf(m_addonidentity_buffer, MENU_ADDON_MAXID, fmtstring, MENUTEXTPAL_GREEN);
-            }
+            const char* fmtstring = (FURY) ? "^%dLaunch User Content" : "^%dLaunch Selected Addons";
+            Bsnprintf(m_addonidentity_buffer, MENU_ADDON_MAXID, fmtstring, MENUTEXTPAL_GREEN);
         }
 
         Bstrcat(tempcontentbuf, "\n- Select addons to enable them, then confirm the selection.\n");
@@ -3904,23 +3872,12 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
             Bsprintf(tempbuf, "^%dWARNING: Incompatible addons selected!\nLaunch anyways?", MENUTEXTPAL_RED);
         else if (g_num_active_mdeps > 0)
             Bsprintf(tempbuf, "^%dWARNING: There are missing dependencies!\nLaunch anyways?", MENUTEXTPAL_RED);
-        else if (Menu_Addon_RendmodeConflict())
+        else if (!g_addon_compatrendmode)
             Bsprintf(tempbuf, "^%dWARNING: Incompatible renderer modes required!\nLaunch anyways?", MENUTEXTPAL_RED);
+        else if ((g_addon_compatrendmode & ADDON_SUPPORTED_RENDMODES) == 0)
+            Bsprintf(tempbuf, "^%dWARNING: Content requires unsupported rendmode!\nLaunch anyways?", MENUTEXTPAL_RED);
         else
-        {
-#if !defined(POLYMER) || !defined(USE_OPENGL)
-#ifndef USE_OPENGL
-            if (g_addon_selrendmode & (ADDON_RENDPOLYMOST | ADDON_RENDPOLYMER))
-#else
-            if (g_addon_selrendmode & (ADDON_RENDPOLYMER))
-#endif
-                Bsprintf(tempbuf, "^%dWARNING: Content requires unsupported rendmode!\nLaunch anyways?", MENUTEXTPAL_RED);
-            else
-#endif
-            {
-                Bsprintf(tempbuf, "Load the selected content?\nThis will restart the current game.");
-            }
-        }
+            Bsprintf(tempbuf, "Load the selected content?\nThis will restart the current game.");
 
         Menu_DrawVerifyPrompt(origin.x, origin.y, tempbuf, 2);
         break;
