@@ -44,6 +44,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "sbar.h"
 #include "screens.h"
 #include "addons.h"
+#include "addongrpinfo.h"
 
 #ifdef __ANDROID__
 #include "android.h"
@@ -5882,6 +5883,43 @@ static int parsedefinitions_game(scriptfile *pScript, int firstPass)
     return 0;
 }
 
+int loadgrpinfoaddons(void)
+{
+    // do not load on initial boot or if no addons supposed to be loaded
+    if (!(g_bootState & BOOTSTATE_ADDONS) || (g_bootState & BOOTSTATE_INITIAL))
+        return -1;
+
+    if (g_addoncount_grpinfo <= 0 || !g_useraddons_grpinfo)
+        return -2;
+
+    // important: do not prune grpinfo addons because gametype may be unknown!
+    Addon_LoadGrpInfoAddons();
+
+    return 0;
+}
+
+int loaduseraddons(void)
+{
+    if (!(g_bootState & BOOTSTATE_ADDONS))
+        return -1;
+
+    // remove addons with mismatched gametype and other issues
+    Addon_PruneInvalidAddons(g_useraddons_tcs, g_addoncount_tcs);
+    Addon_PruneInvalidAddons(g_useraddons_mods, g_addoncount_mods);
+
+    // load order from config
+    Addon_InitializeLoadOrders();
+
+    // update counters and dependencies
+    Addon_RefreshPropertyTrackers();
+
+    // prepare TCs and mods for loading
+    Addon_LoadUserTCs();
+    Addon_LoadUserMods();
+
+    return 0;
+}
+
 int loaddefinitions_game(const char *fileName, int32_t firstPass)
 {
     scriptfile *pScript = scriptfile_fromfile(fileName);
@@ -6019,6 +6057,7 @@ static void G_Cleanup(void)
 
     Addon_FreePreviewHashTable();
     Addon_FreeUserAddons();
+    Addon_FreeGrpInfoAddons();
 
     Duke_CommonCleanup();
 }
@@ -7115,7 +7154,7 @@ int app_main(int argc, char const* const* argv)
     G_ScanGroups();
 
     LOG_F(INFO, "Loading addon descriptors...");
-    Addon_LoadDescriptors();
+    Addon_ReadJsonDescriptors();
 
 #ifdef STARTUP_SETUP_WINDOW
     if (!Bgetenv("SteamTenfoot") && (readSetup < 0 || (!g_noSetup && (ud.configversion != BYTEVERSION_EDUKE32 || ud.setup.forcesetup)) || g_commandSetup))

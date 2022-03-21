@@ -119,6 +119,9 @@ extern void G_AddConModule(const char *buffer);
 extern void clearGrpNamePtr(void);
 extern void clearScriptNamePtr(void);
 
+extern int loadgrpinfoaddons(void);
+extern int loaduseraddons(void);
+
 extern int loaddefinitions_game(const char *fn, int32_t preload);
 extern int32_t g_groupFileHandle;
 

@@ -23,6 +23,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "duke3d.h"
 #include "addons.h"
 #include "addonjson.h"
+#include "addongrpinfo.h"
 
 // hack: this hashtable is (ab)used as a hash set
 static hashtable_t h_addontemp = { MAXUSERADDONS, NULL };
@@ -44,10 +45,6 @@ static const char addonjsonfn[] = "addon.json";
 static useraddon_t** s_useraddons = nullptr;
 static int32_t s_numuseraddons = 0;
 
-// addons loaded from .grpinfo files. Mutually exclusive and replace the selected GRP.
-useraddon_t** g_useraddons_grpinfo = nullptr;
-int32_t g_addoncount_grpinfo = 0;
-
 // addons that replace the main CON/main DEF file are identified as TCs
 useraddon_t** g_useraddons_tcs = nullptr;
 int32_t g_addoncount_tcs = 0;
@@ -63,214 +60,6 @@ int32_t g_num_selected_addons = 0;
 int32_t g_num_active_mdeps = 0;
 int32_t g_num_active_incompats = 0;
 
-// dependency IDs for hardcoded addons
-static const char dukevaca_id[] = "dukevaca";
-static const char dukedc_id[] = "dukedc";
-static const char dukenw_id[] = "dukenw";
-static const char dukezone_id[] = "dukezone";
-static const char dukepentp_id[] = "dukepentp";
-
-// authors of the hardcoded addons
-static const char author_sunstorm[] = "Sunstorm Interactive";
-static const char author_sillysoft[] = "Simply Silly Software";
-static const char author_intersphere[] = "Intersphere Communications, Ltd. and Tyler Matthews";
-
-// descriptions for hardcoded addons (taken from the back of the box or READMEs and adapted)
-static const char dukevaca_description[] =
-    "Ahhh... the Caribbean, the ultimate vacation destination.\n"
-    "After a few months of alien annihilation, Duke's ready for a little R&R. "
-    "Cabana girls, a beach-side bar and bermuda shorts are all he needs. "
-    "That is, until the alien scum drop in for a little vacation of their own...";
-
-static const char dukedc_description[] =
-    "Aliens have captured the President!\n"
-    "Duke gets word that alien scum have landed in Washington D.C., "
-    "laid it to waste, and imprisoned the leader of the free world. "
-    "Always up for a heroic deed, Duke heads to D.C. to rid the city "
-    "of enemy dirtbags and return the president to power!";
-
-static const char dukenw_description[] =
-    "There's diabolical danger in the northern Ice-Land!\n"
-    "Alien scum have taken over, and the fate of everyone's favorite jolly old man "
-    "and his village of merry little ones hinges on an icy rescue. The Winter "
-    "Wonderland will never be the same once Duke's begun the Arctic Meltdown.";
-
-static const char dukezone_description[] =
-    "Features 3 new episodes that contain 7 levels each. These maps take Duke "
-    "across urban arctic wastelands, underground passages, canyons, fun houses, "
-    "bars and a toxic chemical processing plant.\n"
-    "Does not include the 500 levels packaged with the original release of the addon.";
-
-static const char dukepentp_description[] =
-    "Set between the third and fourth episode of Duke Nukem 3D.\n"
-    "While Duke was trying to establish a little \"beach-head,\" the aliens have "
-    "dropped in to break up his fun in the sun and spoil a couple of Penthouse photo "
-    "shoots to boot. It's up to Duke Nukem to save the day - again.";
-
-
-// set external identity of the grpinfo addon
-static void Addon_GrpInfo_SetExternalIdentity(useraddon_t * addonPtr, const grpfile_t * agrpf)
-{
-    const char* identity = nullptr;
-    switch (agrpf->type->crcval)
-    {
-#ifndef EDUKE32_STANDALONE
-        case DUKEDC13_CRC:
-        case DUKEDCPP_CRC:
-        case DUKEDC_CRC:
-        case DUKEDC_REPACK_CRC:
-            identity = dukedc_id;
-            break;
-        case VACA13_CRC:
-        case VACAPP_CRC:
-        case VACA15_CRC:
-        case DUKECB_CRC:
-        case VACA_REPACK_CRC:
-            identity = dukevaca_id;
-            break;
-        case DUKENW_CRC:
-        case DUKENW_DEMO_CRC:
-            identity = dukenw_id;
-            break;
-        case DZ2_13_CRC:
-        case DZ2_PP_CRC:
-        case DZ2_PP_REPACK_CRC:
-            identity = dukezone_id;
-            break;
-        case PENTP_CRC:
-        case PENTP_ZOOM_CRC:
-            identity = dukepentp_id;
-            break;
-#endif
-        default:
-            break;
-    }
-
-    if (identity == nullptr)
-        Bsnprintf(addonPtr->jsondat.externalId, ADDON_MAXID, "grpinfo_%x_%d", agrpf->type->crcval, agrpf->type->size);
-    else
-        Bstrncpyz(addonPtr->jsondat.externalId, identity, ADDON_MAXID);
-}
-
-// set author of the grpinfo addon
-static void Addon_GrpInfo_SetAuthor(useraddon_t * addonPtr, const grpfile_t * agrpf)
-{
-    switch (agrpf->type->crcval)
-    {
-#ifndef EDUKE32_STANDALONE
-        case DUKEDC13_CRC:
-        case DUKEDCPP_CRC:
-        case DUKEDC_CRC:
-        case DUKEDC_REPACK_CRC:
-        case VACA13_CRC:
-        case VACAPP_CRC:
-        case VACA15_CRC:
-        case DUKECB_CRC:
-        case VACA_REPACK_CRC:
-            Bstrncpy(addonPtr->jsondat.author, author_sunstorm, ADDON_MAXAUTHOR);
-            break;
-        case DUKENW_CRC:
-        case DUKENW_DEMO_CRC:
-        case DZ2_13_CRC:
-        case DZ2_PP_CRC:
-        case DZ2_PP_REPACK_CRC:
-            Bstrncpy(addonPtr->jsondat.author, author_sillysoft, ADDON_MAXAUTHOR);
-            break;
-        case PENTP_CRC:
-        case PENTP_ZOOM_CRC:
-            Bstrncpy(addonPtr->jsondat.author, author_intersphere, ADDON_MAXAUTHOR);
-            break;
-#endif
-        default:
-            addonPtr->jsondat.author[0] = '\0';
-            break;
-    }
-}
-
-// set description
-static void Addon_GrpInfo_SetDescription(useraddon_t * addonPtr, const grpfile_t * agrpf)
-{
-    const char* desc;
-    switch (agrpf->type->crcval)
-    {
-#ifndef EDUKE32_STANDALONE
-        case DUKEDC13_CRC:
-        case DUKEDCPP_CRC:
-        case DUKEDC_CRC:
-        case DUKEDC_REPACK_CRC:
-            desc = dukedc_description;
-            break;
-        case VACA13_CRC:
-        case VACAPP_CRC:
-        case VACA15_CRC:
-        case DUKECB_CRC:
-        case VACA_REPACK_CRC:
-            desc = dukevaca_description;
-            break;
-        case DUKENW_CRC:
-        case DUKENW_DEMO_CRC:
-            desc = dukenw_description;
-            break;
-        case DZ2_13_CRC:
-        case DZ2_PP_CRC:
-        case DZ2_PP_REPACK_CRC:
-            desc = dukezone_description;
-            break;
-        case PENTP_CRC:
-        case PENTP_ZOOM_CRC:
-            desc = dukepentp_description;
-            break;
-#endif
-        default:
-            desc = "Imported from grpinfo.";
-            break;
-    }
-
-    const int desclen = strlen(desc) + 1;
-    addonPtr->jsondat.description = (char *) Xmalloc(desclen);
-    Bstrncpyz(addonPtr->jsondat.description, desc, desclen);
-}
-
-// populate the contents of the addon json struct for grpinfo addons
-static void Addon_GrpInfo_FakeJson(useraddon_t * addonPtr, const grpfile_t * agrpf)
-{
-    Addon_GrpInfo_SetExternalIdentity(addonPtr, agrpf);
-
-    // hack: version is set to hex crc
-    Bsnprintf(addonPtr->jsondat.version, ADDON_MAXVERSION, "0-%x", agrpf->type->crcval);
-    Bstrncpy(addonPtr->jsondat.title, agrpf->type->name, ADDON_MAXTITLE);
-    Addon_GrpInfo_SetAuthor(addonPtr, agrpf);
-    Addon_GrpInfo_SetDescription(addonPtr, agrpf);
-    addonPtr->jsondat.compat_rendmodes = ADDON_RENDMASK;
-}
-
-// Search for addons in the currently detected grpfiles
-static void Addon_ReadGrpInfo(void)
-{
-    for (const grpfile_t *grp = foundgrps; grp; grp=grp->next)
-    {
-        if (grp->type->game & GAMEFLAG_ADDON)
-        {
-            s_useraddons[s_numuseraddons] = (useraddon_t*) Xcalloc(1, sizeof(useraddon_t));
-            useraddon_t* addonPtr = s_useraddons[s_numuseraddons];
-            addonPtr->loadorder_idx = DEFAULT_LOADORDER_IDX;
-
-            addonPtr->internalId = (char*) Xmalloc(ADDON_MAXID);
-            Bsnprintf(addonPtr->internalId, ADDON_MAXID, "grpinfo_%x_%d", grp->type->crcval, grp->type->size);
-            addonPtr->grpfile = grp;
-
-            addonPtr->loadtype = LT_GRPINFO;
-            addonPtr->gametype = (addongame_t) grp->type->game;
-            addonPtr->gamecrc = grp->type->dependency;
-
-            Addon_GrpInfo_FakeJson(addonPtr, grp);
-            addonPtr->setSelected(g_selectedGrp == grp);
-            s_numuseraddons++;
-        }
-    }
-}
-
-
 // utility to free preview image storage
 static void freehashpreviewimage(const char *, intptr_t key)
 {
@@ -285,10 +74,6 @@ void Addon_FreePreviewHashTable(void)
 
 void Addon_FreeUserAddons(void)
 {
-    for_grpaddons(addonPtr, { addonPtr->freeContents(); Xfree(addonPtr); });
-    DO_FREE_AND_NULL(g_useraddons_grpinfo);
-    g_addoncount_grpinfo = 0;
-
     for_tcaddons(addonPtr, { addonPtr->freeContents(); Xfree(addonPtr); });
     DO_FREE_AND_NULL(g_useraddons_tcs);
     g_addoncount_tcs = 0;
@@ -435,11 +220,6 @@ static int32_t Addon_CountPotentialAddons(void)
 {
     int32_t numaddons = 0;
 
-    // count grpinfo addons
-    for (grpfile_t *grp = foundgrps; grp; grp=grp->next)
-        if (grp->type->game & GAMEFLAG_ADDON)
-            numaddons++;
-
     char addonpathbuf[BMAX_PATH];
     if (!Addon_GetLocalDir(addonpathbuf, BMAX_PATH))
     {
@@ -473,19 +253,16 @@ static int32_t Addon_CountPotentialAddons(void)
 // This splits the internal addon array into the distinct types
 static void Addon_SplitAddonTypes(void)
 {
-    g_addoncount_grpinfo = 0;
     g_addoncount_tcs = 0;
     g_addoncount_mods = 0;
     for (int i = 0; i < s_numuseraddons; i++)
     {
         useraddon_t* addonPtr = s_useraddons[i];
         if (!addonPtr->isValid()) continue;
-        else if (addonPtr->isGrpInfoAddon()) g_addoncount_grpinfo++;
         else if (addonPtr->isTotalConversion()) g_addoncount_tcs++;
         else g_addoncount_mods++;
     }
 
-    g_useraddons_grpinfo = (useraddon_t **) Xcalloc(g_addoncount_grpinfo, sizeof(useraddon_t*));
     g_useraddons_tcs = (useraddon_t **) Xcalloc(g_addoncount_tcs, sizeof(useraddon_t*));
     g_useraddons_mods = (useraddon_t **) Xcalloc(g_addoncount_mods, sizeof(useraddon_t*));
 
@@ -499,7 +276,6 @@ static void Addon_SplitAddonTypes(void)
             DO_FREE_AND_NULL(s_useraddons[i]);
             continue;
         }
-        else if (addonPtr->isGrpInfoAddon()) g_useraddons_grpinfo[grpidx++] = addonPtr;
         else if (addonPtr->isTotalConversion()) g_useraddons_tcs[tcidx++] = addonPtr;
         else g_useraddons_mods[modidx++] = addonPtr;
     }
@@ -527,7 +303,7 @@ static uint8_t* Addon_LoadPreviewFromFile(const char *fn)
 }
 
 // check if addon matches current game and crc, if specified
-static bool Addon_MatchesGame(const useraddon_t* addonPtr)
+bool Addon_MatchesSelectedGame(const useraddon_t* addonPtr)
 {
     if ((addonPtr->gametype & g_gameType) == 0)
         return false;
@@ -592,7 +368,6 @@ static void Addon_UpdateDependencies(useraddon_t* addonPtr, addondependency_t* d
         addondependency_t & dep = depList[i];
         dep.setFulfilled(false);
 
-        // check selected grpinfo
         for_grpaddons(otherAddon,
         {
             if (otherAddon->isSelected() && Addon_DependencyMatch(&dep, otherAddon))
@@ -682,7 +457,7 @@ static void Addon_UpdateSelectedRendmode(void)
 
 // Important: this function is called before the setup window is shown
 // Hence it must not depend on any variables initialized from game content
-void Addon_LoadDescriptors(void)
+void Addon_ReadJsonDescriptors(void)
 {
     // free previous storage
     Addon_FreeUserAddons();
@@ -703,8 +478,6 @@ void Addon_LoadDescriptors(void)
     // these variables are updated over the following functions
     s_useraddons = (useraddon_t **) Xcalloc(maxaddons, sizeof(useraddon_t*));
     s_numuseraddons = 0;
-
-    Addon_ReadGrpInfo();
 
     char addonpathbuf[BMAX_PATH];
     if (!Addon_GetLocalDir(addonpathbuf, BMAX_PATH))
@@ -737,7 +510,7 @@ void Addon_PruneInvalidAddons(useraddon_t** & useraddons, int32_t & numuseraddon
     for (i = 0; i < numuseraddons; i++)
     {
         useraddon_t* addonPtr = useraddons[i];
-        if (addonPtr->isValid() && Addon_MatchesGame(addonPtr))
+        if (addonPtr->isValid() && Addon_MatchesSelectedGame(addonPtr))
             newaddoncount++;
     }
 
@@ -746,7 +519,7 @@ void Addon_PruneInvalidAddons(useraddon_t** & useraddons, int32_t & numuseraddon
     for (i=0, j=0; i < numuseraddons; i++)
     {
         useraddon_t* addonPtr = useraddons[i];
-        if (addonPtr->isValid()  && Addon_MatchesGame(addonPtr))
+        if (addonPtr->isValid()  && Addon_MatchesSelectedGame(addonPtr))
             gooduseraddons[j++] = addonPtr;
         else
         {
@@ -763,7 +536,7 @@ void Addon_PruneInvalidAddons(useraddon_t** & useraddons, int32_t & numuseraddon
 static void Addon_LoadAddonPreview(useraddon_t* addonPtr)
 {
     // don't cache images for addons we won't see
-    if (!(addonPtr->isValid() && addonPtr->jsondat.preview_path[0] && Addon_MatchesGame(addonPtr)))
+    if (!(addonPtr->isValid() && addonPtr->jsondat.preview_path[0] && Addon_MatchesSelectedGame(addonPtr)))
         return;
 
     intptr_t cachedImage = hash_find(&h_addonpreviews, addonPtr->jsondat.preview_path);
@@ -832,6 +605,9 @@ static int32_t Addon_InitLoadOrderFromConfig(useraddon_t** addonlist, int32_t co
 
 static void Addon_InitAndSanitizeLoadOrder(useraddon_t** addonlist, int32_t const numaddons)
 {
+    if (numaddons <= 0 || !addonlist)
+        return;
+
     int32_t i, cl, maxBufSize;
     int16_t maxLoadOrder = Addon_InitLoadOrderFromConfig(addonlist, numaddons);
 
@@ -869,7 +645,7 @@ void Addon_InitializeLoadOrders(void)
 }
 
 // update dependency states of all addons, based on currently selected addons
-void Addon_RefreshDependencyStates(void)
+void Addon_RefreshPropertyTrackers(void)
 {
     for_tcaddons(addonPtr,{
         Addon_UpdateDependencies(addonPtr, addonPtr->jsondat.dependencies, addonPtr->jsondat.num_dependencies);
@@ -902,7 +678,7 @@ const char* Addon_RetrieveStartMap(int32_t & startlevel, int32_t & startvolume)
     for (int i = g_addoncount_mods-1; i >= 0; i--)
     {
         useraddon_t* addonPtr = lobuf[i];
-        if (!(addonPtr->isValid() && addonPtr->isSelected() && Addon_MatchesGame(addonPtr)))
+        if (!(addonPtr->isValid() && addonPtr->isSelected() && Addon_MatchesSelectedGame(addonPtr)))
             continue;
 
         if (addonPtr->flags & ADDONFLAG_STARTMAP)
@@ -921,7 +697,7 @@ const char* Addon_RetrieveStartMap(int32_t & startlevel, int32_t & startvolume)
     for (int i = g_addoncount_tcs-1; i >= 0; i--)
     {
         useraddon_t* addonPtr = lobuf[i];
-        if (!(addonPtr->isValid() && addonPtr->isSelected() && Addon_MatchesGame(addonPtr)))
+        if (!(addonPtr->isValid() && addonPtr->isSelected() && Addon_MatchesSelectedGame(addonPtr)))
             continue;
 
         if (addonPtr->flags & ADDONFLAG_STARTMAP)
@@ -981,34 +757,6 @@ int32_t Addon_GetBootRendmode(int32_t const rendmode)
 #endif
 
 
-// iterate through all grp info addons, find selected one, change game grp
-int32_t Addon_PrepareGrpInfoAddons(void)
-{
-    if (!(g_bootState & BOOTSTATE_ADDONS) || g_addoncount_grpinfo <= 0 || !g_useraddons_grpinfo)
-        return 0;
-
-    // do not load grpinfo files on first boot
-    if ((g_bootState & BOOTSTATE_INITIAL))
-        return 1;
-
-    for_grpaddons(addonPtr,
-    {
-        if (!addonPtr->isSelected() || !Addon_MatchesGame(addonPtr))
-            continue;
-
-        if (!addonPtr->isValid() || addonPtr->isTotalConversion() || !addonPtr->isGrpInfoAddon() || !addonPtr->grpfile)
-        {
-            LOG_F(ERROR, "Skip invalid grpinfo in init: %s. This shouldn't be happening.", addonPtr->internalId);
-            continue;
-        }
-
-        g_selectedGrp = addonPtr->grpfile;
-        break; // only load one at most
-    });
-
-    return 0;
-}
-
 // Prepare the content from the given addon for loading
 static int32_t Addon_PrepareUserAddon(const useraddon_t* addonPtr)
 {
@@ -1065,10 +813,10 @@ static int32_t Addon_PrepareUserAddon(const useraddon_t* addonPtr)
 }
 
 // iterate through all tcs, find selected one, initialize data
-int32_t Addon_PrepareUserTCs(void)
+int32_t Addon_LoadUserTCs(void)
 {
-    if (!(g_bootState & BOOTSTATE_ADDONS) || g_addoncount_tcs <= 0 || !g_useraddons_tcs)
-        return 0;
+    if (g_addoncount_tcs <= 0 || !g_useraddons_tcs)
+        return -1;
 
     // use absolute paths to load addons
     int const bakpathsearchmode = pathsearchmode;
@@ -1081,7 +829,7 @@ int32_t Addon_PrepareUserTCs(void)
     for (int i = 0; i < g_addoncount_tcs; i++)
     {
         useraddon_t* addonPtr = lobuf[i];
-        if (!addonPtr->isSelected() || !Addon_MatchesGame(addonPtr))
+        if (!addonPtr->isSelected() || !Addon_MatchesSelectedGame(addonPtr))
             continue;
 
         // sanity checks
@@ -1101,10 +849,10 @@ int32_t Addon_PrepareUserTCs(void)
 }
 
 // iterate through all mods in load order, find selected ones, initialize data
-int32_t Addon_PrepareUserMods(void)
+int32_t Addon_LoadUserMods(void)
 {
-    if (!(g_bootState & BOOTSTATE_ADDONS) || g_addoncount_mods <= 0 || !g_useraddons_mods)
-        return 0;
+    if (g_addoncount_mods <= 0 || !g_useraddons_mods)
+        return -1;
 
     // use absolute paths to load addons
     int const bakpathsearchmode = pathsearchmode;
@@ -1118,7 +866,7 @@ int32_t Addon_PrepareUserMods(void)
     for (int i = 0; i < g_addoncount_mods; i++)
     {
         useraddon_t* addonPtr = lobuf[i];
-        if (!addonPtr->isSelected() || !Addon_MatchesGame(addonPtr))
+        if (!addonPtr->isSelected() || !Addon_MatchesSelectedGame(addonPtr))
             continue;
 
         // sanity checks

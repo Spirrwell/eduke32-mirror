@@ -300,7 +300,6 @@
     <ClCompile Include="..\..\source\duke3d\src\astub.cpp" />
     <ClCompile Include="..\..\source\duke3d\src\common.cpp" />
     <ClCompile Include="..\..\source\duke3d\src\grpscan.cpp" />
-    <ClCompile Include="..\..\source\duke3d\src\m32addons.cpp" />
     <ClCompile Include="..\..\source\duke3d\src\m32common.cpp" />
     <ClCompile Include="..\..\source\duke3d\src\m32def.cpp" />
     <ClCompile Include="..\..\source\duke3d\src\m32exec.cpp" />

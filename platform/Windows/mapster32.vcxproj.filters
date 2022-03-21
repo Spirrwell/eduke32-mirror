@@ -33,9 +33,6 @@
     <ClCompile Include="..\..\source\duke3d\src\astub.cpp">
       <Filter>Source Files\duke3d_editor</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\source\duke3d\src\m32addons.cpp">
-      <Filter>Source Files\duke3d_editor</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\source\duke3d\src\m32common.cpp">
       <Filter>Source Files\duke3d_editor</Filter>
     </ClCompile>

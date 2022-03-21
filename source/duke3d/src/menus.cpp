@@ -38,6 +38,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "sbar.h"
 #include "joystick.h"
 #include "addons.h"
+#include "addongrpinfo.h"
 
 #ifndef __ANDROID__
 droidinput_t droidinput;
@@ -1282,6 +1283,9 @@ static MenuEntry_t **MEL_SAVE;
 #define ABT_YBOUNDS_TOP     ((FURY) ? ((ydim * 45) / 64) : ((ydim * 23) / 32))
 #define ABT_YBOUNDS_BOTTOM  ((FURY) ? ((ydim * 29) / 32) : ((ydim * 15) / 16))
 
+// total addon count combined
+#define NUM_TOTAL_ADDONS (g_addoncount_grpinfo + g_addoncount_tcs + g_addoncount_mods)
+
 // text display buffers on the addon mneu
 static char m_addontitle_buffer[MENU_ADDON_MAXTITLE];
 static char m_addondesc_buffer[MENU_ADDON_MAXDESC];
@@ -2219,7 +2223,7 @@ static int32_t Menu_Addon_EntryLinkActivate(int32_t const entryIndex)
         if (!addonPtr->isGrpInfoAddon())
             CONFIG_SetAddonActivationStatus(addonPtr->internalId, addonPtr->isSelected());
 
-        Addon_RefreshDependencyStates();
+        Addon_RefreshPropertyTrackers();
 
         // update menu entries
         for (int j = 0; j < M_ADDONS.numEntries; j++)
@@ -2356,7 +2360,8 @@ static void Menu_Addon_SetupMenuEntry(useraddon_t* addonPtr, int32_t & listIdx)
 
 static void Menu_PopulateAddonsMenu(void)
 {
-    Addon_LoadDescriptors();
+    Addon_ReadGrpInfoDescriptors();
+    Addon_ReadJsonDescriptors();
 
     // remove addons that shouldn't be shown
     Addon_PruneInvalidAddons(g_useraddons_grpinfo, g_addoncount_grpinfo);
@@ -2364,11 +2369,11 @@ static void Menu_PopulateAddonsMenu(void)
     Addon_PruneInvalidAddons(g_useraddons_mods, g_addoncount_mods);
 
     Addon_InitializeLoadOrders();
-    Addon_RefreshDependencyStates();
+    Addon_RefreshPropertyTrackers();
     Addon_LoadPreviewImages();
 
     // compute number of menu items
-    int nummenuitems = TOTAL_ADDON_COUNT + 1;
+    int nummenuitems = NUM_TOTAL_ADDONS + 1;
     if (g_addoncount_grpinfo > 0) nummenuitems += 2;
     if (g_addoncount_tcs > 0) nummenuitems += 2;
     if (g_addoncount_mods > 0) nummenuitems += 2;
@@ -2387,7 +2392,7 @@ static void Menu_PopulateAddonsMenu(void)
     MEL_ADDONS[k] = (MenuEntry_t*) Xmalloc(sizeof(MenuEntry_t));
     *MEL_ADDONS[k] = ME_ADDONS_ACCEPT;
     EL2ADDONS[k] = nullptr;
-    MenuEntry_DisableOnCondition(MEL_ADDONS[k], TOTAL_ADDON_COUNT == 0);
+    MenuEntry_DisableOnCondition(MEL_ADDONS[k], NUM_TOTAL_ADDONS == 0);
     k++;
 
     // grp addons
