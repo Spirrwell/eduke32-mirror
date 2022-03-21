@@ -271,15 +271,20 @@ struct useraddon_t
 
 };
 
-// distinct types of addons, handled differently each
+// addons loaded from .grpinfo files. Mutually exclusive and replace the selected GRP.
 extern useraddon_t** g_useraddons_grpinfo;
-extern useraddon_t** g_useraddons_tcs;
-extern useraddon_t** g_useraddons_mods;
-
-// counters for said addons
 extern int32_t g_addoncount_grpinfo;
+
+// addons loaded from .json descriptors which replace the main CON/DEF script
+// under normal circumstances these are mutually exclusive
+extern useraddon_t** g_useraddons_tcs;
 extern int32_t g_addoncount_tcs;
+
+// all other addons loaded from .json descriptors
+// these are treated as modular with load-order and can (usually) be loaded together
+extern useraddon_t** g_useraddons_mods;
 extern int32_t g_addoncount_mods;
+
 
 #define TOTAL_ADDON_COUNT (g_addoncount_grpinfo + g_addoncount_tcs + g_addoncount_mods)
 

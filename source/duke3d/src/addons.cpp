@@ -24,21 +24,44 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "addons.h"
 #include "addonjson.h"
 
-// cache for preview images, as palette conversion is slow
-static hashtable_t h_addonpreviews = { MAXUSERADDONS, NULL };
+// hack: this hashtable is (ab)used as a hash set
 static hashtable_t h_addontemp = { MAXUSERADDONS, NULL };
 
-// supported extensions
+// Cache for preview image data pointers, identified the addon path.
+// Palette conversion is slow, hence we want to precache and store these images for later display
+static hashtable_t h_addonpreviews = { MAXUSERADDONS, NULL };
+
+// supported package extensions
 static const char grp_ext[] = "*.grp";
 static const char ssi_ext[] = "*.ssi";
 static const char* addon_extensions[] = { grp_ext, ssi_ext, "*.zip", "*.pk3", "*.pk4" };
 
-// descriptions for hardcoded addons (taken from the back of the box or READMEs and adapted)
-static const char dukevaca_description[] = "Ahhh... the Caribbean, the ultimate vacation destination. After a few months of alien annihilation, Duke's ready for a little R&R. Cabana girls, a beach-side bar and bermuda shorts are all he needs. That is, until the alien scum drop in for a little vacation of their own...";
-static const char dukedc_description[] = "Aliens have captured the President! Duke gets word that alien scum have landed in Washington D.C., laid it to waste, and imprisoned the leader of the free world. Always up for a heroic deed, Duke heads to D.C. to rid the city of enemy dirtbags and return the president to power!";
-static const char dukenw_description[] = "There's diabolical danger in the northern Ice-Land. Alien scum have taken over, and the fate of everyone's favorite jolly old man and his village of merry little ones hinges on an icy rescue. The Winter Wonderland will never be the same once Duke's begun the Arctic Meltdown.";
-static const char dukezone_description[] = "Features 3 new episodes that contain 7 levels each. These maps take Duke across urban arctic wastelands, underground passages, canyons, fun houses, bars and a toxic chemical processing plant. Does not include the 500 levels packaged with the original release of the addon.";
-static const char dukepentp_description[] = "Set between the third and fourth episode of Duke Nukem 3D. While Duke was trying to establish a little \"beach-head,\" the aliens have dropped in to break up his fun in the sun and spoil a couple of Penthouse photo shoots to boot. It's up to Duke Nukem to save the day - again.";
+// local addon folder name and json descriptor filename
+static const char addondirname[] = "addons";
+static const char addonjsonfn[] = "addon.json";
+
+// temporary storage for all addons -- all addons are first stored in this array before being separated by type
+static useraddon_t** s_useraddons = nullptr;
+static int32_t s_numuseraddons = 0;
+
+// addons loaded from .grpinfo files. Mutually exclusive and replace the selected GRP.
+useraddon_t** g_useraddons_grpinfo = nullptr;
+int32_t g_addoncount_grpinfo = 0;
+
+// addons that replace the main CON/main DEF file are identified as TCs
+useraddon_t** g_useraddons_tcs = nullptr;
+int32_t g_addoncount_tcs = 0;
+
+// all remaining addons are identified as mods
+useraddon_t** g_useraddons_mods = nullptr;
+int32_t g_addoncount_mods = 0;
+
+uint32_t g_addon_compatrendmode = ADDON_RENDMASK;
+bool g_addon_failedboot = false;
+
+int32_t g_num_selected_addons = 0;
+int32_t g_num_active_mdeps = 0;
+int32_t g_num_active_incompats = 0;
 
 // dependency IDs for hardcoded addons
 static const char dukevaca_id[] = "dukevaca";
@@ -52,82 +75,38 @@ static const char author_sunstorm[] = "Sunstorm Interactive";
 static const char author_sillysoft[] = "Simply Silly Software";
 static const char author_intersphere[] = "Intersphere Communications, Ltd. and Tyler Matthews";
 
-// static addon tracker, only used temporarily before addons are separated into categories
-static useraddon_t** s_useraddons = nullptr;
-static int32_t s_numuseraddons = 0;
+// descriptions for hardcoded addons (taken from the back of the box or READMEs and adapted)
+static const char dukevaca_description[] =
+    "Ahhh... the Caribbean, the ultimate vacation destination.\n"
+    "After a few months of alien annihilation, Duke's ready for a little R&R. "
+    "Cabana girls, a beach-side bar and bermuda shorts are all he needs. "
+    "That is, until the alien scum drop in for a little vacation of their own...";
 
-// folder name and json descriptor filename
-static const char addon_dir[] = "addons";
-static const char addonjsonfn[] = "addon.json";
+static const char dukedc_description[] =
+    "Aliens have captured the President!\n"
+    "Duke gets word that alien scum have landed in Washington D.C., "
+    "laid it to waste, and imprisoned the leader of the free world. "
+    "Always up for a heroic deed, Duke heads to D.C. to rid the city "
+    "of enemy dirtbags and return the president to power!";
 
-// extern variables
-useraddon_t** g_useraddons_grpinfo = nullptr;
-useraddon_t** g_useraddons_tcs = nullptr;
-useraddon_t** g_useraddons_mods = nullptr;
+static const char dukenw_description[] =
+    "There's diabolical danger in the northern Ice-Land!\n"
+    "Alien scum have taken over, and the fate of everyone's favorite jolly old man "
+    "and his village of merry little ones hinges on an icy rescue. The Winter "
+    "Wonderland will never be the same once Duke's begun the Arctic Meltdown.";
 
-int32_t g_addoncount_grpinfo = 0;
-int32_t g_addoncount_tcs = 0;
-int32_t g_addoncount_mods = 0;
+static const char dukezone_description[] =
+    "Features 3 new episodes that contain 7 levels each. These maps take Duke "
+    "across urban arctic wastelands, underground passages, canyons, fun houses, "
+    "bars and a toxic chemical processing plant.\n"
+    "Does not include the 500 levels packaged with the original release of the addon.";
 
-int32_t g_num_selected_addons = 0;
-int32_t g_num_active_mdeps = 0;
-int32_t g_num_active_incompats = 0;
+static const char dukepentp_description[] =
+    "Set between the third and fourth episode of Duke Nukem 3D.\n"
+    "While Duke was trying to establish a little \"beach-head,\" the aliens have "
+    "dropped in to break up his fun in the sun and spoil a couple of Penthouse photo "
+    "shoots to boot. It's up to Duke Nukem to save the day - again.";
 
-uint32_t g_addon_compatrendmode = ADDON_RENDMASK;
-
-bool g_addon_failedboot = false;
-
-// utility to free preview image storage
-static void freehashpreviewimage(const char *, intptr_t key)
-{
-    Xfree((void *)key);
-}
-
-void Addon_FreePreviewHashTable(void)
-{
-    hash_loop(&h_addonpreviews, freehashpreviewimage);
-    hash_free(&h_addonpreviews);
-}
-
-void Addon_FreeUserAddons(void)
-{
-    for_grpaddons(addonPtr, { addonPtr->freeContents(); Xfree(addonPtr); });
-    DO_FREE_AND_NULL(g_useraddons_grpinfo);
-    g_addoncount_grpinfo = 0;
-
-    for_tcaddons(addonPtr, { addonPtr->freeContents(); Xfree(addonPtr); });
-    DO_FREE_AND_NULL(g_useraddons_tcs);
-    g_addoncount_tcs = 0;
-
-    for_modaddons(addonPtr, { addonPtr->freeContents(); Xfree(addonPtr); });
-    DO_FREE_AND_NULL(g_useraddons_mods);
-    g_addoncount_mods = 0;
-}
-
-
-// Check if the addon directory exists. This is always placed in the folder where the exe is found.
-static int32_t Addon_GetLocalDir(char * pathbuf, const int32_t buflen)
-{
-    char* appdir = Bgetappdir();
-    Bsnprintf(pathbuf, buflen, "%s/%s", appdir, addon_dir);
-    Xfree(appdir);
-
-    if (!buildvfs_isdir(pathbuf))
-    {
-        // DLOG_F(INFO, "Addon path does not exist: '%s", pathbuf);
-        return -1;
-    }
-
-    return 0;
-}
-
-// remove leading slashes and other non-alpha chars
-static char* Addon_CreateInternalIdentity(const char* src, const int32_t srclen)
-{
-    int i = 0;
-    while (i < srclen && !isalpha(src[i])) i++;
-    return (i >= srclen) ? nullptr : Xstrdup(&src[i]);
-}
 
 // set external identity of the grpinfo addon
 static void Addon_GrpInfo_SetExternalIdentity(useraddon_t * addonPtr, const grpfile_t * agrpf)
@@ -291,6 +270,59 @@ static void Addon_ReadGrpInfo(void)
     }
 }
 
+
+// utility to free preview image storage
+static void freehashpreviewimage(const char *, intptr_t key)
+{
+    Xfree((void *)key);
+}
+
+void Addon_FreePreviewHashTable(void)
+{
+    hash_loop(&h_addonpreviews, freehashpreviewimage);
+    hash_free(&h_addonpreviews);
+}
+
+void Addon_FreeUserAddons(void)
+{
+    for_grpaddons(addonPtr, { addonPtr->freeContents(); Xfree(addonPtr); });
+    DO_FREE_AND_NULL(g_useraddons_grpinfo);
+    g_addoncount_grpinfo = 0;
+
+    for_tcaddons(addonPtr, { addonPtr->freeContents(); Xfree(addonPtr); });
+    DO_FREE_AND_NULL(g_useraddons_tcs);
+    g_addoncount_tcs = 0;
+
+    for_modaddons(addonPtr, { addonPtr->freeContents(); Xfree(addonPtr); });
+    DO_FREE_AND_NULL(g_useraddons_mods);
+    g_addoncount_mods = 0;
+}
+
+
+// Check if the addon directory exists. This is always placed in the folder where the exe is found.
+static int32_t Addon_GetLocalDir(char * pathbuf, const int32_t buflen)
+{
+    char* appdir = Bgetappdir();
+    Bsnprintf(pathbuf, buflen, "%s/%s", appdir, addondirname);
+    Xfree(appdir);
+
+    if (!buildvfs_isdir(pathbuf))
+    {
+        // DLOG_F(INFO, "Addon path does not exist: '%s", pathbuf);
+        return -1;
+    }
+
+    return 0;
+}
+
+// remove leading slashes and other non-alpha chars
+static char* Addon_CreateInternalIdentity(const char* src, const int32_t srclen)
+{
+    int i = 0;
+    while (i < srclen && !isalpha(src[i])) i++;
+    return (i >= srclen) ? nullptr : Xstrdup(&src[i]);
+}
+
 // close recently opened package (removes most recently opened one)
 static void Addon_PackageCleanup(const int32_t grpfileidx)
 {
@@ -339,7 +371,7 @@ static void Addon_ReadLocalPackages(fnlist_t* fnlist, const char* addondir)
             char json_path[BMAX_PATH];
             Bsnprintf(json_path, BMAX_PATH, "/%s", addonjsonfn);
 
-            if (Addon_ParseJson(json_path, addonPtr, "/", rec->name))
+            if (AJ_ParseJsonDescriptor(json_path, addonPtr, "/", rec->name))
             {
                 Addon_PackageCleanup(grpfileidx);
                 addonPtr->freeContents();
@@ -379,7 +411,7 @@ static void Addon_ReadLocalSubfolders(fnlist_t* fnlist, const char* addondir)
 
         char json_path[BMAX_PATH];
         Bsnprintf(json_path, BMAX_PATH, "%s/%s", basepath, addonjsonfn);
-        if (Addon_ParseJson(json_path, addonPtr, basepath, rec->name))
+        if (AJ_ParseJsonDescriptor(json_path, addonPtr, basepath, rec->name))
         {
             addonPtr->freeContents();
             DO_FREE_AND_NULL(addonPtr);
@@ -534,7 +566,7 @@ static int32_t Addon_DependencyMatch(const addondependency_t* depPtr, const user
     if (!packVersion[0] || !depVersion[0] || depPtr->cOp == VCOMP_NOOP)
         return true;
 
-    int const result = Addon_CompareVersionStrings(packVersion, depVersion);
+    int const result = AJ_CompareVersionStrings(packVersion, depVersion);
     switch (depPtr->cOp)
     {
         case VCOMP_EQ:   return (result == 0);

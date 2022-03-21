@@ -1305,6 +1305,9 @@ static const char* m_addontext_grpinfolabel = "Predefined Addons";
 static const char* m_addontext_tclabel = "Total Conversions";
 static const char* m_addontext_modlabel = "Mods and Maps";
 
+static const char m_addon_missing_author[] = "N/A";
+static const char m_addon_missing_description[] = "No description available.";
+
 // the following three arrays must be allocated with the same size
 
 // menu entries with useraddon mapping

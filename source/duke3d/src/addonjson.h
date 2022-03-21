@@ -29,11 +29,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 extern "C" {
 #endif
 
-int32_t Addon_CheckFilePresence(const char* filepath);
-int32_t Addon_CheckVersionFormat(const char* versionString);
-int32_t Addon_CompareVersionStrings(const char* versionA, const char* versionB);
+int32_t AJ_CheckFilePresence(const char* filepath);
+int32_t AJ_CheckVersionFormat(const char* versionString);
+int32_t AJ_CompareVersionStrings(const char* versionA, const char* versionB);
 
-int32_t Addon_ParseJson(char* json_fn, useraddon_t* addonPtr, const char* basepath, const char* packfn);
+int32_t AJ_ParseJsonDescriptor(char* json_fn, useraddon_t* addonPtr, const char* basepath, const char* packfn);
 
 
 #ifdef __cplusplus
