@@ -44,7 +44,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "sbar.h"
 #include "screens.h"
 #include "addons.h"
-#include "addongrpinfo.h"
 
 #ifdef __ANDROID__
 #include "android.h"
@@ -6056,7 +6055,8 @@ static void G_Cleanup(void)
     G_CleanupCommandGrps();
 
     Addon_FreePreviewHashTable();
-    Addon_FreeUserAddons();
+    Addon_FreeUserTCs();
+    Addon_FreeUserMods();
     Addon_FreeGrpInfoAddons();
 
     Duke_CommonCleanup();

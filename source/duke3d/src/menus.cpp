@@ -38,7 +38,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "sbar.h"
 #include "joystick.h"
 #include "addons.h"
-#include "addongrpinfo.h"
 
 #ifndef __ANDROID__
 droidinput_t droidinput;

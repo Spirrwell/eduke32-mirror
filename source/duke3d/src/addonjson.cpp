@@ -21,8 +21,29 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 //-------------------------------------------------------------------------
 
 #include "duke3d.h"
-#include "addonjson.h"
+#include "addons.h"
 #include "sjson.h"
+
+// supported package extensions
+static const char grp_ext[] = "*.grp";
+static const char ssi_ext[] = "*.ssi";
+static const char* addon_extensions[] = { grp_ext, ssi_ext, "*.zip", "*.pk3", "*.pk4" };
+
+// local addon folder name and json descriptor filename
+static const char addondirname[] = "addons";
+static const char addonjsonfn[] = "addon.json";
+
+// temporary storage for all addons -- all addons are first stored in this array before being separated by type
+static useraddon_t** s_useraddons = nullptr;
+static int32_t s_numuseraddons = 0;
+
+// addons that replace the main CON/main DEF file are identified as TCs
+useraddon_t** g_useraddons_tcs = nullptr;
+int32_t g_addoncount_tcs = 0;
+
+// all remaining addons are identified as mods
+useraddon_t** g_useraddons_mods = nullptr;
+int32_t g_addoncount_mods = 0;
 
 // keys used in the JSON addon descriptor
 static const char jsonkey_depid[] = "id";
@@ -80,7 +101,7 @@ static const char jsonval_rendmode_polymost[] = "polymost";
 static const char jsonval_rendmode_polymer[] = "polymer";
 
 // utility to check for file existence
-int32_t AJ_CheckFilePresence(const char* filepath)
+static int32_t AJ_CheckFilePresence(const char* filepath)
 {
     buildvfs_kfd jsonfil = kopen4load(filepath, 0);
     if (jsonfil != buildvfs_kfd_invalid)
@@ -92,28 +113,11 @@ int32_t AJ_CheckFilePresence(const char* filepath)
     return -1;
 }
 
-// extract first segment of version and the starting index of the next segment
-// also returns the char after the segment ends
-// e.g. given string "24.0.1" it will extract 24 and return '.'
-static char AJ_ParseVersionSegment(const char* vString, int32_t & segment, int32_t & nextSegmentStartIndex)
-{
-    // this function assumes that strings were previously verified with AJ_CheckVersionFormat()
-    int k = 0; char c;
-    while((c = vString[k++]))
-    {
-        nextSegmentStartIndex++;
-        if (c == '.' || c == '-')
-            break;
-    }
-    segment = Batoi(vString);
-    return c;
-}
-
 // This awful function verifies that version strings adhere to the following format:
 // REGEX: ((([1-9][0-9]*)|0)\.)*(([1-9][0-9]*))(\-[a-zA-Z0-9]+)?
 // valid examples: {1.0, 1.0.3.4-alphanum123, 2, 4.0-a}
 // This would be better accomplished with a regular expression library
-int32_t AJ_CheckVersionFormat(const char* versionString)
+static int32_t AJ_CheckVersionFormat(const char* versionString)
 {
     if (!versionString || !versionString[0])
         return -1;
@@ -227,59 +231,6 @@ static int32_t AJ_SetupDependencyVersion(addondependency_t * dep, const char* ve
     }
 
     return 0;
-}
-
-// compares two version strings. Outputs 0 if equal, 1 if versionA is greater, -1 if versionB is greater.
-int32_t AJ_CompareVersionStrings(const char* versionA, const char* versionB)
-{
-    // this function assumes that strings were previously verified with AJ_CheckVersionFormat()
-    char c1, c2;
-    int v1, v2, i = 0, j = 0;
-    while(versionA[i] && versionB[j])
-    {
-        c1 = AJ_ParseVersionSegment(&versionA[i], v1, i);
-        c2 = AJ_ParseVersionSegment(&versionB[j], v2, j);
-
-        // first check segment value
-        if (v1 > v2)
-            return 1;
-        else if (v1 < v2)
-            return -1;
-        // char '.' is greater than '-' or null
-        else if (c1 == '.' && (c2 == '\0' || c2 == '-'))
-            return 1;
-        else if ((c1 == '\0' || c1 == '-') && (c2 == '.'))
-            return -1;
-        // '-' is greater than null
-        else if ((c1 == '-') && (c2 == '\0'))
-            return 1;
-        else if ((c1 == '\0') && (c2 == '-'))
-            return -1;
-        // if both null here, equivalent
-        else if (c1 == '\0' && c2 == '\0')
-            return 0;
-        // if both '-', check ASCI ordering in remaining string
-        else if (c1 == '-' && c2 == '-')
-        {
-            while (versionA[i] && versionB[j])
-            {
-                if (versionA[i] > versionB[j])
-                    return 1;
-                else if (versionA[i] < versionB[j])
-                    return -1;
-                i++; j++;
-            }
-        }
-        // if both are '.', loop continues
-    }
-
-    // if we end up here, either versionA[i] or versionA[j] is null
-    if (versionA[i] == versionB[j])
-        return 0;
-    else if (versionA[i] > versionB[j])
-        return 1;
-    else
-        return -1;
 }
 
 static void AJ_CheckUnknownKeys(const char* json_fn, sjson_node *node, const char* parentkey,
@@ -924,4 +875,256 @@ int32_t AJ_ParseJsonDescriptor(char* json_fn, useraddon_t* addonPtr, const char*
     }
 
     return 0;
+}
+
+// close recently opened package (removes most recently opened one)
+static void Addon_PackageCleanup(const int32_t grpfileidx)
+{
+    if (grpfileidx < numgroupfiles)
+        popgroupfile(); // remove grp/ssi
+    else
+        popgroupfromkzstack(); // remove zip
+}
+
+// Check if the addon directory exists. This is always placed in the folder where the exe is found.
+static int32_t Addon_GetLocalDir(char * pathbuf, const int32_t buflen)
+{
+    char* appdir = Bgetappdir();
+    Bsnprintf(pathbuf, buflen, "%s/%s", appdir, addondirname);
+    Xfree(appdir);
+
+    if (!buildvfs_isdir(pathbuf))
+    {
+        // DLOG_F(INFO, "Addon path does not exist: '%s", pathbuf);
+        return -1;
+    }
+
+    return 0;
+}
+
+// remove leading slashes and other non-alpha chars
+static char* Addon_CreateInternalIdentity(const char* src, const int32_t srclen)
+{
+    int i = 0;
+    while (i < srclen && !isalpha(src[i])) i++;
+    return (i >= srclen) ? nullptr : Xstrdup(&src[i]);
+}
+
+// read addon packages (zip, grp, pk3...) from local folder
+static void Addon_ReadLocalPackages(fnlist_t* fnlist, const char* addondir)
+{
+    for (auto & ext : addon_extensions)
+    {
+        BUILDVFS_FIND_REC *rec;
+        fnlist_getnames(fnlist, addondir, ext, -1, 0);
+        for (rec=fnlist->findfiles; rec; rec=rec->next)
+        {
+            char package_path[BMAX_PATH];
+            int const nchar = Bsnprintf(package_path, BMAX_PATH, "%s/%s", addondir, rec->name);
+
+            useraddon_t* & addonPtr = s_useraddons[s_numuseraddons] = (useraddon_t*) Xcalloc(1, sizeof(useraddon_t));
+            addonPtr->internalId = Addon_CreateInternalIdentity(package_path, nchar);
+
+            Bstrncpy(addonPtr->data_path, package_path, BMAX_PATH);
+            addonPtr->loadorder_idx = DEFAULT_LOADORDER_IDX;
+
+            // set initial file type based on extension
+            if (!Bstrcmp(ext, grp_ext)) addonPtr->loadtype = LT_GRP;
+            else if (!Bstrcmp(ext, ssi_ext)) addonPtr->loadtype = LT_SSI;
+            else addonPtr->loadtype = LT_ZIP;
+
+            // load package contents to access the json and preview within
+            const int32_t grpfileidx = initgroupfile(package_path);
+            if (grpfileidx == -1)
+            {
+                DLOG_F(ERROR, "Failed to open addon package at '%s'", package_path);
+                addonPtr->freeContents();
+                DO_FREE_AND_NULL(addonPtr);
+                continue;
+            }
+            else if (grpfileidx >= numgroupfiles) // zip file renamed to grp
+                addonPtr->loadtype = LT_ZIP;
+
+
+            char json_path[BMAX_PATH];
+            Bsnprintf(json_path, BMAX_PATH, "/%s", addonjsonfn);
+
+            if (AJ_ParseJsonDescriptor(json_path, addonPtr, "/", rec->name))
+            {
+                Addon_PackageCleanup(grpfileidx);
+                addonPtr->freeContents();
+                DO_FREE_AND_NULL(addonPtr);
+                continue;
+            }
+            Addon_PackageCleanup(grpfileidx);
+            addonPtr->setSelected(CONFIG_GetAddonActivationStatus(addonPtr->internalId));
+            ++s_numuseraddons;
+        }
+
+        fnlist_clearnames(fnlist);
+    }
+}
+
+// find addons from subfolders
+static void Addon_ReadLocalSubfolders(fnlist_t* fnlist, const char* addondir)
+{
+    // look for addon directories
+    BUILDVFS_FIND_REC *rec;
+    fnlist_getnames(fnlist, addondir, "*", 0, -1);
+    for (rec=fnlist->finddirs; rec; rec=rec->next)
+    {
+        // these aren't actually directories we want to consider
+        if (!strcmp(rec->name, ".")) continue;
+        if (!strcmp(rec->name, "..")) continue;
+
+        char basepath[BMAX_PATH];
+        int const nchar = Bsnprintf(basepath, BMAX_PATH, "%s/%s", addondir, rec->name);
+
+        useraddon_t* & addonPtr = s_useraddons[s_numuseraddons] = (useraddon_t*) Xcalloc(1, sizeof(useraddon_t));
+        addonPtr->internalId = Addon_CreateInternalIdentity(basepath, nchar);
+
+        Bstrncpy(addonPtr->data_path, basepath, BMAX_PATH);
+        addonPtr->loadorder_idx = DEFAULT_LOADORDER_IDX;
+        addonPtr->loadtype = LT_FOLDER;
+
+        char json_path[BMAX_PATH];
+        Bsnprintf(json_path, BMAX_PATH, "%s/%s", basepath, addonjsonfn);
+        if (AJ_ParseJsonDescriptor(json_path, addonPtr, basepath, rec->name))
+        {
+            addonPtr->freeContents();
+            DO_FREE_AND_NULL(addonPtr);
+            continue;
+        }
+
+        addonPtr->setSelected(CONFIG_GetAddonActivationStatus(addonPtr->internalId));
+        ++s_numuseraddons;
+    }
+    fnlist_clearnames(fnlist);
+}
+
+// find addon from Steam Workshop folders
+static void Addon_ReadWorkshopItems(void)
+{
+    // TODO
+}
+
+// count potential maximum number of addons
+static int32_t Addon_CountPotentialAddons(void)
+{
+    int32_t numaddons = 0;
+
+    char addonpathbuf[BMAX_PATH];
+    if (!Addon_GetLocalDir(addonpathbuf, BMAX_PATH))
+    {
+        fnlist_t fnlist = FNLIST_INITIALIZER;
+        fnlist_clearnames(&fnlist);
+
+        // get number of packages in the local addon dir
+        for (auto & ext : addon_extensions)
+        {
+            fnlist_getnames(&fnlist, addonpathbuf, ext, -1, 0);
+            numaddons += fnlist.numfiles;
+            fnlist_clearnames(&fnlist);
+        }
+
+        // get number of subfolders
+        fnlist_getnames(&fnlist, addonpathbuf, "*", 0, -1);
+        for (BUILDVFS_FIND_REC *rec = fnlist.finddirs; rec; rec=rec->next)
+        {
+            if (!strcmp(rec->name, ".")) continue;
+            if (!strcmp(rec->name, "..")) continue;
+            numaddons++;
+        }
+        fnlist_clearnames(&fnlist);
+    }
+
+    // TODO: get number of Steam Workshop addon folders
+
+    return numaddons;
+}
+
+// This splits the internal addon array into the distinct types
+static void Addon_SplitAddonTypes(void)
+{
+    g_addoncount_tcs = 0;
+    g_addoncount_mods = 0;
+    for (int i = 0; i < s_numuseraddons; i++)
+    {
+        useraddon_t* addonPtr = s_useraddons[i];
+        if (!addonPtr->isValid()) continue;
+        else if (addonPtr->isTotalConversion()) g_addoncount_tcs++;
+        else g_addoncount_mods++;
+    }
+
+    g_useraddons_tcs = (useraddon_t **) Xcalloc(g_addoncount_tcs, sizeof(useraddon_t*));
+    g_useraddons_mods = (useraddon_t **) Xcalloc(g_addoncount_mods, sizeof(useraddon_t*));
+
+    //copy data over
+    int tcidx = 0, modidx = 0;
+    for (int i = 0; i < s_numuseraddons; i++)
+    {
+        useraddon_t* addonPtr = s_useraddons[i];
+        if (!addonPtr->isValid())
+        {
+            DO_FREE_AND_NULL(s_useraddons[i]);
+            continue;
+        }
+        else if (addonPtr->isTotalConversion()) g_useraddons_tcs[tcidx++] = addonPtr;
+        else g_useraddons_mods[modidx++] = addonPtr;
+    }
+}
+
+void Addon_FreeUserTCs(void)
+{
+    for_tcaddons(addonPtr, { addonPtr->freeContents(); Xfree(addonPtr); });
+    DO_FREE_AND_NULL(g_useraddons_tcs);
+    g_addoncount_tcs = 0;
+}
+
+void Addon_FreeUserMods(void)
+{
+    for_modaddons(addonPtr, { addonPtr->freeContents(); Xfree(addonPtr); });
+    DO_FREE_AND_NULL(g_useraddons_mods);
+    g_addoncount_mods = 0;
+}
+
+// Important: this function is called before the setup window is shown
+// Hence it must not depend on any variables initialized from game content
+void Addon_ReadJsonDescriptors(void)
+{
+    // free previous storage
+    Addon_FreeUserTCs();
+    Addon_FreeUserMods();
+
+    // use absolute paths to load addons
+    int const bakpathsearchmode = pathsearchmode;
+    pathsearchmode = 1;
+
+    // create space for all potentially valid addons
+    int32_t maxaddons = Addon_CountPotentialAddons();
+    if (maxaddons <= 0)
+        return;
+
+    // these variables are updated over the following functions
+    s_useraddons = (useraddon_t **) Xcalloc(maxaddons, sizeof(useraddon_t*));
+    s_numuseraddons = 0;
+
+    char addonpathbuf[BMAX_PATH];
+    if (!Addon_GetLocalDir(addonpathbuf, BMAX_PATH))
+    {
+        fnlist_t fnlist = FNLIST_INITIALIZER;
+        fnlist_clearnames(&fnlist);
+        Addon_ReadLocalPackages(&fnlist, addonpathbuf);
+        Addon_ReadLocalSubfolders(&fnlist, addonpathbuf);
+    }
+
+    Addon_ReadWorkshopItems();
+
+    pathsearchmode = bakpathsearchmode;
+
+    if (s_numuseraddons > 0)
+        Addon_SplitAddonTypes();
+
+    DO_FREE_AND_NULL(s_useraddons);
+    s_numuseraddons = 0;
 }

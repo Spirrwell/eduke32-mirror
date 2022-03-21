@@ -21,7 +21,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 //-------------------------------------------------------------------------
 
 #include "duke3d.h"
-#include "addongrpinfo.h"
+#include "addons.h"
 
 // addons loaded from .grpinfo files. Mutually exclusive and replace the selected GRP.
 useraddon_t** g_useraddons_grpinfo = nullptr;
@@ -251,28 +251,4 @@ void Addon_ReadGrpInfoDescriptors(void)
     }
 
     g_useraddons_grpinfo = (useraddon_t **) Xrealloc(g_useraddons_grpinfo, g_addoncount_grpinfo * sizeof(useraddon_t*));
-}
-
-// iterate through all grp info addons, find selected one, change game grp
-int32_t Addon_LoadGrpInfoAddons(void)
-{
-    if (g_addoncount_grpinfo <= 0 || !g_useraddons_grpinfo)
-        return -1;
-
-    for_grpaddons(addonPtr,
-    {
-        if (!addonPtr->isSelected() || !Addon_MatchesSelectedGame(addonPtr))
-            continue;
-
-        if (!addonPtr->isValid() || addonPtr->isTotalConversion() || !addonPtr->isGrpInfoAddon() || !addonPtr->grpfile)
-        {
-            LOG_F(ERROR, "Skip invalid grpinfo in init: %s. This shouldn't be happening.", addonPtr->internalId);
-            continue;
-        }
-
-        g_selectedGrp = addonPtr->grpfile;
-        break; // only load one at most
-    });
-
-    return 0;
 }

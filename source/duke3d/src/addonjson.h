@@ -23,18 +23,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #ifndef addonjson_h_
 #define addonjson_h_
 
-#include "addons.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t AJ_CheckFilePresence(const char* filepath);
-int32_t AJ_CheckVersionFormat(const char* versionString);
-int32_t AJ_CompareVersionStrings(const char* versionA, const char* versionB);
-
-int32_t AJ_ParseJsonDescriptor(char* json_fn, useraddon_t* addonPtr, const char* basepath, const char* packfn);
-
+void Addon_FreeUserTCs();
+void Addon_FreeUserMods(void);
+void Addon_ReadJsonDescriptors(void);
 
 #ifdef __cplusplus
 }

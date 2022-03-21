@@ -159,6 +159,9 @@
     <ClInclude Include="..\..\source\duke3d\src\addonjson.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\source\duke3d\src\addongrpinfo.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\source\duke3d\src\actors.cpp">
@@ -263,10 +266,13 @@
     <ClCompile Include="..\..\source\duke3d\src\dnames.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\source\duke3d\src\addons.cpp">
+    <ClCompile Include="..\..\source\duke3d\src\addongrpinfo.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\source\duke3d\src\addonjson.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\source\duke3d\src\addons.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

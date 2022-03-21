@@ -23,6 +23,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #ifndef addons_h_
 #define addons_h_
 
+#include "addongrpinfo.h"
+#include "addonjson.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -271,6 +274,10 @@ struct useraddon_t
 
 };
 
+// addons loaded from .grpinfo files. Mutually exclusive and replace the selected GRP.
+extern useraddon_t** g_useraddons_grpinfo;
+extern int32_t g_addoncount_grpinfo;
+
 // addons loaded from .json descriptors which replace the main CON/DEF script
 // under normal circumstances these are mutually exclusive
 extern useraddon_t** g_useraddons_tcs;
@@ -280,6 +287,14 @@ extern int32_t g_addoncount_tcs;
 // these are treated as modular with load-order and can (usually) be loaded together
 extern useraddon_t** g_useraddons_mods;
 extern int32_t g_addoncount_mods;
+
+// shorthands for common iteration types
+#define for_grpaddons(_ptr, _body)\
+    for (int _idx = 0; _idx < g_addoncount_grpinfo; _idx++)\
+    {\
+        useraddon_t* _ptr = g_useraddons_grpinfo[_idx];\
+        _body;\
+    }
 
 #define for_tcaddons(_ptr, _body)\
     for (int _idx = 0; _idx < g_addoncount_tcs; _idx++)\
@@ -309,14 +324,9 @@ void Addon_FreePreviewHashTable(void);
 void Addon_LoadPreviewImages(void);
 int32_t Addon_LoadPreviewTile(const useraddon_t* addon);
 
-
-void Addon_FreeUserAddons(void);
-void Addon_ReadJsonDescriptors(void);
 void Addon_PruneInvalidAddons(useraddon_t** & useraddons, int32_t & numuseraddons);
-
 void Addon_InitializeLoadOrders(void);
 
-bool Addon_MatchesSelectedGame(const useraddon_t* addonPtr);
 const char* Addon_RetrieveStartMap(int32_t & startlevel, int32_t & startvolume);
 void Addon_RefreshPropertyTrackers(void);
 
@@ -324,6 +334,7 @@ void Addon_RefreshPropertyTrackers(void);
 int32_t Addon_GetBootRendmode(int32_t const rendmode);
 #endif
 
+int32_t Addon_LoadGrpInfoAddons(void);
 int32_t Addon_LoadUserTCs(void);
 int32_t Addon_LoadUserMods(void);
 
