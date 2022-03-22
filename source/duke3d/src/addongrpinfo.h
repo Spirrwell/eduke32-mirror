@@ -27,8 +27,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 extern "C" {
 #endif
 
-void Addon_FreeGrpInfoAddons(void);
+// ----------------------------------------
+
 void Addon_ReadGrpInfoDescriptors(void);
+void Addon_FreeGrpInfoAddons(void);
+
+// ----------------------------------------
 
 #ifdef __cplusplus
 }

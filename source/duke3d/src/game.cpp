@@ -5910,6 +5910,7 @@ int loaduseraddons(void)
     Addon_InitializeLoadOrders();
 
     // update counters and dependencies
+    Addon_RefreshDependencyStates();
     Addon_RefreshPropertyTrackers();
 
     // prepare TCs and mods for loading

@@ -9548,9 +9548,17 @@ static int32_t parsegroupfiles(scriptfile *script)
     return 0;
 }
 
-int loadgrpinfoaddons(void){ /* stub */ }
+int loadgrpinfoaddons(void)
+{
+    // stub
+    return 0;
+}
 
-int loaduseraddons(void) { /* stub */ }
+int loaduseraddons(void)
+{
+    // stub
+    return 0;
+}
 
 int loaddefinitions_game(const char *fn, int32_t preload)
 {

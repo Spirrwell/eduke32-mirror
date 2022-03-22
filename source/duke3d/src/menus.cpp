@@ -232,7 +232,9 @@ MenuFont_t MF_Minifont =              { { 4<<16, 5<<16 },   { 1<<16, 1<<16 },0, 
                                         -1,                 10,                 0,                  0,                  2,                  2,                  0,
                                         0,                  0,                  16 };
 
-// runtime copies of Minifont for the addon menu entry list
+
+// hack: runtime copies of Minifont for the addon menu entry list
+// these exist mainly to change the palette and size
 MenuFont_t MF_Minifont_Addon_Entry = {};
 MenuFont_t MF_Minifont_Addon_Active = {};
 MenuFont_t MF_Minifont_Addon_Warning = {};
@@ -312,6 +314,9 @@ static MenuOptionSet_t MEOS_Gamefuncs = MAKE_MENUOPTIONSET( MEOSN_Gamefuncs, MEO
 int32_t cvar_kbo_type = 1;
 int32_t cvar_kbconfirm = 1;
 int32_t cvar_addonmenu_strict = 1;
+
+// true if we should switch to skill menu and prepare map start
+static bool m_addons_launchmap = false;
 
 static int g_lookAxis = -1;
 static int g_turnAxis = -1;
@@ -1239,19 +1244,24 @@ static MenuEntry_t ME_SAVE_NEW = MAKE_MENUENTRY( s_NewSaveGame, &MF_Minifont, &M
 static MenuEntry_t *ME_SAVE;
 static MenuEntry_t **MEL_SAVE;
 
+// -------------------------------------------
+// Addon Menu - Definitions and Variables
 
-// addon variables and definitions
-#define MENU_ADDON_TITLESCROLL_MAXVIS 42
-#define MENU_ADDON_SCROLLDELAY 30
+// total addon count combined
+#define NUM_TOTAL_ADDONS (g_addoncount_grpinfo + g_addoncount_tcs + g_addoncount_mods)
 
-#define MENU_ADDON_MAXTITLE 64
-#define MENU_ADDON_VISTITLE (FURY ? 52 : 44)
+// macros for the visible addon description
+#define MENUADDON_MAXTITLE 64
+#define MENUADDON_VISTITLE (MENUADDON_MAXTITLE - (FURY ? 8 : 16))
+#define MENUADDON_MAXBODY 16384
+#define MENUADDON_MAXID 48
+#define MENUADDON_MAXVERSION 48
 
-#define MENU_ADDON_MAXDESC (ADDON_MAXDESC + 2048)
-#define MENU_ADDON_MAXID (ADDON_MAXID + 16)
-#define MENU_ADDON_MAXVERSION (ADDON_MAXVERSION + 16)
+// initial and interval wait for addon menu entry scrolling, in gametics
+#define MENUADDON_SCROLLDELAY 60
+#define MENUADDON_SCROLLINTERVAL 30
 
-// Addon Body Text Properties
+// menu addon body text formatting properties
 #define ABT_TNUM      (MF_Minifont.tilenum)
 #define ABT_ZOOM      ((FURY) ? (15*1024) : (46*1024))
 #define ABT_BANGLE    (0)
@@ -1278,21 +1288,15 @@ static MenuEntry_t **MEL_SAVE;
 #define ABT_GETXYSIZE(__textstr) G_ScreenTextSize(ABT_TNUM, 0, 0, ABT_ZOOM, ABT_BANGLE, __textstr, ABT_ORIENT,\
                                     ABT_XSPACE, ABT_YLINE, ABT_XBETWEEN, ABT_YBETWEEN, ABT_FLAGS, 0, 0, xdim-1, ydim-1)
 
-// upper and lower display boundary for the addon menu description
+// upper and lower display boundary for the addon menu description (this is awful)
 #define ABT_YBOUNDS_TOP     ((FURY) ? ((ydim * 45) / 64) : ((ydim * 23) / 32))
 #define ABT_YBOUNDS_BOTTOM  ((FURY) ? ((ydim * 29) / 32) : ((ydim * 15) / 16))
 
-// total addon count combined
-#define NUM_TOTAL_ADDONS (g_addoncount_grpinfo + g_addoncount_tcs + g_addoncount_mods)
-
-// text display buffers on the addon mneu
-static char m_addontitle_buffer[MENU_ADDON_MAXTITLE];
-static char m_addondesc_buffer[MENU_ADDON_MAXDESC];
-static char m_addonidentity_buffer[MENU_ADDON_MAXID];
-static char m_addonversion_buffer[MENU_ADDON_MAXVERSION];
-
-// true if we should switch to skill menu and prepare map start
-static bool m_addons_launchmap = false;
+// text display buffers on the addon menu
+static char m_addontitle_buffer[MENUADDON_MAXTITLE];
+static char m_addondesc_buffer[MENUADDON_MAXBODY];
+static char m_addonidentity_buffer[MENUADDON_MAXID];
+static char m_addonversion_buffer[MENUADDON_MAXVERSION];
 
 // scroll position and number of lines of body (to determine whether scrolling should be enabled)
 static int32_t m_addondesc_scrollpos = 0;
@@ -1303,15 +1307,12 @@ static int32_t m_addontitle_hscroll_lastticks = 0;
 static int32_t m_addontitle_hscroll = 0;
 
 // various strings
-static const char* m_addontext_launch = "Confirm Selection and Restart";
-static const char* m_addontext_grpinfolabel = "Predefined Addons";
-static const char* m_addontext_tclabel = "Total Conversions";
-static const char* m_addontext_modlabel = "Mods and Maps";
-
-static const char m_addon_missing_author[] = "N/A";
-static const char m_addon_missing_description[] = "No description available.";
-
-// the following three arrays must be allocated with the same size
+static const char m_addontext_launch[] = "Confirm Selection and Restart";
+static const char m_addontext_grpinfolabel[] = "GRP Info Addons";
+static const char m_addontext_tclabel[] = "Total Conversions";
+static const char m_addontext_modlabel[] = "Mods and Maps";
+static const char m_addontext_noauthor[] = "N/A";
+static const char m_addontext_nodescription[] = "No description available.";
 
 // menu entries with useraddon mapping
 static MenuEntry_t **MEL_ADDONS = nullptr;
@@ -1325,6 +1326,7 @@ static MenuEntry_t ME_ADDONS_ACCEPT = MAKE_MENUENTRY( m_addontext_launch, &MF_Mi
 static MenuEntry_t ME_ADDONS_ITEM = MAKE_MENUENTRY( NULL, &MF_Minifont_Addon_Entry, &MEF_Addons, &MEO_ADDONS_NULL, Link );
 static MenuEntry_t ME_ADDONS_LABEL = MAKE_MENUENTRY( NULL, &MF_Minifont_Addon_Label, &MEF_Addons, &MEO_ADDONS_NULL, Dummy );
 
+// -------------------------------------------
 
 #ifdef __linux__
 static int32_t alsadevice;
@@ -2080,15 +2082,19 @@ static void Menu_SetKeyboardScanCode(MenuCustom2Col_t* columnEntry, const int32_
                     ud.config.KeyboardKeys[columnEntry->linkIndex][1], key[1]);
 }
 
+
+// -------------------------------------------
+// Addon Menu - Functions
+
 // performs textwrap on the given string, storing it in the destination buffer
 // returns x/y dimensions of wrapped string
-static vec2_t Menu_Addon_BodyTextWrap(char* dst, const char *src, int32_t const n)
+static vec2_t MenuAddon_BodyTextWrap(char* dst, const char *src, int32_t const bufsize)
 {
     // in case source is empty
     dst[0] = '\0';
 
     int i = 0, j = 0, ws_idx = 0, lb_idx = 0;
-    while (src[i] && (j < n-1))
+    while (src[i] && (j < bufsize-1))
     {
         // check for linebreak and whitespace index
         if (src[i] == '\n') lb_idx = j;
@@ -2119,33 +2125,38 @@ static vec2_t Menu_Addon_BodyTextWrap(char* dst, const char *src, int32_t const 
     return ABT_GETXYSIZE(dst);
 }
 
-static void Menu_Addon_ResetHorizontalScroll(void)
+static void inline Menu_Addon_ResetHorizontalScroll(void)
 {
     // reset the title shift for the selected addon and record time of change
     m_addontitle_hscroll = 0;
-    m_addontitle_hscroll_lastticks = timer120() + 60; // 2 second delay until start shifting
+    m_addontitle_hscroll_lastticks = timer120() + MENUADDON_SCROLLDELAY;
 }
 
 // update font for the menu entry depending on status
 static void Menu_Addon_UpdateMenuEntryStatus(MenuEntry_t* menuEntry, useraddon_t* addonPtr)
 {
-    addonPtr->updateMenuEntryName(0, MENU_ADDON_TITLESCROLL_MAXVIS);
+    Addon_UpdateMenuEntryName(addonPtr, 0);
 
-    bool hasIssue = addonPtr->mdeps || addonPtr->incompats;
-    hasIssue |= (addonPtr->jsondat.compat_rendmodes & (g_addon_compatrendmode & ADDON_SUPPORTED_RENDMODES)) == 0;
+    // addon has missing dependencies or active incompatibilities
+    bool hasIssue = addonPtr->missing_deps || addonPtr->active_incompats;
+
+    // addon requires incompatible rendmode
+    hasIssue = hasIssue || ((addonPtr->compatrendmode & (g_addon_compatrendmode & ADDON_SUPPORTED_RENDMODES)) == 0);
 
     if (addonPtr->isSelected())
     {
+        // do not disable when already selected
         menuEntry->font = (hasIssue) ? &MF_Minifont_Addon_Warning : &MF_Minifont_Addon_Active;
     }
     else
     {
+        // if not selected, disable when strictmode is on and show normal font
         MenuEntry_DisableOnCondition(menuEntry, cvar_addonmenu_strict && hasIssue);
         menuEntry->font = &MF_Minifont_Addon_Entry;
     }
 }
 
-
+// this function handles the loadorder change in the menu
 static int32_t Menu_AddonMenuUpDown(int32_t const entryIndex, int32_t const otherIndex, int32_t const minBound, int32_t const maxBound)
 {
     useraddon_t* thisAddon = EL2ADDONS[entryIndex];
@@ -2180,12 +2191,11 @@ static int32_t Menu_AddonMenuUpDown(int32_t const entryIndex, int32_t const othe
 
     }
 
-    if (thisAddon) thisAddon->updateMenuEntryName(0, MENU_ADDON_TITLESCROLL_MAXVIS);
-
+    Addon_UpdateMenuEntryName(thisAddon, 0);
     return 0;
 }
 
-// return -1 if an unusual error occurred
+// this function handles selecting an addon and activating it
 static int32_t Menu_Addon_EntryLinkActivate(int32_t const entryIndex)
 {
     useraddon_t* addonPtr = EL2ADDONS[entryIndex];
@@ -2193,7 +2203,7 @@ static int32_t Menu_Addon_EntryLinkActivate(int32_t const entryIndex)
     // if an addon was found for this menu entry, select it to be launched on next reboot
     if (addonPtr)
     {
-        if (addonPtr->isGrpInfoAddon())
+        if (addonPtr->content_type & ADDONTYPE_GRPINFO)
         {
             // unselect all other grp info addons
             for_grpaddons(otherAddon,
@@ -2202,7 +2212,7 @@ static int32_t Menu_Addon_EntryLinkActivate(int32_t const entryIndex)
                 otherAddon->setSelected(false);
             });
         }
-        else if (addonPtr->isTotalConversion())
+        else if (addonPtr->content_type & ADDONTYPE_TC)
         {
             // unselect other total conversions only if strict mode set
             if (cvar_addonmenu_strict)
@@ -2219,9 +2229,10 @@ static int32_t Menu_Addon_EntryLinkActivate(int32_t const entryIndex)
         }
 
         addonPtr->setSelected(!addonPtr->isSelected());
-        if (!addonPtr->isGrpInfoAddon())
+        if (!(addonPtr->content_type & ADDONTYPE_GRPINFO))
             CONFIG_SetAddonActivationStatus(addonPtr->internalId, addonPtr->isSelected());
 
+        Addon_RefreshDependencyStates();
         Addon_RefreshPropertyTrackers();
 
         // update menu entries
@@ -2238,63 +2249,63 @@ static int32_t Menu_Addon_EntryLinkActivate(int32_t const entryIndex)
 }
 
 // Refresh contents of text buffers (argument may be null)
+// TODO: Needs a complete overhaul
 static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
 {
     // local buffer for description contents, before it is passed to the text wrapper
-    char tempcontentbuf[MENU_ADDON_MAXDESC + 1024];
+    char tempcontentbuf[MENUADDON_MAXBODY];
     tempcontentbuf[0] = '\0';
 
     int const standardPal = MENUTEXTPAL_BLUE;
     if (addonPtr && addonPtr->isValid())
     {
-        if (strlen(addonPtr->jsondat.title) >= MENU_ADDON_VISTITLE)
+        if (strlen(addonPtr->title) >= MENUADDON_VISTITLE)
         {
-            Bstrncpyz(m_addontitle_buffer, addonPtr->jsondat.title, MENU_ADDON_VISTITLE);
-            Bstrncat(m_addontitle_buffer, "...", MENU_ADDON_VISTITLE);
+            Bstrncpyz(m_addontitle_buffer, addonPtr->title, MENUADDON_VISTITLE);
+            Bstrncat(m_addontitle_buffer, "...", MENUADDON_VISTITLE);
         }
         else
-            Bstrncpy(m_addontitle_buffer,  addonPtr->jsondat.title, MENU_ADDON_MAXTITLE);
+            Bstrncpy(m_addontitle_buffer,  addonPtr->title, MENUADDON_MAXTITLE);
 
-        Bsnprintf(m_addonidentity_buffer, MENU_ADDON_MAXID, "^%dIdentity:^%d %s",
-                    MENUTEXTPAL_GRAY, MENUTEXTPAL_BLUE, addonPtr->jsondat.externalId);
+        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%dIdentity:^%d %s",
+                    MENUTEXTPAL_GRAY, MENUTEXTPAL_BLUE, addonPtr->externalId);
 
-        Bsnprintf(m_addonversion_buffer, MENU_ADDON_MAXVERSION, "^%dVersion:^%d %s",
-                MENUTEXTPAL_GRAY, MENUTEXTPAL_BLUE, addonPtr->jsondat.version[0] ? addonPtr->jsondat.version : "N/A");
+        Bsnprintf(m_addonversion_buffer, MENUADDON_MAXVERSION, "^%dVersion:^%d %s",
+                MENUTEXTPAL_GRAY, MENUTEXTPAL_BLUE, addonPtr->version ? addonPtr->version : "N/A");
 
-        if (addonPtr->jsondat.author[0])
+        if (addonPtr->author)
         {
-            char authorbuf[24 + ADDON_MAXAUTHOR];
-            Bsnprintf(authorbuf, 24 + ADDON_MAXAUTHOR, "^%dAuthor(s):^%d %s\n", MENUTEXTPAL_GRAY, standardPal, addonPtr->jsondat.author);
-            Bstrcat(tempcontentbuf, authorbuf);
+            Bsnprintf(tempbuf, 128, "^%dAuthor(s):^%d %s\n", MENUTEXTPAL_GRAY, standardPal, addonPtr->author);
+            Bstrcat(tempcontentbuf, tempbuf);
         }
-        if (addonPtr->jsondat.num_dependencies > 0)
+        if (addonPtr->num_dependencies > 0)
         {
             char dstbuf[24];
             Bsnprintf(dstbuf, 24, "^%dDependencies:^%d ", MENUTEXTPAL_GRAY, standardPal);
             Bstrcat(tempcontentbuf, dstbuf);
-            for(int i = 0; i < addonPtr->jsondat.num_dependencies; i++)
+            for(int i = 0; i < addonPtr->num_dependencies; i++)
             {
                 if (i > 0) Bstrcat(tempcontentbuf, ", ");
-                Bstrcat(tempcontentbuf, addonPtr->jsondat.dependencies[i].depId);
+                Bstrcat(tempcontentbuf, addonPtr->dependencies[i].dependencyId);
             }
             Bstrcat(tempcontentbuf, "\n");
         }
-        if (addonPtr->jsondat.num_incompatibles > 0)
+        if (addonPtr->num_incompatibles > 0)
         {
             char dstbuf[32];
             Bsnprintf(dstbuf, 32, "^%dIncompatible with:^%d ", MENUTEXTPAL_GRAY, standardPal);
             Bstrcat(tempcontentbuf, dstbuf);
-            for(int i = 0; i < addonPtr->jsondat.num_incompatibles; i++)
+            for(int i = 0; i < addonPtr->num_incompatibles; i++)
             {
                 if (i > 0) Bstrcat(tempcontentbuf, ", ");
-                Bstrcat(tempcontentbuf, addonPtr->jsondat.incompatibles[i].depId);
+                Bstrcat(tempcontentbuf, addonPtr->incompatibles[i].dependencyId);
             }
             Bstrcat(tempcontentbuf, "\n");
         }
-        if (addonPtr->jsondat.author[0])
+        if (addonPtr->description)
         {
             Bstrcat(tempcontentbuf, "\n");
-            Bstrcat(tempcontentbuf, addonPtr->jsondat.description);
+            Bstrcat(tempcontentbuf, addonPtr->description);
         }
     }
     else
@@ -2306,27 +2317,27 @@ static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
         if (g_num_selected_addons == 0)
         {
             const char* fmtstring = (FURY) ? "^%dUnload User Content" : "^%dUnload Current Addons";
-            Bsnprintf(m_addonidentity_buffer, MENU_ADDON_MAXID, fmtstring, MENUTEXTPAL_BLUE);
+            Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, fmtstring, MENUTEXTPAL_BLUE);
         }
         else if (g_num_active_incompats > 0)
-            Bsnprintf(m_addonidentity_buffer, MENU_ADDON_MAXID, "^%dIncompatible Addons: %d", MENUTEXTPAL_RED, g_num_active_incompats);
+            Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%dIncompatible Addons: %d", MENUTEXTPAL_RED, g_num_active_incompats);
         else if (g_num_active_mdeps > 0)
-            Bsnprintf(m_addonidentity_buffer, MENU_ADDON_MAXID, "^%dMissing Dependencies: %d", MENUTEXTPAL_RED, g_num_active_mdeps);
+            Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%dMissing Dependencies: %d", MENUTEXTPAL_RED, g_num_active_mdeps);
         else if (!g_addon_compatrendmode)
-            Bsnprintf(m_addonidentity_buffer, MENU_ADDON_MAXID, "^%dRendermode Conflict!", MENUTEXTPAL_RED);
+            Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%dRendermode Conflict!", MENUTEXTPAL_RED);
         else if ((g_addon_compatrendmode & ADDON_SUPPORTED_RENDMODES) == 0)
-            Bsnprintf(m_addonidentity_buffer, MENU_ADDON_MAXID, "^%dUnsupported Rendmode!", MENUTEXTPAL_RED);
+            Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%dUnsupported Rendmode!", MENUTEXTPAL_RED);
         else
         {
             const char* fmtstring = (FURY) ? "^%dLaunch User Content" : "^%dLaunch Selected Addons";
-            Bsnprintf(m_addonidentity_buffer, MENU_ADDON_MAXID, fmtstring, MENUTEXTPAL_GREEN);
+            Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, fmtstring, MENUTEXTPAL_GREEN);
         }
 
         Bstrcat(tempcontentbuf, "\n- Select addons to enable them, then confirm the selection.\n");
         Bstrcat(tempcontentbuf, "- PgUp/PgDn/Mousewheel: Scroll addon description up/down.\n");
         Bstrcat(tempcontentbuf, "- Shift + Arrow Keys: Change the load order of the addons.\n");
     }
-    m_addondesc_xysize = Menu_Addon_BodyTextWrap(m_addondesc_buffer, tempcontentbuf, MENU_ADDON_MAXDESC);
+    m_addondesc_xysize = MenuAddon_BodyTextWrap(m_addondesc_buffer, tempcontentbuf, MENUADDON_MAXBODY);
 }
 
 static void Menu_Addon_SetupMenuSpacer(int32_t & listIdx, const char* textlabel)
@@ -2367,8 +2378,11 @@ static void Menu_PopulateAddonsMenu(void)
     Addon_PruneInvalidAddons(g_useraddons_tcs, g_addoncount_tcs);
     Addon_PruneInvalidAddons(g_useraddons_mods, g_addoncount_mods);
 
+    // initialize load orders, dependencies, other properties
     Addon_InitializeLoadOrders();
+    Addon_RefreshDependencyStates();
     Addon_RefreshPropertyTrackers();
+
     Addon_LoadPreviewImages();
 
     // compute number of menu items
@@ -2424,6 +2438,7 @@ static void Menu_PopulateAddonsMenu(void)
     M_ADDONS.numEntries = nummenuitems;
 }
 
+// -------------------------------------------
 
 /*
 This function prepares data after ART and CON have been processed.
@@ -3687,15 +3702,15 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
         else
         {
             // scroll menu entry name horizontally at regular intervals
-            if (((int) Bstrlen(addonPtr->jsondat.title)) - m_addontitle_hscroll > MENU_ADDON_TITLESCROLL_MAXVIS)
+            if (((int) Bstrlen(addonPtr->title)) - m_addontitle_hscroll > ADDON_VISENTRYNAME)
             {
                 // initial delay result in negative elapsed, cast to 64 bit to preserve timer value
                 int64_t const elapsed = ((int64_t) timer120()) - m_addontitle_hscroll_lastticks;
-                if (elapsed >= MENU_ADDON_SCROLLDELAY)
+                if (elapsed >= MENUADDON_SCROLLINTERVAL)
                 {
                     m_addontitle_hscroll++;
                     m_addontitle_hscroll_lastticks = timer120(); // no delay here
-                    addonPtr->updateMenuEntryName(m_addontitle_hscroll, MENU_ADDON_TITLESCROLL_MAXVIS);
+                    Addon_UpdateMenuEntryName(addonPtr, m_addontitle_hscroll);
                 }
             }
 
@@ -3776,6 +3791,7 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
         break;
 
     case MENU_ADDONSVERIFY:
+        // TODO: Overhaul
         videoFadeToBlack(1);
         if (g_num_selected_addons == 0)
             Bsprintf(tempbuf, "Unload all custom content?\nThis will restart the current game.");
@@ -4345,7 +4361,7 @@ static void Menu_EntryFocus(/*MenuEntry_t *entry*/)
             m_addondesc_scrollpos = 0;
 
             useraddon_t* addonPtr = EL2ADDONS[M_ADDONS.currentEntry];
-            if (addonPtr) addonPtr->updateMenuEntryName(0, MENU_ADDON_TITLESCROLL_MAXVIS);
+            Addon_UpdateMenuEntryName(addonPtr, 0);
 
             // update menu contents using given addon
             Menu_Addon_RefreshTextBuffers(addonPtr);

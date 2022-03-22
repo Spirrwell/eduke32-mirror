@@ -27,9 +27,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 extern "C" {
 #endif
 
+// ----------------------------------------
+
+void Addon_ReadJsonDescriptors(void);
 void Addon_FreeUserTCs();
 void Addon_FreeUserMods(void);
-void Addon_ReadJsonDescriptors(void);
+
+// ----------------------------------------
 
 #ifdef __cplusplus
 }

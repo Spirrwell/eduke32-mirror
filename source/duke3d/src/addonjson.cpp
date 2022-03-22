@@ -62,6 +62,7 @@ static const char jsonkey_incompatibles[] = "incompatibles";
 static const char jsonkey_rendmodes[] = "rendmodes";
 static const char jsonkey_startmap[] = "startmap";
 
+// all keys of the base json level -- anything else being present triggers a warning
 static const char* json_basekeys[] =
 {
     jsonkey_depid, jsonkey_game, jsonkey_gamecrc, jsonkey_version,jsonkey_title,
@@ -83,7 +84,7 @@ static const char jsonkey_maplevel[] = "level";
 static const char jsonkey_mapfile[] = "file";
 static const char* json_startmapkeys[] = {jsonkey_mapvolume, jsonkey_maplevel, jsonkey_mapfile};
 
-// string sequences to identify different gametypes
+// string sequences to identify different gametypes -- anything else triggers an error
 static const char jsonval_gt_any[] = "any";
 static const char jsonval_gt_duke[] = "duke3d";
 static const char jsonval_gt_nam[] = "nam";
@@ -94,14 +95,14 @@ static const char jsonval_gt_fury[] = "fury";
 static const char jsonval_scriptmain[] = "main";
 static const char jsonval_scriptmodule[] = "module";
 
-// rendmodes
+// rendmode types -- opengl is either polymost or polymer
 static const char jsonval_rendmode_classic[] = "classic";
 static const char jsonval_rendmode_opengl[] = "opengl";
 static const char jsonval_rendmode_polymost[] = "polymost";
 static const char jsonval_rendmode_polymer[] = "polymer";
 
 // utility to check for file existence
-static int32_t AJ_CheckFilePresence(const char* filepath)
+static int32_t AddonJson_CheckFilePresence(const char* filepath)
 {
     buildvfs_kfd jsonfil = kopen4load(filepath, 0);
     if (jsonfil != buildvfs_kfd_invalid)
@@ -117,7 +118,7 @@ static int32_t AJ_CheckFilePresence(const char* filepath)
 // REGEX: ((([1-9][0-9]*)|0)\.)*(([1-9][0-9]*))(\-[a-zA-Z0-9]+)?
 // valid examples: {1.0, 1.0.3.4-alphanum123, 2, 4.0-a}
 // This would be better accomplished with a regular expression library
-static int32_t AJ_CheckVersionFormat(const char* versionString)
+static int32_t AddonJson_CheckVersionFormat(const char* versionString)
 {
     if (!versionString || !versionString[0])
         return -1;
@@ -129,7 +130,7 @@ static int32_t AJ_CheckVersionFormat(const char* versionString)
         // first char must be a digit and not a leading zero followed by a digit
         if (!isdigit(first) || (first == '0' && isdigit(versionString[k+1])))
         {
-            // DLOG_F(WARNING, "Version grouping starts with invalid char: %c", first);
+            DLOG_F(ERROR, "Version grouping '%s' starts with invalid char '%c'", versionString, first);
             return -1;
         }
         k++;
@@ -143,7 +144,7 @@ static int32_t AJ_CheckVersionFormat(const char* versionString)
 
             if (!isdigit(segChar))
             {
-                // DLOG_F(WARNING, "Non-digit found in version grouping: %c", curChar);
+                DLOG_F(ERROR, "Non-digit '%c' found in version grouping of '%s'", segChar, versionString);
                 return -1;
             }
         }
@@ -152,7 +153,7 @@ static int32_t AJ_CheckVersionFormat(const char* versionString)
     // must not end with period
     if (segChar == '.')
     {
-        // DLOG_F(WARNING, "Version string cannot end with period char!");
+        DLOG_F(ERROR, "Version string '%s' cannot end with period char!", versionString);
         return -1;
     }
 
@@ -161,7 +162,7 @@ static int32_t AJ_CheckVersionFormat(const char* versionString)
     {
         if (!versionString[k])
         {
-            // DLOG_F(WARNING, "No characters following dash!");
+            DLOG_F(ERROR, "No characters following dash in version string '%s'!", versionString);
             return -1;
         }
 
@@ -169,7 +170,7 @@ static int32_t AJ_CheckVersionFormat(const char* versionString)
         {
             if (!isalnum(segChar))
             {
-                // DLOG_F(WARNING, "Non-alphanum char found after dash: %c", curChar);
+                DLOG_F(ERROR, "Non-alphanum char found after dash: %c in version string '%s'", segChar, versionString);
                 return -1;
             }
         }
@@ -178,62 +179,8 @@ static int32_t AJ_CheckVersionFormat(const char* versionString)
     return 0;
 }
 
-// the version string in the dependency portion is prepended with comparison characters
-static int32_t AJ_SetupDependencyVersion(addondependency_t * dep, const char* versionString)
-{
-    if (versionString == nullptr || versionString[0] == '\0')
-    {
-        dep->version[0] = '\0'; dep->cOp = VCOMP_NOOP;
-        return -1;
-    }
-
-    int k = 0;
-    switch(versionString[0])
-    {
-        case '=':
-            k++;
-            if (versionString[1] == '=') { dep->cOp = VCOMP_EQ; k++; }
-            else
-            {
-                LOG_F(ERROR, "Version string '%s' has incorrect format!", dep->version);
-                dep->version[0] = '\0'; dep->cOp = VCOMP_NOOP;
-                return -1;
-            }
-            break;
-        case '>':
-            k++;
-            if (versionString[1] == '=') { dep->cOp = VCOMP_GTEQ; k++; }
-            else dep->cOp = VCOMP_GT;
-            break;
-        case '<':
-            k++; if (versionString[1] == '=') { dep->cOp = VCOMP_LTEQ; k++; }
-            else dep->cOp = VCOMP_LT;
-            break;
-        default:
-            // assume equality
-            dep->cOp = VCOMP_EQ;
-            break;
-    }
-
-    Bstrncpy(dep->version, &versionString[k], ADDON_MAXVERSION);
-    if (dep->version[ADDON_MAXVERSION-1])
-    {
-        LOG_F(ERROR, "Dependency version '%s' exceeds maximum size of %d chars!", &versionString[k], ADDON_MAXVERSION);
-        dep->version[0] = '\0'; dep->cOp = VCOMP_NOOP;
-        return -1;
-    }
-
-    if (AJ_CheckVersionFormat(dep->version))
-    {
-        LOG_F(ERROR, "Version string '%s' has incorrect format!", dep->version);
-        dep->version[0] = '\0'; dep->cOp = VCOMP_NOOP;
-        return -1;
-    }
-
-    return 0;
-}
-
-static void AJ_CheckUnknownKeys(const char* json_fn, sjson_node *node, const char* parentkey,
+// Check if any unknown keys are present in the given sjson_node, using the provided array of keys
+static void AddonJson_CheckUnknownKeys(const char* json_fn, sjson_node *node, const char* parentkey,
                                         const char **keylist, int32_t const numkeys)
 {
     sjson_node* child;
@@ -258,8 +205,8 @@ static void AJ_CheckUnknownKeys(const char* json_fn, sjson_node *node, const cha
     }
 }
 
-// utility to check if element is string typed
-static int32_t AJ_CheckStringTyped(const useraddon_t *addonPtr, sjson_node *ele, const char *key)
+// check whether sjson node has string typed value contents, return -1 and report error if not
+static int32_t AddonJson_CheckStringTyped(const useraddon_t *addonPtr, sjson_node *ele, const char *key)
 {
     if (ele->tag != SJSON_STRING)
     {
@@ -269,17 +216,48 @@ static int32_t AJ_CheckStringTyped(const useraddon_t *addonPtr, sjson_node *ele,
     return 0;
 }
 
-static int32_t AJ_CheckIdentityFormat(const useraddon_t *addonPtr, const char* ident)
+// parse arbitrary sjson string content and replace given reference pointer (nulled if key not found)
+static int32_t AddonJson_ParseString(useraddon_t *addonPtr, sjson_node *root, const char *key, char* & dstPtr)
 {
-    if (!ident[0])
+    sjson_node * ele = sjson_find_member_nocase(root, key);
+    dstPtr = nullptr;
+
+    if (ele == nullptr) return 1;
+    else if (AddonJson_CheckStringTyped(addonPtr, ele, key)) return -1;
+
+    dstPtr = Xstrdup(ele->string_);
+    return 0;
+}
+
+// treat sjson string content as a file path and check for file presence, otherwise treat same as string
+static int32_t AddonJson_ParseFilePath(useraddon_t* addonPtr, sjson_node* root, const char *key, char* & dstPtr, const char* basepath)
+{
+    sjson_node * ele = sjson_find_member_nocase(root, key);
+    dstPtr = nullptr;
+
+    if (ele == nullptr) return 1;
+    else if (AddonJson_CheckStringTyped(addonPtr, ele, key)) return -1;
+
+    Bsnprintf(tempbuf, BMAX_PATH, "%s/%s", basepath, ele->string_);
+    if (AddonJson_CheckFilePresence(tempbuf))
     {
-        LOG_F(ERROR, "Identity string of addon %s cannot be empty!", addonPtr->internalId);
+        //TODO: Need to verify whether this actually works properly with Ken GRP/SSI/ZIP files
+        LOG_F(ERROR, "Preview image for addon '%s' at location '%s' does not exist!", addonPtr->internalId, tempbuf);
         return -1;
     }
 
-    if (strlen(ident) >= ADDON_MAXID - 1)
+    dstPtr = Xstrdup(tempbuf);
+    Bcorrectfilename(dstPtr, 0);
+    return 0;
+}
+
+// return 0 if given string satisfies the restrictions set on external identity
+// TODO: currently on disallows whitespace and empty strings, maybe increase restriction?
+static int32_t AddonJson_CheckExternalIdentityRestrictions(const useraddon_t *addonPtr, const char* ident)
+{
+    if (!ident || !ident[0])
     {
-        LOG_F(ERROR, "Identity string of addon %s exceeds maximum size of %d chars!", addonPtr->internalId, ADDON_MAXID);
+        LOG_F(ERROR, "Identity string of addon %s cannot be empty!", addonPtr->internalId);
         return -1;
     }
 
@@ -295,139 +273,63 @@ static int32_t AJ_CheckIdentityFormat(const useraddon_t *addonPtr, const char* i
     return 0;
 }
 
-// parse dependency identity
-static int32_t AJ_ParseIdentity(useraddon_t *addonPtr, sjson_node *root, const char *key)
+// get external identity used for dependency references, and check format
+static int32_t AddonJson_ParseExternalId(useraddon_t *addonPtr, sjson_node *root, const char *key)
 {
     sjson_node * ele = sjson_find_member_nocase(root, key);
-    addonPtr->jsondat.externalId[0] = '\0';
+    addonPtr->externalId = nullptr;
 
     if (ele == nullptr) return 1;
-    else if (AJ_CheckStringTyped(addonPtr, ele, key) || AJ_CheckIdentityFormat(addonPtr, ele->string_))
+    else if (AddonJson_CheckStringTyped(addonPtr, ele, key) || AddonJson_CheckExternalIdentityRestrictions(addonPtr, ele->string_))
         return -1;
 
-    Bstrncpy(addonPtr->jsondat.externalId, ele->string_, ADDON_MAXID);
+    addonPtr->externalId = Xstrdup(ele->string_);
     return 0;
 }
 
-// parse arbitrary string
-static int32_t AJ_ParseString(useraddon_t *addonPtr, sjson_node *root, const char *key,
-                                        char *dstbuf, int32_t const bufsize)
+// retrieve version string and check format
+static int32_t AddonJson_ParseVersion(useraddon_t *addonPtr, sjson_node *root, const char *key)
 {
     sjson_node * ele = sjson_find_member_nocase(root, key);
-    dstbuf[0] = '\0';
+    addonPtr->version = nullptr;
 
     if (ele == nullptr) return 1;
-    else if (AJ_CheckStringTyped(addonPtr, ele, key)) return -1;
+    else if (AddonJson_CheckStringTyped(addonPtr, ele, key)) return -1;
 
-    Bstrncpy(dstbuf, ele->string_, bufsize);
-    if (dstbuf[bufsize-1])
+    addonPtr->version = Xstrdup(ele->string_);
+    if (AddonJson_CheckVersionFormat(addonPtr->version))
     {
-        // non-fatal, just truncate
-        LOG_F(WARNING, "Member '%s' of addon '%s' exceeds maximum size of %d chars!", key, addonPtr->internalId, bufsize);
-        dstbuf[bufsize-1] = '\0';
-    }
-
-    return 0;
-}
-
-// interpret string as path and check file presence
-static int32_t AJ_ParseFilePath(useraddon_t* addonPtr, sjson_node* root, const char* key, char *dstbuf, const char* basepath)
-{
-    sjson_node * ele = sjson_find_member_nocase(root, key);
-    dstbuf[0] = '\0';
-
-    if (ele == nullptr) return 1;
-    else if (AJ_CheckStringTyped(addonPtr, ele, key)) return -1;
-
-    // if exceeds maxsize, file presence check will fail anyways
-    Bsnprintf(dstbuf, BMAX_PATH, "%s/%s", basepath, ele->string_);
-    if (AJ_CheckFilePresence(addonPtr->jsondat.preview_path))
-    {
-        LOG_F(ERROR, "File for key '%s' of addon '%s' at location '%s' does not exist!", key, addonPtr->internalId, dstbuf);
-        dstbuf[0] = '\0';
+        LOG_F(ERROR, "Version string '%s' of addon %s has incorrect format!", addonPtr->version, addonPtr->internalId);
+        DO_FREE_AND_NULL(addonPtr->version);
         return -1;
     }
-
-    Bcorrectfilename(dstbuf, 0);
-    return 0;
-}
-
-// parse version and check its format
-static int32_t AJ_ParseVersion(useraddon_t *addonPtr, sjson_node *root, const char *key)
-{
-    sjson_node * ele = sjson_find_member_nocase(root, key);
-    addonPtr->jsondat.version[0] = '\0';
-
-    if (ele == nullptr) return 1;
-    else if (AJ_CheckStringTyped(addonPtr, ele, key)) return -1;
-
-    Bstrncpy(addonPtr->jsondat.version, ele->string_, ADDON_MAXVERSION);
-    if (addonPtr->jsondat.version[ADDON_MAXVERSION-1])
-    {
-        LOG_F(ERROR, "Member '%s' of addon '%s' exceeds maximum size of %d chars!", key, addonPtr->internalId, ADDON_MAXVERSION);
-        addonPtr->jsondat.version[0] = '\0';
-        return -1;
-    }
-
-    if (AJ_CheckVersionFormat(addonPtr->jsondat.version))
-    {
-        LOG_F(ERROR, "Version string '%s' of addon %s has incorrect format!", addonPtr->jsondat.version, addonPtr->internalId);
-        addonPtr->jsondat.version[0] = '\0';
-        return -1;
-    }
-
-    return 0;
-}
-
-// retrieve the description -- in this case we allocate new memory, rather than just copying the string into an existing buffer
-static int32_t AJ_ParseDescription(useraddon_t *addonPtr, sjson_node *root, const char *key)
-{
-    sjson_node * ele = sjson_find_member_nocase(root, key);
-    addonPtr->jsondat.description = nullptr;
-
-    if (ele == nullptr) return 1;
-    else if (AJ_CheckStringTyped(addonPtr, ele, key)) return -1;
-
-    int desclen = strlen(ele->string_) + 1;
-    if (desclen > ADDON_MAXDESC)
-    {
-        // non-fatal, just truncate
-        LOG_F(WARNING, "Description of addon %s exceeds maximum of %d characters (dude, write your novel elsewhere)", addonPtr->internalId, ADDON_MAXDESC);
-        desclen = ADDON_MAXDESC;
-    }
-    addonPtr->jsondat.description = (char*) Xmalloc(desclen);
-    Bstrncpyz(addonPtr->jsondat.description, ele->string_, desclen);
-
     return 0;
 }
 
 // parse and store script file paths, check for file presence and other errors
-static int32_t AJ_ParseScriptModules(useraddon_t *addonPtr, sjson_node* root, const char* key, const char* basepath,
-                                        char* mainscriptbuf, char** & modulebuffers, int32_t & modulecount)
+static int32_t AddonJson_ParseScriptModules(useraddon_t *addonPtr, sjson_node* root, const char* key, const char* basepath,
+                                        char* & mscriptPtr, char** & modulebuffer, int32_t & modulecount)
 {
-    char scriptbuf[BMAX_PATH];
-    int32_t numValidChildren = 0;
-
-    // by default, set to null
-    mainscriptbuf[0] = '\0';
-    modulebuffers = nullptr;
+    mscriptPtr = nullptr;
+    modulebuffer = nullptr;
     modulecount = 0;
 
     sjson_node * nodes = sjson_find_member_nocase(root, key);
-    if (nodes == nullptr)
-        return 1;
+    if (nodes == nullptr) return 1;
 
+    // TODO: Allow single object without array, see rendmode
     if (nodes->tag != SJSON_ARRAY)
     {
-        LOG_F(ERROR, "Content of member '%s' of addon '%s' is not an array!", key, addonPtr->internalId);
+        LOG_F(ERROR, "Value of key '%s' of addon '%s' must be an array!", key, addonPtr->internalId);
         return -1;
     }
 
     int const numchildren = sjson_child_count(nodes);
-    modulebuffers = (char **) Xmalloc(numchildren * sizeof(char*));
+    modulebuffer = (char **) Xmalloc(numchildren * sizeof(char*));
 
-    bool hasError = false;
     sjson_node *snode, *script_path, *script_type;
+    bool hasError = false;
+    int32_t numvalidchildren = 0;
     sjson_foreach(snode, nodes)
     {
         if (snode->tag != SJSON_OBJECT)
@@ -437,20 +339,21 @@ static int32_t AJ_ParseScriptModules(useraddon_t *addonPtr, sjson_node* root, co
             continue;
         }
 
-        AJ_CheckUnknownKeys(addonPtr->internalId, snode, key, json_scriptkeys, ARRAY_SIZE(json_scriptkeys));
+        AddonJson_CheckUnknownKeys(addonPtr->internalId, snode, key, json_scriptkeys, ARRAY_SIZE(json_scriptkeys));
 
         script_path = sjson_find_member_nocase(snode, jsonkey_scriptpath);
         if (script_path == nullptr || script_path->tag != SJSON_STRING)
         {
-            LOG_F(ERROR, "Script path missing or has invalid format in addon '%s'!", addonPtr->internalId);
+            LOG_F(ERROR, "Script path of key %s missing or has invalid format in addon '%s'!", key, addonPtr->internalId);
             hasError = true;
             continue;
         }
 
-        Bsnprintf(scriptbuf, BMAX_PATH, "%s/%s", basepath, script_path->string_);
-        if (AJ_CheckFilePresence(scriptbuf))
+        Bsnprintf(tempbuf, BMAX_PATH, "%s/%s", basepath, script_path->string_);
+        if (AddonJson_CheckFilePresence(tempbuf))
         {
-            LOG_F(ERROR, "Script file of addon '%s' at location '%s' does not exist!", addonPtr->internalId, scriptbuf);
+            //TODO: Need to verify whether this actually works properly with Ken GRP/SSI/ZIP files
+            LOG_F(ERROR, "Script file of addon '%s' at location '%s' does not exist!", addonPtr->internalId, tempbuf);
             hasError = true;
             continue;
         }
@@ -458,20 +361,25 @@ static int32_t AJ_ParseScriptModules(useraddon_t *addonPtr, sjson_node* root, co
         script_type = sjson_find_member_nocase(snode, jsonkey_scripttype);
         if (script_type == nullptr || script_type->tag != SJSON_STRING)
         {
-            LOG_F(ERROR, "Script type missing or has invalid format in addon '%s'!", addonPtr->internalId);
+            LOG_F(ERROR, "Script type of key %s missing or has invalid format in addon '%s'!", key, addonPtr->internalId);
             hasError = true;
             continue;
         }
 
         if (!Bstrncasecmp(script_type->string_, jsonval_scriptmain, ARRAY_SIZE(jsonval_scriptmain)))
         {
-            Bstrncpyz(mainscriptbuf, script_path->string_, BMAX_PATH);
+            if (mscriptPtr)
+            {
+                LOG_F(ERROR, "More than one main '%s' script specified in addon '%s'!", key, addonPtr->internalId);
+                hasError = true;
+                continue;
+            }
+            mscriptPtr = Xstrdup(script_path->string_);
         }
         else if (!Bstrncasecmp(script_type->string_, jsonval_scriptmodule, ARRAY_SIZE(jsonval_scriptmodule)))
         {
-            modulebuffers[numValidChildren] = (char *) Xmalloc(BMAX_PATH);
-            Bstrncpyz(modulebuffers[numValidChildren], script_path->string_, BMAX_PATH);
-            numValidChildren++;
+            modulebuffer[numvalidchildren] = Xstrdup(script_path->string_);
+            numvalidchildren++;
         }
         else
         {
@@ -484,33 +392,85 @@ static int32_t AJ_ParseScriptModules(useraddon_t *addonPtr, sjson_node* root, co
     // on error, abort and free valid items again
     if (hasError)
     {
-        for (int i = 0; i < numValidChildren; i++)
-            Xfree(modulebuffers[i]);
-        numValidChildren = 0;
+        DO_FREE_AND_NULL(mscriptPtr);
+        for (int i = 0; i < numvalidchildren; i++)
+            Xfree(modulebuffer[i]);
+        numvalidchildren = 0;
     }
 
     // valid children may be zero from error or no modules specified
-    if (numValidChildren == 0)
+    if (numvalidchildren == 0)
     {
-        DO_FREE_AND_NULL(modulebuffers);
+        DO_FREE_AND_NULL(modulebuffer);
         modulecount = 0;
         return (hasError) ? -1 : 0;
     }
     else
     {
-        modulebuffers = (char **) Xrealloc(modulebuffers, numValidChildren * sizeof(char*));
-        modulecount = numValidChildren;
+        modulebuffer = (char **) Xrealloc(modulebuffer, numvalidchildren * sizeof(char*));
+        modulecount = numvalidchildren;
         return 0;
     }
 }
 
+// the version string in the dependency portion is prepended with comparison characters
+static int32_t AddonJson_SetupDependencyVersion(addondependency_t * dep, const char* versionString)
+{
+    dep->version = nullptr;
+    dep->cOp = AVCOMP_NOOP;
+    if (versionString == nullptr || !versionString[0])
+        return 1;
+
+    int k = 0;
+    switch(versionString[0])
+    {
+        case '=':
+            k++;
+            if (versionString[1] == '=') { dep->cOp = AVCOMP_EQ; k++; }
+            else
+            {
+                LOG_F(ERROR, "Version string '%s' has incorrect format!", dep->version);
+                return -1;
+            }
+            break;
+        case '>':
+            k++;
+            if (versionString[1] == '=') { dep->cOp = AVCOMP_GTEQ; k++; }
+            else dep->cOp = AVCOMP_GT;
+            break;
+        case '<':
+            k++; if (versionString[1] == '=') { dep->cOp = AVCOMP_LTEQ; k++; }
+            else dep->cOp = AVCOMP_LT;
+            break;
+        default:
+            // assume equality
+            dep->cOp = AVCOMP_EQ;
+            break;
+    }
+
+    dep->version = Xstrdup(&versionString[k]);
+    if (AddonJson_CheckVersionFormat(dep->version))
+    {
+        LOG_F(ERROR, "Version string '%s' has incorrect format!", dep->version);
+        DO_FREE_AND_NULL(dep->version);
+        dep->cOp = AVCOMP_NOOP;
+        return -1;
+    }
+
+    return 0;
+}
+
 // get the dependency property
-static int32_t AJ_ParseDependencyList(useraddon_t* addonPtr, sjson_node* root, const char* key,
+static int32_t AddonJson_ParseDependencyList(useraddon_t* addonPtr, sjson_node* root, const char* key,
                                           addondependency_t*& dep_ptr, int32_t& num_valid_deps)
 {
+    dep_ptr = nullptr;
+    num_valid_deps = 0;
+
     sjson_node * nodes = sjson_find_member_nocase(root, key);
     if (nodes == nullptr) return 1;
 
+    // TODO: Allow single object without array, see rendmode
     if (nodes->tag != SJSON_ARRAY)
     {
         LOG_F(ERROR, "Content of member '%s' of addon '%s' is not an array!", key, addonPtr->internalId);
@@ -518,9 +478,7 @@ static int32_t AJ_ParseDependencyList(useraddon_t* addonPtr, sjson_node* root, c
     }
 
     int const numchildren = sjson_child_count(nodes);
-
     dep_ptr = (addondependency_t *) Xcalloc(numchildren, sizeof(addondependency_t));
-    num_valid_deps = 0;
 
     sjson_node *snode;
     sjson_node *dep_uid, *dep_version;
@@ -532,7 +490,7 @@ static int32_t AJ_ParseDependencyList(useraddon_t* addonPtr, sjson_node* root, c
             continue;
         }
 
-        AJ_CheckUnknownKeys(addonPtr->internalId, snode, key, json_dependencykeys, ARRAY_SIZE(json_dependencykeys));
+        AddonJson_CheckUnknownKeys(addonPtr->internalId, snode, key, json_dependencykeys, ARRAY_SIZE(json_dependencykeys));
 
         dep_uid = sjson_find_member_nocase(snode, jsonkey_depid);
         if (dep_uid == nullptr || dep_uid->tag != SJSON_STRING)
@@ -555,14 +513,15 @@ static int32_t AJ_ParseDependencyList(useraddon_t* addonPtr, sjson_node* root, c
         adt.setFulfilled(false);
 
         // required checks on dependency Id
-        if (AJ_CheckIdentityFormat(addonPtr, dep_uid->string_))
+        if (AddonJson_CheckExternalIdentityRestrictions(addonPtr, dep_uid->string_))
             continue;
-        Bstrncpy(adt.depId, dep_uid->string_, ADDON_MAXID);
 
         // only bail if string specified and invalid, otherwise accept dependencies without version
-        if (dep_version && AJ_SetupDependencyVersion(&adt, dep_version->string_))
+        adt.dependencyId = Xstrdup(dep_uid->string_);
+        if (dep_version && AddonJson_SetupDependencyVersion(&adt, dep_version->string_))
         {
-            LOG_F(ERROR, "Invalid version string for dependency '%s' in addon: %s!", adt.depId, addonPtr->internalId);
+            LOG_F(ERROR, "Invalid version string for dependency '%s' in addon: %s!", adt.dependencyId, addonPtr->internalId);
+            DO_FREE_AND_NULL(adt.dependencyId);
             continue;
         }
 
@@ -571,6 +530,8 @@ static int32_t AJ_ParseDependencyList(useraddon_t* addonPtr, sjson_node* root, c
 
     if (num_valid_deps < numchildren)
     {
+        for (int i = 0; i < num_valid_deps; i++)
+            dep_ptr[i].cleanup();
         DO_FREE_AND_NULL(dep_ptr);
         num_valid_deps = 0;
         return -1;
@@ -580,39 +541,39 @@ static int32_t AJ_ParseDependencyList(useraddon_t* addonPtr, sjson_node* root, c
     return 0;
 }
 
-// differs from the other functions in that it directly returns the gameflag value
-static addongame_t AJ_ParseGameFlag(const useraddon_t* addonPtr, sjson_node* root, const char* key)
+// game type for which the addon is valid and available
+static int32_t AddonJson_ParseGameFlag(const useraddon_t* addonPtr, sjson_node* root, const char* key)
 {
     sjson_node * ele = sjson_find_member_nocase(root, key);
-    if (ele == nullptr || AJ_CheckStringTyped(addonPtr, ele, key))
-        return BASEGAME_NONE;
+    if (ele == nullptr || AddonJson_CheckStringTyped(addonPtr, ele, key))
+        return ADDONGF_NONE;
 
     if (!Bstrncasecmp(ele->string_, jsonval_gt_any, ARRAY_SIZE(jsonval_gt_any)))
-        return BASEGAME_ANY;
+        return ADDONGF_ANY;
     else if (!Bstrncasecmp(ele->string_, jsonval_gt_duke, ARRAY_SIZE(jsonval_gt_duke)))
-        return BASEGAME_DUKE;
+        return ADDONGF_DUKE;
     else if (!Bstrncasecmp(ele->string_, jsonval_gt_fury, ARRAY_SIZE(jsonval_gt_fury)))
-        return BASEGAME_FURY;
+        return ADDONGF_FURY;
     else if (!Bstrncasecmp(ele->string_, jsonval_gt_ww2gi, ARRAY_SIZE(jsonval_gt_ww2gi)))
-        return BASEGAME_WW2GI;
+        return ADDONGF_WW2GI;
     else if (!Bstrncasecmp(ele->string_, jsonval_gt_nam, ARRAY_SIZE(jsonval_gt_nam)))
-        return BASEGAME_NAM;
+        return ADDONGF_NAM;
     else
     {
         LOG_F(ERROR, "Invalid gametype on addon '%s'.\nValid gametype strings are: {%s, %s, %s, %s, %s}.",
                 addonPtr->internalId, jsonval_gt_any, jsonval_gt_duke, jsonval_gt_nam, jsonval_gt_ww2gi, jsonval_gt_fury);
-        return BASEGAME_NONE;
+        return ADDONGF_NONE;
     }
 }
 
 // The gameCRC acts as an additional method to finegrain control for which game the addon should show up.
-static int32_t AJ_ParseGameCRC(useraddon_t* addonPtr, sjson_node* root, const char* key)
+static int32_t AddonJson_ParseGameCRC(useraddon_t* addonPtr, sjson_node* root, const char* key)
 {
     sjson_node * ele = sjson_find_member_nocase(root, key);
     addonPtr->gamecrc = 0;
 
     if (ele == nullptr) return 1;
-    else if (AJ_CheckStringTyped(addonPtr, ele, key)) return -1;
+    else if (AddonJson_CheckStringTyped(addonPtr, ele, key)) return -1;
 
     if (ele->string_[0] != '0' || (ele->string_[1] != 'x' && ele->string_[1] != 'X'))
     {
@@ -632,14 +593,12 @@ static int32_t AJ_ParseGameCRC(useraddon_t* addonPtr, sjson_node* root, const ch
     return 0;
 }
 
-// start map
-static int32_t AJ_ParseStartMap(useraddon_t* addonPtr, sjson_node* root, const char* key)
+static int32_t AddonJson_ParseStartMap(useraddon_t* addonPtr, sjson_node* root, const char* key)
 {
     sjson_node * ele = sjson_find_member_nocase(root, key);
-    addonPtr->jsondat.boardfilename[0] = '\0';
-    addonPtr->jsondat.startlevel = 0;
-    addonPtr->jsondat.startvolume = 0;
-    addonPtr->flags &= ~ADDONFLAG_STARTMAP;
+    addonPtr->startmapfilename = nullptr;
+    addonPtr->startlevel = addonPtr->startvolume = 0;
+    addonPtr->aflags &= ~ADDONFLAG_STARTMAP;
 
     if (ele == nullptr) return 1;
     else if (ele->tag != SJSON_OBJECT)
@@ -648,20 +607,21 @@ static int32_t AJ_ParseStartMap(useraddon_t* addonPtr, sjson_node* root, const c
         return -1;
     }
 
-    AJ_CheckUnknownKeys(addonPtr->internalId, ele, key, json_startmapkeys, ARRAY_SIZE(json_startmapkeys));
+    AddonJson_CheckUnknownKeys(addonPtr->internalId, ele, key, json_startmapkeys, ARRAY_SIZE(json_startmapkeys));
 
     sjson_node* ele_mapfile = sjson_find_member_nocase(ele, jsonkey_mapfile);
     if (ele_mapfile)
     {
-        if (AJ_CheckStringTyped(addonPtr, ele_mapfile, jsonkey_mapfile))
+        if (AddonJson_CheckStringTyped(addonPtr, ele_mapfile, jsonkey_mapfile))
             return -1;
 
         // do not check for file existence
-        Bstrncpy(addonPtr->jsondat.boardfilename, ele_mapfile->string_, BMAX_PATH);
-        Bcorrectfilename(addonPtr->jsondat.boardfilename, 0);
-        addonPtr->jsondat.startlevel = 7;
-        addonPtr->jsondat.startvolume = 0;
-        addonPtr->flags |= ADDONFLAG_STARTMAP;
+        addonPtr->startmapfilename = Xstrdup(ele_mapfile->string_);
+        Bcorrectfilename(addonPtr->startmapfilename, 0);
+
+        addonPtr->startlevel = 7;
+        addonPtr->startvolume = 0;
+        addonPtr->aflags |= ADDONFLAG_STARTMAP;
         return 0;
     }
 
@@ -682,9 +642,9 @@ static int32_t AJ_ParseStartMap(useraddon_t* addonPtr, sjson_node* root, const c
             return -1;
         }
 
-        addonPtr->jsondat.startlevel = ele_maplevel->number_;
-        addonPtr->jsondat.startvolume = ele_mapvolume->number_;
-        addonPtr->flags |= ADDONFLAG_STARTMAP;
+        addonPtr->startlevel = ele_maplevel->number_;
+        addonPtr->startvolume = ele_mapvolume->number_;
+        addonPtr->aflags |= ADDONFLAG_STARTMAP;
         return 0;
     }
     else
@@ -695,16 +655,17 @@ static int32_t AJ_ParseStartMap(useraddon_t* addonPtr, sjson_node* root, const c
     }
 }
 
-static int32_t AJ_SetRendmodeFromString(useraddon_t* addonPtr, const char* rmodestr)
+// set rendmode using extracted string
+static int32_t AddonJson_SetRendmodeFromString(useraddon_t* addonPtr, const char* rmodestr)
 {
     if (!Bstrncasecmp(rmodestr, jsonval_rendmode_classic, ARRAY_SIZE(jsonval_rendmode_classic)))
-        addonPtr->jsondat.compat_rendmodes |= ADDON_RENDCLASSIC;
+        addonPtr->compatrendmode |= ADDONRM_CLASSIC;
     else if (!Bstrncasecmp(rmodestr, jsonval_rendmode_opengl, ARRAY_SIZE(jsonval_rendmode_opengl)))
-        addonPtr->jsondat.compat_rendmodes |= ADDON_RENDPOLYMOST;
+        addonPtr->compatrendmode |= (ADDONRM_POLYMOST | ADDONRM_POLYMER);
     else if (!Bstrncasecmp(rmodestr, jsonval_rendmode_polymost, ARRAY_SIZE(jsonval_rendmode_polymost)))
-        addonPtr->jsondat.compat_rendmodes |= ADDON_RENDPOLYMOST;
+        addonPtr->compatrendmode |= ADDONRM_POLYMOST;
     else if (!Bstrncasecmp(rmodestr, jsonval_rendmode_polymer, ARRAY_SIZE(jsonval_rendmode_polymer)))
-        addonPtr->jsondat.compat_rendmodes |= ADDON_RENDPOLYMER;
+        addonPtr->compatrendmode |= ADDONRM_POLYMER;
     else
     {
         LOG_F(ERROR, "Unknown rendmode '%s' in addon '%s'!", rmodestr, addonPtr->internalId);
@@ -714,23 +675,23 @@ static int32_t AJ_SetRendmodeFromString(useraddon_t* addonPtr, const char* rmode
     return 0;
 }
 
-// required rendermode
-static int32_t AJ_ParseRendmode(useraddon_t* addonPtr, sjson_node* root, const char* key)
+// retrieve rendmode string (or list) and set rendmode from it
+static int32_t AddonJson_ParseRendmode(useraddon_t* addonPtr, sjson_node* root, const char* key)
 {
-    addonPtr->jsondat.compat_rendmodes = ADDON_RENDNONE;
+    addonPtr->compatrendmode = ADDONRM_NONE;
     sjson_node * ele = sjson_find_member_nocase(root, key);
     if (ele == nullptr) return 1;
 
     if (ele->tag == SJSON_STRING)
     {
-        return AJ_SetRendmodeFromString(addonPtr, ele->string_);
+        return AddonJson_SetRendmodeFromString(addonPtr, ele->string_);
     }
     else if (ele->tag == SJSON_ARRAY)
     {
         sjson_node *child;
         sjson_foreach(child, ele)
         {
-            if (child->tag != SJSON_STRING || AJ_SetRendmodeFromString(addonPtr, child->string_))
+            if (child->tag != SJSON_STRING || AddonJson_SetRendmodeFromString(addonPtr, child->string_))
             {
                 LOG_F(ERROR, "Invalid type in array of key %s for addon: '%s'!", key, addonPtr->internalId);
                 return -1;
@@ -746,17 +707,17 @@ static int32_t AJ_ParseRendmode(useraddon_t* addonPtr, sjson_node* root, const c
 }
 
 // Load data from json file into addon -- assumes that unique ID for the addon has been defined!
-int32_t AJ_ParseJsonDescriptor(char* json_fn, useraddon_t* addonPtr, const char* basepath, const char* packfn)
+static int32_t AddonJson_ParseDescriptor(sjson_context *ctx, char* json_fn, useraddon_t* addonPtr, const char* basepath, const char* packfn)
 {
     // open json descriptor (try 8.3 format as well, due to ken grp restrictions)
-    const bool isgroup = addonPtr->loadtype & (LT_ZIP | LT_GRP | LT_SSI);
+    const bool isgroup = addonPtr->package_type & (ADDONLT_ZIP | ADDONLT_GRP | ADDONLT_SSI);
     buildvfs_kfd jsonfil = kopen4load(json_fn, (isgroup ? 2 : 0));
     if (jsonfil == buildvfs_kfd_invalid)
     {
         json_fn[strlen(json_fn) - 1] = '\0';
         jsonfil = kopen4load(json_fn, (isgroup ? 2 : 0));
         if (jsonfil == buildvfs_kfd_invalid)
-            return 1; //not found, is not an addon
+            return 1; // not found, is not an addon
     }
 
     // load data out of file
@@ -773,11 +734,10 @@ int32_t AJ_ParseJsonDescriptor(char* json_fn, useraddon_t* addonPtr, const char*
     kclose(jsonfil);
 
     // parse the file contents
-    sjson_context * ctx = sjson_create_context(0, 0, nullptr);
+    sjson_reset_context(ctx);
     if (!sjson_validate(ctx, jsonTextBuf))
     {
-        LOG_F(ERROR, "Syntax errors detected in addon descriptor file '%s'!", json_fn);
-        sjson_destroy_context(ctx);
+        LOG_F(ERROR, "Structural syntax errors detected in addon descriptor file '%s'!", json_fn);
         return -1;
     }
 
@@ -785,89 +745,86 @@ int32_t AJ_ParseJsonDescriptor(char* json_fn, useraddon_t* addonPtr, const char*
     sjson_node * root = sjson_decode(ctx, jsonTextBuf);
     Xfree(jsonTextBuf);
 
-    AJ_CheckUnknownKeys(addonPtr->internalId, root, nullptr, json_basekeys, ARRAY_SIZE(json_basekeys));
+    AddonJson_CheckUnknownKeys(addonPtr->internalId, root, nullptr, json_basekeys, ARRAY_SIZE(json_basekeys));
 
-    // game type is required to identify for which game the addon should be shown in the menu
-    addonPtr->gametype = AJ_ParseGameFlag(addonPtr, root, jsonkey_game);
-    if (addonPtr->gametype == BASEGAME_NONE)
+    // game type is required to identify for which game the addon should be shown in the menu (required)
+    addonPtr->gametype = AddonJson_ParseGameFlag(addonPtr, root, jsonkey_game);
+    if (addonPtr->gametype == ADDONGF_NONE)
     {
         LOG_F(ERROR, "No valid game type specified for addon: '%s'! (key: %s)", addonPtr->internalId, jsonkey_game);
         jsonErrorCnt++;
     }
 
-    // creator must specify an identity for the addon, such that other addons can reference it
-    if (AJ_ParseIdentity(addonPtr, root, jsonkey_depid) != 0)
+    // creator must specify an identity for the addon, such that other addons can reference it (required)
+    if (AddonJson_ParseExternalId(addonPtr, root, jsonkey_depid) != 0)
     {
         LOG_F(ERROR, "Missing identity for addon: '%s'! (key: %s)", addonPtr->internalId, jsonkey_depid);
         jsonErrorCnt++;
     }
 
-    // game crc (crc match for root parent grp)
-    parseResult = AJ_ParseGameCRC(addonPtr, root, jsonkey_gamecrc);
+    // game crc (crc match for root parent grp)  (optional)
+    parseResult = AddonJson_ParseGameCRC(addonPtr, root, jsonkey_gamecrc);
     if (parseResult == -1) jsonErrorCnt++;
 
-    // version string (can be omitted)
-    parseResult = AJ_ParseVersion(addonPtr, root, jsonkey_version);
+    // version string  (optional)
+    parseResult = AddonJson_ParseVersion(addonPtr, root, jsonkey_version);
     if (parseResult == -1) jsonErrorCnt++;
 
-    // if the title isn't specified, use the package filename. On error, bail out.
-    parseResult = AJ_ParseString(addonPtr, root, jsonkey_title, addonPtr->jsondat.title, ADDON_MAXTITLE);
+    // title  (optional) -- use package filename if unspecified
+    parseResult = AddonJson_ParseString(addonPtr, root, jsonkey_title, addonPtr->title);
     if (parseResult == 1)
-        Bstrncpy(addonPtr->jsondat.title, packfn, ADDON_MAXTITLE);
+        addonPtr->title = Xstrdup(packfn);
     else if (parseResult == -1)
         jsonErrorCnt++;
 
-    // if the author isn't specified, show missing author string. On error, bail out.
-    parseResult = AJ_ParseString(addonPtr, root, jsonkey_author, addonPtr->jsondat.author, ADDON_MAXAUTHOR);
+    // author of addon (optional)
+    parseResult = AddonJson_ParseString(addonPtr, root, jsonkey_author, addonPtr->author);
     if (parseResult == -1)
         jsonErrorCnt++;
 
-    // if description missing, copy default description.
-    parseResult = AJ_ParseDescription(addonPtr, root, jsonkey_desc);
+    // description for addon (optional)
+    parseResult = AddonJson_ParseString(addonPtr, root, jsonkey_desc, addonPtr->description);
     if (parseResult == -1)
         jsonErrorCnt++;
 
-    // rendmode (can be omitted)
-    parseResult = AJ_ParseRendmode(addonPtr, root, jsonkey_rendmodes);
-    if (parseResult == -1) jsonErrorCnt++;
-    else if (parseResult == 1)
-    {
+    // rendmode (optional)
+    parseResult = AddonJson_ParseRendmode(addonPtr, root, jsonkey_rendmodes);
+    if (parseResult == 1)
         // compatible with all modes if unspecified
-        addonPtr->jsondat.compat_rendmodes = ADDON_RENDMASK;
-    }
+        addonPtr->compatrendmode = ADDONRM_MASK;
+    else if (parseResult == -1)
+        jsonErrorCnt++;
 
     // CON script paths (optional)
-    parseResult = AJ_ParseScriptModules(addonPtr, root, jsonkey_con, basepath, addonPtr->jsondat.main_script_path,
-                                          addonPtr->jsondat.script_modules, addonPtr->jsondat.num_script_modules);
+    parseResult = AddonJson_ParseScriptModules(addonPtr, root, jsonkey_con, basepath,
+                    addonPtr->mscript_path, addonPtr->script_modules, addonPtr->num_script_modules);
     if (parseResult == -1) jsonErrorCnt++;
 
     // DEF script paths (optional)
-    parseResult = AJ_ParseScriptModules(addonPtr, root, jsonkey_def, basepath, addonPtr->jsondat.main_def_path,
-                                          addonPtr->jsondat.def_modules, addonPtr->jsondat.num_def_modules);
+    parseResult = AddonJson_ParseScriptModules(addonPtr, root, jsonkey_def, basepath,
+                    addonPtr->mdef_path, addonPtr->def_modules, addonPtr->num_def_modules);
     if (parseResult == -1) jsonErrorCnt++;
 
     // Preview image filepath (optional)
-    parseResult = AJ_ParseFilePath(addonPtr, root, jsonkey_image, addonPtr->jsondat.preview_path, basepath);
+    parseResult = AddonJson_ParseFilePath(addonPtr, root, jsonkey_image, addonPtr->preview_path, basepath);
     if (parseResult == -1) jsonErrorCnt++;
 
-    // RTS file path
-    parseResult = AJ_ParseFilePath(addonPtr, root, jsonkey_rts, addonPtr->jsondat.main_rts_path, basepath);
+    // RTS file path (optional)
+    parseResult = AddonJson_ParseFilePath(addonPtr, root, jsonkey_rts, addonPtr->mrts_path, basepath);
     if (parseResult == -1) jsonErrorCnt++;
 
-    // map to launch after reboot (can be omitted)
-    parseResult = AJ_ParseStartMap(addonPtr, root, jsonkey_startmap);
+    // map to launch after reboot (optional)
+    parseResult = AddonJson_ParseStartMap(addonPtr, root, jsonkey_startmap);
     if (parseResult == -1) jsonErrorCnt++;
 
-    // dependencies
-    parseResult = AJ_ParseDependencyList(addonPtr, root, jsonkey_dependencies, addonPtr->jsondat.dependencies, addonPtr->jsondat.num_dependencies);
+    // dependencies (optional)
+    parseResult = AddonJson_ParseDependencyList(addonPtr, root, jsonkey_dependencies, addonPtr->dependencies, addonPtr->num_dependencies);
     if (parseResult == -1) jsonErrorCnt++;
 
-    // incompatibles
-    parseResult = AJ_ParseDependencyList(addonPtr, root, jsonkey_incompatibles,
-                                                    addonPtr->jsondat.incompatibles, addonPtr->jsondat.num_incompatibles);
+    // incompatibles (optional)
+    parseResult = AddonJson_ParseDependencyList(addonPtr, root, jsonkey_incompatibles, addonPtr->incompatibles, addonPtr->num_incompatibles);
     if (parseResult == -1) jsonErrorCnt++;
 
-    sjson_destroy_context(ctx);
     if (jsonErrorCnt > 0)
     {
         LOG_F(ERROR, "Found %d errors in addon descriptor of: '%s'", jsonErrorCnt, addonPtr->internalId);
@@ -877,17 +834,17 @@ int32_t AJ_ParseJsonDescriptor(char* json_fn, useraddon_t* addonPtr, const char*
     return 0;
 }
 
-// close recently opened package (removes most recently opened one)
-static void Addon_PackageCleanup(const int32_t grpfileidx)
+// to be used after the json is parsed. Sets the content type using the addon contents.
+static void AddonJson_SetContentType(useraddon_t* addonPtr)
 {
-    if (grpfileidx < numgroupfiles)
-        popgroupfile(); // remove grp/ssi
+    if (addonPtr->mscript_path || addonPtr->mdef_path)
+        addonPtr->content_type = ADDONTYPE_TC;
     else
-        popgroupfromkzstack(); // remove zip
+        addonPtr->content_type = ADDONTYPE_MOD;
 }
 
 // Check if the addon directory exists. This is always placed in the folder where the exe is found.
-static int32_t Addon_GetLocalDir(char * pathbuf, const int32_t buflen)
+static int32_t AddonJson_GetLocalDir(char * pathbuf, const int32_t buflen)
 {
     char* appdir = Bgetappdir();
     Bsnprintf(pathbuf, buflen, "%s/%s", appdir, addondirname);
@@ -902,16 +859,17 @@ static int32_t Addon_GetLocalDir(char * pathbuf, const int32_t buflen)
     return 0;
 }
 
-// remove leading slashes and other non-alpha chars
-static char* Addon_CreateInternalIdentity(const char* src, const int32_t srclen)
+// remove leading slashes and other non-alpha chars from string, copy the string
+static char* AddonJson_DupString_RemoveLeadingNonAlpha(const char* src, const int32_t srclen)
 {
+    //TODO: Replace with a better approach -- this is used for internal ID generation
     int i = 0;
     while (i < srclen && !isalpha(src[i])) i++;
     return (i >= srclen) ? nullptr : Xstrdup(&src[i]);
 }
 
 // read addon packages (zip, grp, pk3...) from local folder
-static void Addon_ReadLocalPackages(fnlist_t* fnlist, const char* addondir)
+static void AddonJson_ReadLocalPackages(sjson_context *ctx, fnlist_t* fnlist, const char* addondir)
 {
     for (auto & ext : addon_extensions)
     {
@@ -922,51 +880,59 @@ static void Addon_ReadLocalPackages(fnlist_t* fnlist, const char* addondir)
             char package_path[BMAX_PATH];
             int const nchar = Bsnprintf(package_path, BMAX_PATH, "%s/%s", addondir, rec->name);
 
+            // absolutely MUST be zero initialized
             useraddon_t* & addonPtr = s_useraddons[s_numuseraddons] = (useraddon_t*) Xcalloc(1, sizeof(useraddon_t));
-            addonPtr->internalId = Addon_CreateInternalIdentity(package_path, nchar);
 
-            Bstrncpy(addonPtr->data_path, package_path, BMAX_PATH);
+            // TODO: May want to change internal ID to just the filename, not the whole path
+            addonPtr->internalId = AddonJson_DupString_RemoveLeadingNonAlpha(package_path, nchar);
+
+            // set data path and default loadorder index
+            addonPtr->data_path = Xstrdup(package_path);
             addonPtr->loadorder_idx = DEFAULT_LOADORDER_IDX;
 
             // set initial file type based on extension
-            if (!Bstrcmp(ext, grp_ext)) addonPtr->loadtype = LT_GRP;
-            else if (!Bstrcmp(ext, ssi_ext)) addonPtr->loadtype = LT_SSI;
-            else addonPtr->loadtype = LT_ZIP;
+            if (!Bstrcmp(ext, grp_ext)) addonPtr->package_type = ADDONLT_GRP;
+            else if (!Bstrcmp(ext, ssi_ext)) addonPtr->package_type = ADDONLT_SSI;
+            else addonPtr->package_type = ADDONLT_ZIP;
 
             // load package contents to access the json and preview within
             const int32_t grpfileidx = initgroupfile(package_path);
             if (grpfileidx == -1)
             {
                 DLOG_F(ERROR, "Failed to open addon package at '%s'", package_path);
-                addonPtr->freeContents();
+                addonPtr->cleanup();
                 DO_FREE_AND_NULL(addonPtr);
                 continue;
             }
-            else if (grpfileidx >= numgroupfiles) // zip file renamed to grp
-                addonPtr->loadtype = LT_ZIP;
+            // here we have a renamed zip file
+            else if (grpfileidx >= numgroupfiles)
+                addonPtr->package_type = ADDONLT_ZIP;
 
-
+            // generate path to json descriptor
             char json_path[BMAX_PATH];
             Bsnprintf(json_path, BMAX_PATH, "/%s", addonjsonfn);
 
-            if (AJ_ParseJsonDescriptor(json_path, addonPtr, "/", rec->name))
+            // parse the json, cleanup
+            int parsingFailed = AddonJson_ParseDescriptor(ctx, json_path, addonPtr, "/", rec->name);
+            if (grpfileidx < numgroupfiles) popgroupfile();
+            else popgroupfromkzstack();
+
+            if (parsingFailed)
             {
-                Addon_PackageCleanup(grpfileidx);
-                addonPtr->freeContents();
+                addonPtr->cleanup();
                 DO_FREE_AND_NULL(addonPtr);
                 continue;
             }
-            Addon_PackageCleanup(grpfileidx);
+            AddonJson_SetContentType(addonPtr);
             addonPtr->setSelected(CONFIG_GetAddonActivationStatus(addonPtr->internalId));
             ++s_numuseraddons;
         }
-
         fnlist_clearnames(fnlist);
     }
 }
 
-// find addons from subfolders
-static void Addon_ReadLocalSubfolders(fnlist_t* fnlist, const char* addondir)
+// find addons from subfolders contained within the local addon directory
+static void AddonJson_ReadLocalSubfolders(sjson_context *ctx, fnlist_t* fnlist, const char* addondir)
 {
     // look for addon directories
     BUILDVFS_FIND_REC *rec;
@@ -980,41 +946,46 @@ static void Addon_ReadLocalSubfolders(fnlist_t* fnlist, const char* addondir)
         char basepath[BMAX_PATH];
         int const nchar = Bsnprintf(basepath, BMAX_PATH, "%s/%s", addondir, rec->name);
 
+        // absolutely MUST be zero initialized
         useraddon_t* & addonPtr = s_useraddons[s_numuseraddons] = (useraddon_t*) Xcalloc(1, sizeof(useraddon_t));
-        addonPtr->internalId = Addon_CreateInternalIdentity(basepath, nchar);
 
-        Bstrncpy(addonPtr->data_path, basepath, BMAX_PATH);
+        // TODO: May want to change internal ID to just the subfolder name, not the whole path
+        addonPtr->internalId = AddonJson_DupString_RemoveLeadingNonAlpha(basepath, nchar);
+
+        addonPtr->data_path = Xstrdup(basepath);
         addonPtr->loadorder_idx = DEFAULT_LOADORDER_IDX;
-        addonPtr->loadtype = LT_FOLDER;
+        addonPtr->package_type = ADDONLT_FOLDER;
 
         char json_path[BMAX_PATH];
         Bsnprintf(json_path, BMAX_PATH, "%s/%s", basepath, addonjsonfn);
-        if (AJ_ParseJsonDescriptor(json_path, addonPtr, basepath, rec->name))
+        if (AddonJson_ParseDescriptor(ctx, json_path, addonPtr, basepath, rec->name))
         {
-            addonPtr->freeContents();
+            addonPtr->cleanup();
             DO_FREE_AND_NULL(addonPtr);
             continue;
         }
 
+        // on success, set content type and check if addon active
+        AddonJson_SetContentType(addonPtr);
         addonPtr->setSelected(CONFIG_GetAddonActivationStatus(addonPtr->internalId));
         ++s_numuseraddons;
     }
     fnlist_clearnames(fnlist);
 }
 
-// find addon from Steam Workshop folders
-static void Addon_ReadWorkshopItems(void)
+// find addon from Steam Workshop folders (may be scattered)
+static void AddonJson_ReadWorkshopItems(void)
 {
     // TODO
 }
 
 // count potential maximum number of addons
-static int32_t Addon_CountPotentialAddons(void)
+static int32_t AddonJson_CountPotentialAddons(void)
 {
     int32_t numaddons = 0;
 
     char addonpathbuf[BMAX_PATH];
-    if (!Addon_GetLocalDir(addonpathbuf, BMAX_PATH))
+    if (!AddonJson_GetLocalDir(addonpathbuf, BMAX_PATH))
     {
         fnlist_t fnlist = FNLIST_INITIALIZER;
         fnlist_clearnames(&fnlist);
@@ -1043,24 +1014,11 @@ static int32_t Addon_CountPotentialAddons(void)
     return numaddons;
 }
 
-// This splits the internal addon array into the distinct types
-static void Addon_SplitAddonTypes(void)
+// This splits the internal addon array into the distinct types, and check validity of all addons
+static void AddonJson_SplitAddonTypes(void)
 {
     g_addoncount_tcs = 0;
     g_addoncount_mods = 0;
-    for (int i = 0; i < s_numuseraddons; i++)
-    {
-        useraddon_t* addonPtr = s_useraddons[i];
-        if (!addonPtr->isValid()) continue;
-        else if (addonPtr->isTotalConversion()) g_addoncount_tcs++;
-        else g_addoncount_mods++;
-    }
-
-    g_useraddons_tcs = (useraddon_t **) Xcalloc(g_addoncount_tcs, sizeof(useraddon_t*));
-    g_useraddons_mods = (useraddon_t **) Xcalloc(g_addoncount_mods, sizeof(useraddon_t*));
-
-    //copy data over
-    int tcidx = 0, modidx = 0;
     for (int i = 0; i < s_numuseraddons; i++)
     {
         useraddon_t* addonPtr = s_useraddons[i];
@@ -1069,23 +1027,37 @@ static void Addon_SplitAddonTypes(void)
             DO_FREE_AND_NULL(s_useraddons[i]);
             continue;
         }
-        else if (addonPtr->isTotalConversion()) g_useraddons_tcs[tcidx++] = addonPtr;
-        else g_useraddons_mods[modidx++] = addonPtr;
+
+        switch (addonPtr->content_type)
+        {
+            case ADDONTYPE_TC: g_addoncount_tcs++; break;
+            case ADDONTYPE_MOD: g_addoncount_mods++; break;
+            default:
+                LOG_F(ERROR, "Invalid addon type %d for %s, this should never happen.", addonPtr->content_type, addonPtr->internalId);
+                break;
+        }
     }
-}
 
-void Addon_FreeUserTCs(void)
-{
-    for_tcaddons(addonPtr, { addonPtr->freeContents(); Xfree(addonPtr); });
-    DO_FREE_AND_NULL(g_useraddons_tcs);
-    g_addoncount_tcs = 0;
-}
+    // now we know the counts
+    g_useraddons_tcs = (useraddon_t **) Xmalloc(g_addoncount_tcs * sizeof(useraddon_t*));
+    g_useraddons_mods = (useraddon_t **) Xmalloc(g_addoncount_mods * sizeof(useraddon_t*));
 
-void Addon_FreeUserMods(void)
-{
-    for_modaddons(addonPtr, { addonPtr->freeContents(); Xfree(addonPtr); });
-    DO_FREE_AND_NULL(g_useraddons_mods);
-    g_addoncount_mods = 0;
+    //copy data over
+    int tcidx = 0, modidx = 0;
+    for (int i = 0; i < s_numuseraddons; i++)
+    {
+        useraddon_t* addonPtr = s_useraddons[i];
+        if (!addonPtr) continue;
+
+        switch (addonPtr->content_type)
+        {
+            case ADDONTYPE_TC: g_useraddons_tcs[tcidx++] = addonPtr; break;
+            case ADDONTYPE_MOD: g_useraddons_mods[modidx++] = addonPtr; break;
+            default:
+                LOG_F(ERROR, "Invalid addon type %d for %s, this should never happen.", addonPtr->content_type, addonPtr->internalId);
+                break;
+        }
+    }
 }
 
 // Important: this function is called before the setup window is shown
@@ -1101,30 +1073,49 @@ void Addon_ReadJsonDescriptors(void)
     pathsearchmode = 1;
 
     // create space for all potentially valid addons
-    int32_t maxaddons = Addon_CountPotentialAddons();
-    if (maxaddons <= 0)
-        return;
+    int32_t maxaddons = AddonJson_CountPotentialAddons();
+    if (maxaddons <= 0) return;
 
-    // these variables are updated over the following functions
+    // these are updated inside the following functions
     s_useraddons = (useraddon_t **) Xcalloc(maxaddons, sizeof(useraddon_t*));
     s_numuseraddons = 0;
 
+    // context is reused
+    sjson_context *ctx = sjson_create_context(0, 0, nullptr);
+
     char addonpathbuf[BMAX_PATH];
-    if (!Addon_GetLocalDir(addonpathbuf, BMAX_PATH))
+    if (!AddonJson_GetLocalDir(addonpathbuf, BMAX_PATH))
     {
         fnlist_t fnlist = FNLIST_INITIALIZER;
         fnlist_clearnames(&fnlist);
-        Addon_ReadLocalPackages(&fnlist, addonpathbuf);
-        Addon_ReadLocalSubfolders(&fnlist, addonpathbuf);
+        AddonJson_ReadLocalPackages(ctx, &fnlist, addonpathbuf);
+        AddonJson_ReadLocalSubfolders(ctx, &fnlist, addonpathbuf);
     }
 
-    Addon_ReadWorkshopItems();
+    // workshop items are outside the local directory
+    AddonJson_ReadWorkshopItems();
 
+    // cleanup
+    sjson_destroy_context(ctx);
     pathsearchmode = bakpathsearchmode;
 
     if (s_numuseraddons > 0)
-        Addon_SplitAddonTypes();
+        AddonJson_SplitAddonTypes();
 
     DO_FREE_AND_NULL(s_useraddons);
     s_numuseraddons = 0;
+}
+
+void Addon_FreeUserTCs(void)
+{
+    for_tcaddons(addonPtr, { addonPtr->cleanup(); Xfree(addonPtr); });
+    DO_FREE_AND_NULL(g_useraddons_tcs);
+    g_addoncount_tcs = 0;
+}
+
+void Addon_FreeUserMods(void)
+{
+    for_modaddons(addonPtr, { addonPtr->cleanup(); Xfree(addonPtr); });
+    DO_FREE_AND_NULL(g_useraddons_mods);
+    g_addoncount_mods = 0;
 }
