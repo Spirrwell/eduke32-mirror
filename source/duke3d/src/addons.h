@@ -23,8 +23,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #ifndef addons_h_
 #define addons_h_
 
-#include "game.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -63,18 +61,17 @@ struct addonjson_t
     char author[MAXADDONAUTHOR];
     char version[MAXADDONVERSION];
 
+    char* description;
+    int32_t desc_len, desc_linecnt;
+
+    char preview_path[BMAX_PATH];
     char main_script_path[BMAX_PATH];
     char main_def_path[BMAX_PATH];
     char main_rts_path[BMAX_PATH];
 
-    int32_t desc_len, desc_linecnt;
-    int32_t num_script_modules, num_def_modules;
-
-    char* description;
-    uint8_t* image_data;
-
     char** script_modules;
     char** def_modules;
+    int32_t num_script_modules, num_def_modules;
 };
 
 struct useraddon_t
@@ -83,8 +80,11 @@ struct useraddon_t
     char menuentryname[MAXADDONTITLE];
     char data_path[BMAX_PATH];
 
+    addongame_t gametype;
     addonpackage_t loadtype;
     addonjson_t jsondat;
+
+    uint8_t* image_data;
 
     int8_t status;
     int16_t loadorder_idx;
@@ -111,10 +111,12 @@ extern bool g_addonfailed;
 
 void Addon_FreePreviewHashTable(void);
 void Addon_FreeUserAddons(void);
+void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB);
 
 int32_t Addon_ReadPackageDescriptors(void);
-int32_t Addon_LoadPreviewTile(addonjson_t* mjsonStore);
-void Addon_SwapLoadOrder(int32_t indexA, int32_t indexB);
+int32_t Addon_PruneInvalidAddons(void);
+int32_t Addon_CachePreviewImages(void);
+int32_t Addon_LoadPreviewTile(useraddon_t* addon);
 int32_t Addon_PrepareUserAddons(void);
 
 #ifdef __cplusplus

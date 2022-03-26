@@ -3936,7 +3936,7 @@ static void Menu_EntryFocus(/*MenuEntry_t *entry*/)
             if (addonIndex >= 0 && addonIndex < g_numuseraddons)
             {
                 useraddon_t & addon = g_useraddons[addonIndex];
-                if (addon.isValid() && (Addon_LoadPreviewTile(&addon.jsondat) == 0))
+                if (addon.isValid() && (Addon_LoadPreviewTile(&addon) == 0))
                     break;
             }
 
@@ -5300,6 +5300,9 @@ static void Menu_LoadAddonPackages()
     static bool firstrun = true;
 
     Addon_ReadPackageDescriptors();
+    Addon_PruneInvalidAddons();
+    Addon_CachePreviewImages();
+
     int const nummenuitems = g_numuseraddons + ADDONLIST_OFFSET;
 
     if (firstrun)

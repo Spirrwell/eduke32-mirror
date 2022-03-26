@@ -7109,6 +7109,9 @@ int app_main(int argc, char const* const* argv)
 
     G_ScanGroups();
 
+    LOG_F(INFO, "Loading addon descriptors...");
+    Addon_ReadPackageDescriptors();
+
 #ifdef STARTUP_SETUP_WINDOW
     if (!Bgetenv("SteamTenfoot") && (readSetup < 0 || (!g_noSetup && (ud.configversion != BYTEVERSION_EDUKE32 || ud.setup.forcesetup)) || g_commandSetup))
     {
@@ -7122,9 +7125,6 @@ int app_main(int argc, char const* const* argv)
 
     G_BackupStartupValues();
 
-    LOG_F(INFO, "Loading addon descriptors...");
-    Addon_ReadPackageDescriptors();
-
     g_bootState = BOOTSTATE_INITIAL;
 
     if (ud.setup.launchuseraddons)
@@ -7133,9 +7133,6 @@ int app_main(int argc, char const* const* argv)
 SOFT_REBOOT:
     if (g_bootState & BOOTSTATE_REBOOT)
         G_SoftReboot();
-
-    if (g_bootState & BOOTSTATE_ADDONS)
-        Addon_PrepareUserAddons();
 
     G_LoadGroups(!g_noAutoLoad && !ud.setup.noautoload);
 
@@ -7331,6 +7328,9 @@ SOFT_REBOOT:
     CONFIG_SetDefaultKeys(keydefaults, true);
 
     system_getcvars();
+
+    LOG_F(INFO, "Converting and caching addon preview images...");
+    Addon_CachePreviewImages();
 
     if (quitevent) app_exit(4);
 

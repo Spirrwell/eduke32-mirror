@@ -709,7 +709,7 @@ const char *ExtGetWallCaption(int16_t wallnum)
     static char tempbuf[64];
 
     Bmemset(tempbuf,0,sizeof(tempbuf));
-    
+
     if (bitmap_test(editwall, wallnum))
     {
         Bsprintf(tempbuf,"%d", wallength(wallnum));
@@ -2567,7 +2567,7 @@ static int32_t editorTilePickerBasicKeys(int32_t tileNum, int32_t nXTiles, int32
     }
 
     if (PRESSED_KEYSC(BS))
-        globalpal = 0;     
+        globalpal = 0;
 
     // 'U'  KEYPRESS : go straight to user defined art
     if (PRESSED_KEYSC(U))
@@ -3117,7 +3117,7 @@ static int32_t editorGetTile(int32_t idInitialTile)
     }
 
     searchx=omousex;
-    searchy=omousey;    
+    searchy=omousey;
     editorMaybeWarpMouse(searchx, searchy);
     keystatus[KEYSC_ESC] = 0;
     keystatus[KEYSC_ENTER] = 0;

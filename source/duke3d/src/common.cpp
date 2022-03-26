@@ -12,6 +12,7 @@
 #include "palette.h"
 #include "texcache.h"
 #include "vfs.h"
+#include "addons.h"
 
 #ifdef _WIN32
 # include "windows_inc.h"
@@ -504,6 +505,8 @@ void G_LoadGroups(int32_t autoload)
 
     if (g_modDir[0] != '/')
         G_LoadGroupsInDir(g_modDir);
+
+    Addon_PrepareUserAddons();
 
 #ifndef EDUKE32_STANDALONE
     if (g_defNamePtr == NULL)

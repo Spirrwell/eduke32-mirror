@@ -152,7 +152,8 @@ static bool Addon_CheckFilePresence(const char* filepath)
     return loadsuccess;
 }
 
-static char* Addon_IdentityFromString(const char* src, const int32_t srclen)
+// remove leading slashes and other non-alpha chars
+static char* Addon_TrimLeadingNonAlpha(const char* src, const int32_t srclen)
 {
     int i = 0;
     while (i < srclen && !isalpha(src[i])) i++;
@@ -239,6 +240,30 @@ static int32_t Addon_ParseJson_String(useraddon_t *addon, sjson_node *node, cons
         LOG_F(WARNING, "Member '%s' of addon '%s' exceeds maximum size of %d chars!", key, addon->uniqueId, bufsize);
         dstbuf[bufsize-1] = '\0';
     }
+    return 0;
+}
+
+static int32_t Addon_ParseJson_FilePath(useraddon_t* addon, sjson_node* root, const char* key, char *dstbuf, const char* basepath)
+{
+    sjson_node * ele = sjson_find_member_nocase(root, key);
+    if (ele == nullptr)
+        return -1;
+
+    if (ele->tag != SJSON_STRING)
+    {
+        LOG_F(WARNING, "Provided file path on '%s' for addon '%s' is not a string!", key, addon->uniqueId);
+        return -1;
+    }
+
+    Bsnprintf(dstbuf, BMAX_PATH, "%s/%s", basepath, ele->string_);
+
+    if (!Addon_CheckFilePresence(addon->jsondat.preview_path))
+    {
+        LOG_F(WARNING, "File for key '%s' of addon '%s' at location '%s' does not exist!", key, addon->uniqueId, dstbuf);
+        dstbuf[0] = '\0';
+        return -1;
+    }
+
     return 0;
 }
 
@@ -362,112 +387,6 @@ static int32_t Addon_ParseJson_Scripts(useraddon_t *addon, sjson_node* root, con
     return 0;
 }
 
-
-static int32_t Addon_LoadPreviewFromFile(char const *fn, uint8_t *imagebuffer)
-{
-#ifdef WITHKPLIB
-    int32_t i, j, xsiz = 0, ysiz = 0;
-    palette_t *picptr = NULL;
-
-    kpzdecode(kpzbufload(fn), (intptr_t *)&picptr, &xsiz, &ysiz);
-    if (xsiz != PREVIEWTILE_XSIZE || ysiz != PREVIEWTILE_YSIZE)
-    {
-        if (picptr) Xfree(picptr);
-        LOG_F(WARNING, "Addon preview image '%s' does not have required format: %dx%d", fn, PREVIEWTILE_XSIZE, PREVIEWTILE_YSIZE);
-        return -2;
-    }
-
-    if (!(paletteloaded & PALETTE_MAIN))
-    {
-        if (picptr) Xfree(picptr);
-        LOG_F(WARNING, "Addon Preview: no palette loaded");
-        return -3;
-    }
-
-    paletteFlushClosestColor();
-    for (j = 0; j < ysiz; ++j)
-    {
-        int const ofs = j * xsiz;
-        for (i = 0; i < xsiz; ++i)
-        {
-            palette_t const *const col = &picptr[ofs + i];
-            imagebuffer[(i * ysiz) + j] = paletteGetClosestColorUpToIndex(col->b, col->g, col->r, 254);
-        }
-    }
-
-    Xfree(picptr);
-    return 0;
-#else
-    UNREFERENCED_CONST_PARAMETER(fn);
-    UNREFERENCED_PARAMETER(imagebuffer);
-    return -1;
-#endif
-}
-
-static int32_t Addon_ParseJson_PreviewImage(useraddon_t* addon, sjson_node* root, const char* key, const char* basepath)
-{
-    sjson_node * ele = sjson_find_member_nocase(root, key);
-    if (ele == nullptr)
-        return -1;
-
-    if (ele->tag != SJSON_STRING)
-    {
-        LOG_F(WARNING, "Provided image path for addon '%s' is not a string!", addon->uniqueId);
-        return -1;
-    }
-
-    char fnbuf[BMAX_PATH];
-    Bsnprintf(fnbuf, BMAX_PATH, "%s/%s", basepath, ele->string_);
-
-    intptr_t cachedImage = hash_find(&h_addonpreviews, fnbuf);
-    if (cachedImage == -1)
-    {
-        if (!Addon_CheckFilePresence(fnbuf))
-        {
-            LOG_F(WARNING, "Preview image of addon '%s' at location '%s' does not exist!", addon->uniqueId, fnbuf);
-            return -1;
-        }
-
-        addon->jsondat.image_data = (uint8_t *) Xmalloc(PREVIEWTILE_XSIZE * PREVIEWTILE_YSIZE * sizeof(uint8_t));
-        if (Addon_LoadPreviewFromFile(fnbuf, addon->jsondat.image_data) < 0)
-        {
-            DO_FREE_AND_NULL(addon->jsondat.image_data);
-            return -1;
-        }
-        hash_add(&h_addonpreviews, fnbuf, (intptr_t) addon->jsondat.image_data, 0);
-    }
-    else
-    {
-        addon->jsondat.image_data = (uint8_t*) cachedImage;
-    }
-
-    return 0;
-}
-
-static int32_t Addon_ParseJson_RTSPath(useraddon_t* addon, sjson_node* root, const char* key, const char* basepath)
-{
-    sjson_node * ele = sjson_find_member_nocase(root, key);
-    if (ele == nullptr)
-        return -1;
-
-    if (ele->tag != SJSON_STRING)
-    {
-        LOG_F(WARNING, "Provided RTS file path for addon '%s' is not a string!", addon->uniqueId);
-        return -1;
-    }
-
-    char full_path_buf[BMAX_PATH];
-    Bsnprintf(full_path_buf, BMAX_PATH, "%s/%s", basepath, ele->string_);
-    if (!Addon_CheckFilePresence(full_path_buf))
-    {
-        LOG_F(WARNING, "RTS file for addon '%s' at location '%s' does not exist!", addon->uniqueId, full_path_buf);
-        return -1;
-    }
-
-    Bstrncpyz(addon->jsondat.main_rts_path, ele->string_, BMAX_PATH);
-    return 0;
-}
-
 static addongame_t Addon_ParseJson_GameFlag(useraddon_t* addon, sjson_node* root, const char* key)
 {
     sjson_node * ele = sjson_find_member_nocase(root, key);
@@ -540,10 +459,8 @@ static int32_t Addon_ParseJson(useraddon_t* addon, sjson_context* ctx, const cha
     sjson_node * root = sjson_decode(ctx, jsonTextBuf);
     Xfree(jsonTextBuf);
 
-    // TODO: Needs to be reverted back to setting a flag on the struct, since gametype may not be initialized
-    // if current gametype doesn't match expected gametype, discard addon
-    addongame_t exp_gametype = Addon_ParseJson_GameFlag(addon, root, jsonkey_game);
-    if (!(g_gameType & exp_gametype))
+    addon->gametype = Addon_ParseJson_GameFlag(addon, root, jsonkey_game);
+    if (addon->gametype == BASEGAME_NONE)
         return -1;
 
     // load visual descriptors
@@ -559,10 +476,6 @@ static int32_t Addon_ParseJson(useraddon_t* addon, sjson_context* ctx, const cha
     if (Addon_ParseJson_Description(addon, root, jsonkey_desc))
         Addon_AllocateDefaultDescription(addon);
 
-    // TODO: palette may not be initialized, need to separate out
-    // TODO: could load a default image using the return value
-    Addon_ParseJson_PreviewImage(addon, root, jsonkey_image, basepath);
-
     // CON script paths
     Addon_ParseJson_Scripts(addon, root, jsonkey_con, basepath, addon->jsondat.main_script_path,
                             addon->jsondat.script_modules, addon->jsondat.num_script_modules);
@@ -571,8 +484,11 @@ static int32_t Addon_ParseJson(useraddon_t* addon, sjson_context* ctx, const cha
     Addon_ParseJson_Scripts(addon, root, jsonkey_def, basepath, addon->jsondat.main_def_path,
                             addon->jsondat.def_modules, addon->jsondat.num_def_modules);
 
+    // Preview image filepath
+    Addon_ParseJson_FilePath(addon, root, jsonkey_image, addon->jsondat.preview_path, basepath);
+
     // RTS file path
-    Addon_ParseJson_RTSPath(addon, root, jsonkey_rts, basepath);
+    Addon_ParseJson_FilePath(addon, root, jsonkey_rts, addon->jsondat.main_rts_path, basepath);
 
     return 0;
 }
@@ -633,7 +549,7 @@ static int32_t Addon_ReadLocalPackages(sjson_context* ctx, fnlist_t* fnlist, con
             int const nchar = Bsnprintf(package_path, BMAX_PATH, "%s/%s", addondir, rec->name);
 
             useraddon_t & addon = g_useraddons[g_numuseraddons];
-            addon.uniqueId = Addon_IdentityFromString(package_path, nchar);
+            addon.uniqueId = Addon_TrimLeadingNonAlpha(package_path, nchar);
 
             Bstrncpy(addon.data_path, package_path, BMAX_PATH);
             addon.loadorder_idx = -1;
@@ -696,7 +612,7 @@ static int32_t Addon_ReadSubfolderAddons(sjson_context* ctx, fnlist_t* fnlist, c
         int const nchar = Bsnprintf(basepath, BMAX_PATH, "%s/%s", addondir, rec->name);
 
         useraddon_t & addon = g_useraddons[g_numuseraddons];
-        addon.uniqueId = Addon_IdentityFromString(basepath, nchar);
+        addon.uniqueId = Addon_TrimLeadingNonAlpha(basepath, nchar);
 
         Bstrncpy(addon.data_path, basepath, BMAX_PATH);
         addon.loadtype = LT_FOLDER;
@@ -742,7 +658,7 @@ static int16_t Addon_InitLoadOrderFromConfig()
     return maxLoadOrder + 1;
 }
 
-static void Addon_SaveStatusForAddon(void)
+static void Addon_SaveConfig(void)
 {
     for (int i = 0; i < g_numuseraddons; i++)
     {
@@ -786,9 +702,11 @@ static void Addon_InitializeLoadOrder(void)
         }
     }
     Xfree(lobuf);
-    Addon_SaveStatusForAddon();
+    Addon_SaveConfig();
 }
 
+// Important: this function is called before the setup window is shown
+// Hence it must not depend on any variables initialized from game content
 int32_t Addon_ReadPackageDescriptors(void)
 {
     // initialize hash table if it doesn't exist yet
@@ -845,9 +763,133 @@ int32_t Addon_ReadPackageDescriptors(void)
     return 0;
 }
 
-int32_t Addon_LoadPreviewTile(addonjson_t* mjsonStore)
+// Remove addons for which the gametype doesn't match the current
+// hack to fix the menu display
+int32_t Addon_PruneInvalidAddons(void)
 {
-    if (!mjsonStore->image_data)
+    if (!g_useraddons || g_numuseraddons <= 0)
+        return -1;
+
+    int i, j, newaddoncount = 0;
+    for (i = 0; i < g_numuseraddons; i++)
+    {
+        if (g_useraddons[i].gametype & g_gameType)
+            newaddoncount++;
+    }
+
+    useraddon_t * gooduseraddons = (useraddon_t *)Xcalloc(newaddoncount, sizeof(useraddon_t));
+
+    for (i=0, j=0; i < g_numuseraddons; i++)
+    {
+        useraddon_t & addon = g_useraddons[i];
+        if (!(addon.isValid() && (g_useraddons[i].gametype & g_gameType)))
+            Addon_FreeAddonContents(&g_useraddons[i]);
+        else
+            gooduseraddons[j++] = g_useraddons[i];
+    }
+    Xfree(g_useraddons);
+
+    g_useraddons = gooduseraddons;
+    g_numuseraddons = newaddoncount;
+    Addon_InitializeLoadOrder();
+
+    return 0;
+}
+
+static int32_t Addon_LoadPreviewDataFromFile(char const *fn, uint8_t *imagebuffer)
+{
+#ifdef WITHKPLIB
+    int32_t i, j, xsiz = 0, ysiz = 0;
+    palette_t *picptr = NULL;
+
+    kpzdecode(kpzbufload(fn), (intptr_t *)&picptr, &xsiz, &ysiz);
+    if (xsiz != PREVIEWTILE_XSIZE || ysiz != PREVIEWTILE_YSIZE)
+    {
+        if (picptr) Xfree(picptr);
+        LOG_F(WARNING, "Addon preview image '%s' does not have required format: %dx%d", fn, PREVIEWTILE_XSIZE, PREVIEWTILE_YSIZE);
+        return -2;
+    }
+
+    if (!(paletteloaded & PALETTE_MAIN))
+    {
+        if (picptr) Xfree(picptr);
+        LOG_F(WARNING, "Addon Preview: no palette loaded");
+        return -3;
+    }
+
+    // convert to palette, this is the expensive operation...
+    paletteFlushClosestColor();
+    for (j = 0; j < ysiz; ++j)
+    {
+        int const ofs = j * xsiz;
+        for (i = 0; i < xsiz; ++i)
+        {
+            palette_t const *const col = &picptr[ofs + i];
+            imagebuffer[(i * ysiz) + j] = paletteGetClosestColorUpToIndex(col->b, col->g, col->r, 254);
+        }
+    }
+
+    Xfree(picptr);
+    return 0;
+#else
+    UNREFERENCED_CONST_PARAMETER(fn);
+    UNREFERENCED_PARAMETER(imagebuffer);
+    return -1;
+#endif
+}
+
+// initializing of preview images requires access to palette, and is run after game content is loaded
+// hence this may depend on variables such as g_gameType or Logo Flags
+// must be run before loading tiles
+int32_t Addon_CachePreviewImages(void)
+{
+    if (!g_useraddons || g_numuseraddons <= 0)
+        return 0;
+
+    // use absolute paths to load addons
+    int const bakpathsearchmode = pathsearchmode;
+    pathsearchmode = 1;
+
+    for (int i = 0; i < g_numuseraddons; i++)
+    {
+        useraddon_t & addon = g_useraddons[i];
+
+        // don't cache images for addons we won't see
+        if (!(addon.isValid() && (addon.gametype & g_gameType)))
+            continue;
+
+        intptr_t cachedImage = hash_find(&h_addonpreviews, addon.jsondat.preview_path);
+        if (cachedImage == -1)
+        {
+            addon.image_data = (uint8_t *) Xmalloc(PREVIEWTILE_XSIZE * PREVIEWTILE_YSIZE * sizeof(uint8_t));
+            if (addon.loadtype & (LT_GRP | LT_ZIP | LT_SSI))
+                initgroupfile(addon.data_path);
+
+            int const loadSuccess = Addon_LoadPreviewDataFromFile(addon.jsondat.preview_path, addon.image_data);
+
+            if (addon.loadtype & (LT_GRP | LT_ZIP | LT_SSI))
+                Addon_PackageCleanup((addon.loadtype & LT_ZIP) ? numgroupfiles : 0);
+
+            if (loadSuccess < 0)
+            {
+                DO_FREE_AND_NULL(addon.image_data);
+                continue;
+            }
+
+            hash_add(&h_addonpreviews, addon.jsondat.preview_path, (intptr_t) addon.image_data, 0);
+        }
+        else
+            addon.image_data = (uint8_t*) cachedImage;
+    }
+
+    pathsearchmode = bakpathsearchmode;
+
+    return 0;
+}
+
+int32_t Addon_LoadPreviewTile(useraddon_t * addon)
+{
+    if (!addon->image_data)
         return -1;
 
     walock[TILE_ADDONSHOT] = CACHE1D_PERMANENT;
@@ -858,12 +900,12 @@ int32_t Addon_LoadPreviewTile(addonjson_t* mjsonStore)
     tilesiz[TILE_ADDONSHOT].x = PREVIEWTILE_XSIZE;
     tilesiz[TILE_ADDONSHOT].y = PREVIEWTILE_YSIZE;
 
-    Bmemcpy((char *)waloff[TILE_ADDONSHOT], mjsonStore->image_data, PREVIEWTILE_XSIZE * PREVIEWTILE_YSIZE);
+    Bmemcpy((char *)waloff[TILE_ADDONSHOT], addon->image_data, PREVIEWTILE_XSIZE * PREVIEWTILE_YSIZE);
     tileInvalidate(TILE_ADDONSHOT, 0, 255);
     return 0;
 }
 
-void Addon_SwapLoadOrder(int32_t indexA, int32_t indexB)
+void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB)
 {
     useraddon_t & addonA = g_useraddons[indexA];
     useraddon_t & addonB = g_useraddons[indexB];
@@ -874,7 +916,7 @@ void Addon_SwapLoadOrder(int32_t indexA, int32_t indexB)
 
     addonA.updateMenuEntryName();
     addonB.updateMenuEntryName();
-    Addon_SaveStatusForAddon();
+    Addon_SaveConfig();
 }
 
 static int32_t Addon_LoadSelectedAddon(useraddon_t* addon)
@@ -888,19 +930,14 @@ static int32_t Addon_LoadSelectedAddon(useraddon_t* addon)
     switch (addon->loadtype)
     {
         case LT_FOLDER:
+        case LT_WORKSHOP:
             addsearchpath_user(addon->data_path, SEARCHPATH_REBOOT);
             break;
         case LT_ZIP:
         case LT_SSI:
         case LT_GRP:
-            {
-            int const status = initgroupfile(addon->data_path);
-            if (status == -1)
+            if ((initgroupfile(addon->data_path)) == -1)
                 LOG_F(ERROR, "failed to open addon group file: %s", addon->data_path);
-            }
-            break;
-        case LT_WORKSHOP:
-            //TODO:
             break;
         case LT_INVALID:
             LOG_F(ERROR, "Invalid addon: %s", addon->uniqueId);
@@ -930,7 +967,7 @@ static int32_t Addon_LoadSelectedAddon(useraddon_t* addon)
 
 int32_t Addon_PrepareUserAddons(void)
 {
-    if (g_numuseraddons <= 0 || !g_useraddons)
+    if (!(g_bootState & BOOTSTATE_ADDONS) || g_numuseraddons <= 0 || !g_useraddons)
         return 0;
 
     // use absolute paths to load addons
@@ -946,7 +983,7 @@ int32_t Addon_PrepareUserAddons(void)
     for (int i = 0; i < g_numuseraddons; i++)
     {
         useraddon_t* addon = lobuf[i];
-        if (addon->isValid() && addon->isSelected())
+        if (addon->isValid() && addon->isSelected() && (addon->gametype & g_gameType))
             Addon_LoadSelectedAddon(addon);
     }
 

@@ -33,6 +33,9 @@
     <ClCompile Include="..\..\source\duke3d\src\astub.cpp">
       <Filter>Source Files\duke3d_editor</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\source\duke3d\src\m32addons.cpp">
+      <Filter>Source Files\duke3d_editor</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\source\duke3d\src\m32common.cpp">
       <Filter>Source Files\duke3d_editor</Filter>
     </ClCompile>
@@ -69,6 +72,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\source\build\include\m32script.h">
+      <Filter>Header Files\editor</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\source\duke3d\src\addons.h">
       <Filter>Header Files\editor</Filter>
     </ClInclude>
     <ClInclude Include="..\..\source\duke3d\src\m32def.h">

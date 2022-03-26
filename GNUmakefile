@@ -510,6 +510,7 @@ duke3d_game_proper := EDuke32
 duke3d_editor_proper := Mapster32
 
 duke3d_common_editor_objs := \
+    m32addons.cpp \
     m32common.cpp \
     m32def.cpp \
     m32exec.cpp \
