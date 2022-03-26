@@ -6067,7 +6067,7 @@ static void G_Cleanup(void)
 ===================
 =
 = Soft Reboot (restore to state post-setup window)
-=
+= // TODO: Needs to be fixed and completed.
 ===================
 */
 
@@ -6096,6 +6096,7 @@ GrowArray<char *> BACKUP_g_defModules;
 
 static void G_FreeBackupValues(void)
 {
+    //TODO: Needs to be fixed and completed.
     for (char * m : BACKUP_g_scriptModules) Xfree(m);
     BACKUP_g_scriptModules.clear();
 
@@ -6105,6 +6106,7 @@ static void G_FreeBackupValues(void)
 
 static void G_BackupStartupValues(void)
 {
+    // TODO: Needs to be fixed and completed.
     // CommandGrps and CommandPaths do not need to be saved
     G_FreeBackupValues();
 
@@ -6146,6 +6148,7 @@ static void G_BackupStartupValues(void)
 
 static void G_RestoreStartupValues(void)
 {
+    // TODO: Needs to be fixed and completed.
     // CommandGrps and CommandPaths do not need to be restored
     g_selectedGrp = BACKUP_g_selectedGrp;
 
@@ -6192,6 +6195,7 @@ static void G_RestoreStartupValues(void)
 
 static void G_SoftReboot(void)
 {
+    // TODO: Needs to be fixed and completed.
     int32_t i;
     // Note: each string in this is freed and cleared, startup data is gone
     // This means: necessary to backup initial startup con, def, rts, grp

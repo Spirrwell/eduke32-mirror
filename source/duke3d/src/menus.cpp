@@ -1251,9 +1251,9 @@ static MenuEntry_t **MEL_SAVE;
 #define NUM_TOTAL_ADDONS (g_addoncount_grpinfo + g_addoncount_tcs + g_addoncount_mods)
 
 // macros for the visible addon description
-#define MENUADDON_MAXTITLE 64
-#define MENUADDON_VISTITLE (MENUADDON_MAXTITLE - (FURY ? 8 : 16))
-#define MENUADDON_MAXBODY 16384
+#define MENUADDON_MAXTITLE 128
+#define MENUADDON_VISTITLE (MENUADDON_MAXTITLE - (FURY ? 72 : 80))
+#define MENUADDON_MAXBODY 16384 // at least 8000
 #define MENUADDON_MAXID 48
 #define MENUADDON_MAXVERSION 48
 
@@ -2249,7 +2249,7 @@ static int32_t Menu_Addon_EntryLinkActivate(int32_t const entryIndex)
 }
 
 // Refresh contents of text buffers (argument may be null)
-// TODO: Needs a complete overhaul
+// TODO: Needs a complete overhaul (also, add default description back into it)
 static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
 {
     // local buffer for description contents, before it is passed to the text wrapper
