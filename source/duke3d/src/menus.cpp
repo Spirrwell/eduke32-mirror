@@ -1253,7 +1253,6 @@ static MenuEntry_t **MEL_SAVE;
 // macros for the visible addon description
 #define MENUADDON_MAXTITLE 128
 #define MENUADDON_VISTITLE (MENUADDON_MAXTITLE - (FURY ? 72 : 80))
-#define MENUADDON_MAXBODY 16384 // at least 8000
 #define MENUADDON_MAXID 48
 #define MENUADDON_MAXVERSION 48
 
@@ -1269,7 +1268,7 @@ static MenuEntry_t **MEL_SAVE;
 #define ABT_XSPACE    (MF_Minifont.emptychar.x)
 #define ABT_YLINE     (MF_Minifont.emptychar.y)
 #define ABT_XBETWEEN  (MF_Minifont.between.x)
-#define ABT_YBETWEEN  (MF_Minifont.between.y + (3<<16))
+#define ABT_YBETWEEN  (MF_Minifont.between.y + ((FURY) ? (6<<16) : (3<<16)))
 #define ABT_FLAGS     (MF_Minifont.textflags)
 
 // maximum visual line length in addon description
@@ -1294,9 +1293,9 @@ static MenuEntry_t **MEL_SAVE;
 
 // text display buffers on the addon menu
 static char m_addontitle_buffer[MENUADDON_MAXTITLE];
-static char m_addondesc_buffer[MENUADDON_MAXBODY];
 static char m_addonidentity_buffer[MENUADDON_MAXID];
 static char m_addonversion_buffer[MENUADDON_MAXVERSION];
+static char* m_addonbodytext = nullptr;
 
 // scroll position and number of lines of body (to determine whether scrolling should be enabled)
 static int32_t m_addondesc_scrollpos = 0;
@@ -1308,11 +1307,9 @@ static int32_t m_addontitle_hscroll = 0;
 
 // various strings
 static const char m_addontext_launch[] = "Confirm Selection and Restart";
-static const char m_addontext_grpinfolabel[] = "GRP Info Addons";
+static const char m_addontext_grpinfolabel[] = "Predefined Addons";
 static const char m_addontext_tclabel[] = "Total Conversions";
 static const char m_addontext_modlabel[] = "Mods and Maps";
-static const char m_addontext_noauthor[] = "N/A";
-static const char m_addontext_nodescription[] = "No description available.";
 
 // menu entries with useraddon mapping
 static MenuEntry_t **MEL_ADDONS = nullptr;
@@ -2090,9 +2087,6 @@ static void Menu_SetKeyboardScanCode(MenuCustom2Col_t* columnEntry, const int32_
 // returns x/y dimensions of wrapped string
 static vec2_t MenuAddon_BodyTextWrap(char* dst, const char *src, int32_t const bufsize)
 {
-    // in case source is empty
-    dst[0] = '\0';
-
     int i = 0, j = 0, ws_idx = 0, lb_idx = 0;
     while (src[i] && (j < bufsize-1))
     {
@@ -2120,6 +2114,14 @@ static vec2_t MenuAddon_BodyTextWrap(char* dst, const char *src, int32_t const b
             dst[ws_idx] = '\n';
             lb_idx = ws_idx;
         }
+    }
+
+    if (src[i] && (j >= bufsize-1))
+    {
+        // if not enough space, end copied string with "..."
+        dst[j-1] = '.';
+        dst[j-2] = '.';
+        dst[j-3] = '.';
     }
 
     return ABT_GETXYSIZE(dst);
@@ -2248,17 +2250,137 @@ static int32_t Menu_Addon_EntryLinkActivate(int32_t const entryIndex)
     return 0;
 }
 
+// Update the text that is displayed in place of addon version and identity when no addon is selected
+static void Menu_Addon_RefreshLaunchAddonText(void)
+{
+    m_addonversion_buffer[0] = '\0';
+    m_addonidentity_buffer[0] = '\0';
+
+    // order of priority here is intentional
+    // if no addons are active, game will unload all user content
+    if (g_num_selected_addons == 0)
+        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%dUnload User Content", MENUTEXTPAL_BLUE);
+    // if at least one incompatible addon active, show warning
+    else if (g_num_active_incompats > 0)
+        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%dIncompatible Addons: %d", MENUTEXTPAL_RED, g_num_active_incompats);
+    // if at least one missing dependency present, show warning
+    else if (g_num_active_mdeps > 0)
+        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%dMissing Dependencies: %d", MENUTEXTPAL_RED, g_num_active_mdeps);
+    // when no compatible rendermodes left, we have a conflict
+    else if (!g_addon_compatrendmode)
+        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%dRendermode Conflict!", MENUTEXTPAL_RED);
+    // if compatible rendermodes are not supported, we also have a conflict
+    else if ((g_addon_compatrendmode & ADDON_SUPPORTED_RENDMODES) == 0)
+        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%dUnsupported Rendmode!", MENUTEXTPAL_RED);
+    // else show default "launch content" string
+    else
+        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%dLaunch User Content", MENUTEXTPAL_GREEN);
+}
+
+static const char* Menu_Addon_GetStringforCOp(int8_t cOp)
+{
+    switch(cOp)
+    {
+        case AVCOMP_EQ:
+            return "==";
+            break;
+        case AVCOMP_GT:
+            return ">";
+            break;
+        case AVCOMP_LT:
+            return "<";
+            break;
+        case AVCOMP_GTEQ:
+            return ">=";
+            break;
+        case AVCOMP_LTEQ:
+            return "<=";
+            break;
+        default:
+            return nullptr;
+            break;
+    }
+}
+
 // Refresh contents of text buffers (argument may be null)
-// TODO: Needs a complete overhaul (also, add default description back into it)
 static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
 {
-    // local buffer for description contents, before it is passed to the text wrapper
-    char tempcontentbuf[MENUADDON_MAXBODY];
-    tempcontentbuf[0] = '\0';
+    // refresh property trackers before updating text
+    Addon_RefreshDependencyStates();
+    Addon_RefreshPropertyTrackers();
 
-    int const standardPal = MENUTEXTPAL_BLUE;
-    if (addonPtr && addonPtr->isValid())
+    int const abt_headerpal = MENUTEXTPAL_GRAY;
+    int const abt_textpal = MENUTEXTPAL_BLUE;
+    int const abt_errorpal = MENUTEXTPAL_RED;
+    int const abt_successpal = MENUTEXTPAL_GREEN;
+
+    int abt_buffersize = 0;
+    if (!addonPtr || !addonPtr->isValid())
     {
+        // no valid addon selected (this is normally the first entry for restarting the game)
+        Menu_Addon_RefreshLaunchAddonText();
+        Bstrcpy(m_addontitle_buffer, "Confirm Selection");
+
+        // allocate enough space for default description
+        abt_buffersize = 2048;
+        m_addonbodytext = (char*) Xrealloc(m_addonbodytext, abt_buffersize * sizeof(char));
+        m_addonbodytext[0] = '\0';
+
+        //TODO: Controller instructions
+        Bsprintf(tempbuf, "^%dMenu Controls:^%d\n", abt_headerpal, abt_textpal);
+        Bstrcat(m_addonbodytext, tempbuf);
+
+        Bsprintf(tempbuf, "^%d- PgUp/PgDn/Mousewheel:^%d Scroll content description up and down.\n", abt_headerpal, abt_textpal);
+        Bstrcat(m_addonbodytext, tempbuf);
+
+        Bsprintf(tempbuf, "^%d- Hold Shift + Arrow Keys:^%d Changes the load order of the addons.\n", abt_headerpal, abt_textpal);
+        Bstrcat(m_addonbodytext, tempbuf);
+
+        Bsprintf(tempbuf, "\n^%dUser Instructions:^%d\n", abt_headerpal, abt_textpal);
+        Bstrcat(m_addonbodytext, tempbuf);
+
+        Bstrcat(m_addonbodytext, "- Select the content you wish to enable on next boot.\n"
+                                "- Then confirm the selection. This will reboot the game.\n"
+                                "- After rebooting, the selected addons should be loaded and ready.\n");
+
+        Bsprintf(tempbuf, "\n^%dMaking user content show up in this menu:^%d\n", abt_headerpal, abt_textpal);
+        Bstrcat(m_addonbodytext, tempbuf);
+
+        if (true || communityapiEnabled())
+        {
+            Bstrcat(m_addonbodytext, "- Open the Workshop in Steam, and subscribe to the items you wish to download.\n"
+                                     "- Go back to the main menu and wait for the download to finish.\n"
+                                     "- Your addons should now be available in the menu.\n");
+
+            Bsprintf(tempbuf, "\n^%dLocal Staging for Custom Content:^%d\n", abt_headerpal, abt_textpal);
+            Bstrcat(m_addonbodytext, tempbuf);
+        }
+
+        Bstrcat(m_addonbodytext, "- Place the user content packages in your local \"addons\" folder.\n"
+                                 "- The folder should be placed in the same directory as the game binary.\n"
+                                 "- User content may be loaded from GRP and ZIP files, as well as from subfolders.\n"
+                                 "- Each package requires a valid \"addon.json\" in its base folder to be recognized.\n");
+
+        Bsprintf(tempbuf, "\n^%dKey:^%d\n", abt_headerpal, abt_textpal);
+        Bstrcat(m_addonbodytext, tempbuf);
+
+        Bsprintf(tempbuf, "^%d- Predefined Addons:^%d Official addons, and addons loaded from grpinfo files.\n", abt_headerpal, abt_textpal);
+        Bstrcat(m_addonbodytext, tempbuf);
+
+        Bsprintf(tempbuf, "^%d- Total Conversions:^%d Mutually exclusive addons, which replace the main scripts.\n", abt_headerpal, abt_textpal);
+        Bstrcat(m_addonbodytext, tempbuf);
+
+        Bsprintf(tempbuf, "^%d- Mods and Maps:^%d Additive modifications, user levels and episodes.\n", abt_headerpal, abt_textpal);
+        Bstrcat(m_addonbodytext, tempbuf);
+
+    }
+    else
+    {
+        // valid addon selected
+        int i, n;
+        bool hasIssue = false;
+
+        // display title of addon in box
         if (strlen(addonPtr->title) >= MENUADDON_VISTITLE)
         {
             Bstrncpyz(m_addontitle_buffer, addonPtr->title, MENUADDON_VISTITLE);
@@ -2267,77 +2389,331 @@ static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
         else
             Bstrncpy(m_addontitle_buffer,  addonPtr->title, MENUADDON_MAXTITLE);
 
-        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%dIdentity:^%d %s",
+        // display identity string in small side box
+        n = Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%dIdentity:^%d %s",
                     MENUTEXTPAL_GRAY, MENUTEXTPAL_BLUE, addonPtr->externalId);
-
-        Bsnprintf(m_addonversion_buffer, MENUADDON_MAXVERSION, "^%dVersion:^%d %s",
-                MENUTEXTPAL_GRAY, MENUTEXTPAL_BLUE, addonPtr->version ? addonPtr->version : "N/A");
-
-        if (addonPtr->author)
+        if (n < 0)
+            Bstrcpy(m_addonidentity_buffer, "Error");
+        else if (n >= MENUADDON_MAXID)
         {
-            Bsnprintf(tempbuf, 128, "^%dAuthor(s):^%d %s\n", MENUTEXTPAL_GRAY, standardPal, addonPtr->author);
-            Bstrcat(tempcontentbuf, tempbuf);
+            m_addonidentity_buffer[MENUADDON_MAXID-1] = '.';
+            m_addonidentity_buffer[MENUADDON_MAXID-2] = '.';
+            m_addonidentity_buffer[MENUADDON_MAXID-3] = '.';
         }
+
+        // display version below identity
+        n = Bsnprintf(m_addonversion_buffer, MENUADDON_MAXVERSION, "^%dVersion:^%d %s",
+                    MENUTEXTPAL_GRAY, MENUTEXTPAL_BLUE, addonPtr->version ? addonPtr->version : "N/A");
+        if (n < 0)
+            Bstrcpy(m_addonversion_buffer, "Error");
+        else if (n >= MENUADDON_MAXVERSION)
+        {
+            m_addonversion_buffer[MENUADDON_MAXVERSION-1] = '.';
+            m_addonversion_buffer[MENUADDON_MAXVERSION-2] = '.';
+            m_addonversion_buffer[MENUADDON_MAXVERSION-3] = '.';
+        }
+
+        // the remaining information is displayed inside the main scrollable textbox
+
+        // first get size of display contents to allocate buffer with
+        // this is an approximation
+        abt_buffersize += addonPtr->author ? (24 + strlen(addonPtr->author)) : 0;
+        abt_buffersize += addonPtr->description ? strlen(addonPtr->description) : 0;
+
+        // allocate some space extra for formatting
         if (addonPtr->num_dependencies > 0)
         {
-            char dstbuf[24];
-            Bsnprintf(dstbuf, 24, "^%dDependencies:^%d ", MENUTEXTPAL_GRAY, standardPal);
-            Bstrcat(tempcontentbuf, dstbuf);
-            for(int i = 0; i < addonPtr->num_dependencies; i++)
+            abt_buffersize += 16;
+            for (i = 0; i < addonPtr->num_dependencies; i++)
             {
-                if (i > 0) Bstrcat(tempcontentbuf, ", ");
-                Bstrcat(tempcontentbuf, addonPtr->dependencies[i].dependencyId);
+                abt_buffersize += 16 + strlen(addonPtr->dependencies[i].dependencyId);
+                abt_buffersize += addonPtr->dependencies[i].version ? strlen(addonPtr->dependencies[i].version) : 0;
             }
-            Bstrcat(tempcontentbuf, "\n");
         }
+
+        // allocate some space extra for formatting
         if (addonPtr->num_incompatibles > 0)
         {
-            char dstbuf[32];
-            Bsnprintf(dstbuf, 32, "^%dIncompatible with:^%d ", MENUTEXTPAL_GRAY, standardPal);
-            Bstrcat(tempcontentbuf, dstbuf);
-            for(int i = 0; i < addonPtr->num_incompatibles; i++)
+            abt_buffersize += 16;
+            for (i = 0; i < addonPtr->num_incompatibles; i++)
             {
-                if (i > 0) Bstrcat(tempcontentbuf, ", ");
-                Bstrcat(tempcontentbuf, addonPtr->incompatibles[i].dependencyId);
+                abt_buffersize += 16 + strlen(addonPtr->incompatibles[i].dependencyId);
+                abt_buffersize += addonPtr->incompatibles[i].version ? strlen(addonPtr->incompatibles[i].version) : 0;
             }
-            Bstrcat(tempcontentbuf, "\n");
         }
+
+        abt_buffersize += addonPtr->startmapfilename ? strlen(addonPtr->startmapfilename) : 0;
+
+#ifdef DEBUGGINGAIDS
+        // size for text only shown with debug mode on
+        abt_buffersize += strlen(addonPtr->internalId);
+        abt_buffersize += addonPtr->data_path ? strlen(addonPtr->data_path) : 0;
+        abt_buffersize += addonPtr->mscript_path ? strlen(addonPtr->mscript_path) : 0;
+        abt_buffersize += addonPtr->mdef_path ? strlen(addonPtr->mdef_path) : 0;
+        abt_buffersize += addonPtr->mrts_path ? strlen(addonPtr->mrts_path) : 0;
+
+        for (i = 0; i < addonPtr->num_script_modules; i++)
+            abt_buffersize += strlen(addonPtr->script_modules[i]);
+
+        for (i = 0; i < addonPtr->num_def_modules; i++)
+            abt_buffersize += strlen(addonPtr->def_modules[i]);
+
+#endif
+
+        // extra space for all possible static character lines in the description, upper bound
+        abt_buffersize += 1024;
+
+        m_addonbodytext = (char*) Xrealloc(m_addonbodytext, abt_buffersize * sizeof(char));
+        m_addonbodytext[0] = '\0';
+
+        Bsprintf(tempbuf, "^%dAuthor(s):^%d %s\n", abt_headerpal, abt_textpal, addonPtr->author ? addonPtr->author : "N/A");
+        Bstrcat(m_addonbodytext, tempbuf);
+
+        // list all dependencies
+        if (addonPtr->num_dependencies > 0)
+        {
+            Bsprintf(tempbuf, "^%dDependencies: ", abt_headerpal);
+            Bstrcat(m_addonbodytext, tempbuf);
+
+            for(i = 0; i < addonPtr->num_dependencies; i++)
+            {
+                addondependency_t & addonDep = addonPtr->dependencies[i];
+                Bsprintf(tempbuf, "^%d", abt_successpal);
+                Bstrcat(m_addonbodytext, tempbuf);
+
+                if (i > 0) Bstrcat(m_addonbodytext, ", ");
+
+                if (!addonDep.isFulfilled())
+                {
+                    Bsprintf(tempbuf, "^%d", abt_errorpal);
+                    Bstrcat(m_addonbodytext, tempbuf);
+                }
+
+                const char* opString = Menu_Addon_GetStringforCOp(addonDep.cOp);
+
+                if (!opString)
+                    Bsprintf(tempbuf, "%s", addonDep.dependencyId);
+                else
+                    Bsprintf(tempbuf, "%s (%s%s)", addonDep.dependencyId, opString, addonDep.version);
+                Bstrcat(m_addonbodytext, tempbuf);
+            }
+            Bstrcat(m_addonbodytext, "\n");
+        }
+
+        // list all incompatibilities
+        if (addonPtr->num_incompatibles > 0)
+        {
+            Bsprintf(tempbuf, "^%dIncompatibles: ", abt_headerpal);
+            Bstrcat(m_addonbodytext, tempbuf);
+
+            for(i = 0; i < addonPtr->num_incompatibles; i++)
+            {
+                addondependency_t & addonDep = addonPtr->incompatibles[i];
+                Bsprintf(tempbuf, "^%d", abt_successpal);
+                Bstrcat(m_addonbodytext, tempbuf);
+
+                if (i > 0) Bstrcat(m_addonbodytext, ", ");
+
+                if (addonDep.isFulfilled())
+                {
+                    Bsprintf(tempbuf, "^%d", abt_errorpal);
+                    Bstrcat(m_addonbodytext, tempbuf);
+                }
+
+                const char* opString = Menu_Addon_GetStringforCOp(addonDep.cOp);
+
+                if (!opString)
+                    Bsprintf(tempbuf, "%s", addonDep.dependencyId);
+                else
+                    Bsprintf(tempbuf, "%s (%s%s)", addonDep.dependencyId, opString, addonDep.version);
+                Bstrcat(m_addonbodytext, tempbuf);
+            }
+            Bstrcat(m_addonbodytext, "\n");
+        }
+
+        // issues section
+        {
+            char issuebuf[1024];
+            issuebuf[0] = '\0';
+
+            Bsprintf(tempbuf, "\n^%dIssues:^%d\n", abt_headerpal, abt_errorpal);
+            Bstrcat(issuebuf, tempbuf);
+
+            if (addonPtr->missing_deps)
+            {
+                Bsprintf(tempbuf, "- %d missing %s!\n", addonPtr->missing_deps, addonPtr->missing_deps == 1 ? "dependency" : "dependencies");
+                Bstrcat(issuebuf, tempbuf);
+                hasIssue = true;
+            }
+
+            if (addonPtr->active_incompats)
+            {
+                Bsprintf(tempbuf, "- %d incompatible addon(s) selected!\n", addonPtr->active_incompats);
+                Bstrcat(issuebuf, tempbuf);
+                hasIssue = true;
+            }
+
+            if ((addonPtr->compatrendmode & (g_addon_compatrendmode & ADDON_SUPPORTED_RENDMODES)) == 0)
+            {
+                Bstrcat(issuebuf, "- Incompatible rendermode!\n");
+                hasIssue = true;
+            }
+
+            if (hasIssue)
+                Bstrcat(m_addonbodytext, issuebuf);
+        }
+
+        // properties section
+        {
+            Bsprintf(tempbuf, "\n^%dProperties:^%d\n", abt_headerpal, abt_textpal);
+            Bstrcat(m_addonbodytext, tempbuf);
+
+            const size_t startlen = strlen(m_addonbodytext);
+
+            if (addonPtr->aflags & ADDONFLAG_OFFICIAL)
+                Bstrcat(m_addonbodytext, "- Official Addon.\n");
+
+            if (addonPtr->aflags & ADDONFLAG_STARTMAP)
+            {
+                if (addonPtr->startmapfilename)
+                    Bsprintf(tempbuf, "^%d- Starts Map:^%d %s\n", abt_headerpal, abt_textpal, addonPtr->startmapfilename);
+                else
+                    Bsprintf(tempbuf, "^%d- Starts Map:^%d E%dL%d\n", abt_headerpal, abt_textpal, addonPtr->startvolume, addonPtr->startlevel);
+                Bstrcat(m_addonbodytext, tempbuf);
+            }
+
+            if (!FURY)
+            {
+                Bsprintf(tempbuf, "^%d- Compatible Rendermodes:^%d", abt_headerpal, abt_textpal);
+                Bstrcat(m_addonbodytext, tempbuf);
+
+                if (addonPtr->compatrendmode & ADDONRM_CLASSIC)
+                {
+                    Bsprintf(tempbuf, " ^%dClassic", g_addon_compatrendmode & ADDONRM_CLASSIC ? abt_successpal : abt_errorpal);
+                    Bstrcat(m_addonbodytext, tempbuf);
+                }
+                if (addonPtr->compatrendmode & ADDONRM_POLYMOST)
+                {
+                    Bsprintf(tempbuf, " ^%dPolymost", g_addon_compatrendmode & ADDONRM_POLYMOST ? abt_successpal : abt_errorpal);
+                    Bstrcat(m_addonbodytext, tempbuf);
+                }
+                if (addonPtr->compatrendmode & ADDONRM_POLYMER)
+                {
+                    Bsprintf(tempbuf, " ^%dPolymer", g_addon_compatrendmode & ADDONRM_POLYMER ? abt_successpal : abt_errorpal);
+                    Bstrcat(m_addonbodytext, tempbuf);
+                }
+
+                Bsprintf(tempbuf, "^%d\n", abt_textpal);
+                Bstrcat(m_addonbodytext, tempbuf);
+            }
+
+            if (addonPtr->mscript_path)
+            {
+                Bsprintf(tempbuf, "^%d- Replaces:^%d Main CON Script\n", abt_headerpal, abt_textpal);
+                Bstrcat(m_addonbodytext, tempbuf);
+            }
+
+            if (addonPtr->mdef_path)
+            {
+                Bsprintf(tempbuf, "^%d- Replaces:^%d Main DEF Script\n", abt_headerpal, abt_textpal);
+                Bstrcat(m_addonbodytext, tempbuf);
+            }
+
+            if (addonPtr->mrts_path)
+            {
+                Bsprintf(m_addonbodytext, "^%d- Replaces:^%d Main RTS File\n", abt_headerpal, abt_textpal);
+                Bstrcat(m_addonbodytext, tempbuf);
+            }
+
+            if (addonPtr->num_script_modules > 0)
+            {
+                Bsprintf(tempbuf, "^%d- CON script modules:^%d %d\n", abt_headerpal, abt_textpal, addonPtr->num_script_modules);
+                Bstrcat(m_addonbodytext, tempbuf);
+            }
+
+            if (addonPtr->num_def_modules > 0)
+            {
+                Bsprintf(tempbuf, "^%d- DEF script modules:^%d %d\n", abt_headerpal, abt_textpal, addonPtr->num_def_modules);
+                Bstrcat(m_addonbodytext, tempbuf);
+            }
+
+            if (startlen == strlen(m_addonbodytext))
+                Bstrcat(m_addonbodytext, "- None\n");
+        }
+
+        // append the description
+        Bsprintf(tempbuf, "\n^%dDescription:^%d\n", abt_headerpal, abt_textpal);
+        Bstrcat(m_addonbodytext, tempbuf);
         if (addonPtr->description)
-        {
-            Bstrcat(tempcontentbuf, "\n");
-            Bstrcat(tempcontentbuf, addonPtr->description);
-        }
-    }
-    else
-    {
-        m_addonversion_buffer[0] = '\0';
-        m_addonidentity_buffer[0] = '\0';
-        Bstrcpy(m_addontitle_buffer, "How to use:");
-
-        if (g_num_selected_addons == 0)
-        {
-            const char* fmtstring = (FURY) ? "^%dUnload User Content" : "^%dUnload Current Addons";
-            Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, fmtstring, MENUTEXTPAL_BLUE);
-        }
-        else if (g_num_active_incompats > 0)
-            Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%dIncompatible Addons: %d", MENUTEXTPAL_RED, g_num_active_incompats);
-        else if (g_num_active_mdeps > 0)
-            Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%dMissing Dependencies: %d", MENUTEXTPAL_RED, g_num_active_mdeps);
-        else if (!g_addon_compatrendmode)
-            Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%dRendermode Conflict!", MENUTEXTPAL_RED);
-        else if ((g_addon_compatrendmode & ADDON_SUPPORTED_RENDMODES) == 0)
-            Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%dUnsupported Rendmode!", MENUTEXTPAL_RED);
+            Bstrcat(m_addonbodytext, addonPtr->description);
         else
+            Bstrcat(m_addonbodytext, "No description available.");
+
+#ifdef DEBUGGINGAIDS
+        // debug description
+        Bsprintf(tempbuf, "\n\n^%dDebug Info:\n", abt_headerpal);
+        Bstrcat(m_addonbodytext, tempbuf);
+
+        Bsprintf(tempbuf, "- Internal ID: %s\n", addonPtr->internalId);
+        Bstrcat(m_addonbodytext, tempbuf);
+
+        if (addonPtr->data_path)
         {
-            const char* fmtstring = (FURY) ? "^%dLaunch User Content" : "^%dLaunch Selected Addons";
-            Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, fmtstring, MENUTEXTPAL_GREEN);
+            Bsprintf(tempbuf, "- Data Path: %s\n", addonPtr->data_path);
+            Bstrcat(m_addonbodytext, tempbuf);
         }
 
-        Bstrcat(tempcontentbuf, "\n- Select addons to enable them, then confirm the selection.\n");
-        Bstrcat(tempcontentbuf, "- PgUp/PgDn/Mousewheel: Scroll addon description up/down.\n");
-        Bstrcat(tempcontentbuf, "- Shift + Arrow Keys: Change the load order of the addons.\n");
+        Bsprintf(tempbuf, "- Game Type: %d (%x)\n", addonPtr->gametype, addonPtr->gamecrc);
+        Bstrcat(m_addonbodytext, tempbuf);
+
+        Bsprintf(tempbuf, "- Content and Package Type: %d, %d\n", addonPtr->content_type, addonPtr->package_type);
+        Bstrcat(m_addonbodytext, tempbuf);
+
+        if (addonPtr->mscript_path)
+        {
+            Bsprintf(tempbuf, "- Main CON path: %s\n", addonPtr->mscript_path);
+            Bstrcat(m_addonbodytext, tempbuf);
+        }
+
+        if (addonPtr->mdef_path)
+        {
+            Bsprintf(tempbuf, "- Main DEF path: %s\n", addonPtr->mdef_path);
+            Bstrcat(m_addonbodytext, tempbuf);
+        }
+
+        if (addonPtr->mrts_path)
+        {
+            Bsprintf(tempbuf, "- Main RTS path: %s\n", addonPtr->mrts_path);
+            Bstrcat(m_addonbodytext, tempbuf);
+        }
+
+        if (addonPtr->num_script_modules > 0)
+        {
+            Bstrcat(m_addonbodytext, "- CON Script Modules:\n");
+            for (i = 0; i < addonPtr->num_script_modules; i++)
+            {
+                Bstrcat(m_addonbodytext, addonPtr->script_modules[i]);
+                Bstrcat(m_addonbodytext, "\n");
+            }
+        }
+
+        if (addonPtr->num_def_modules > 0)
+        {
+            Bstrcat(m_addonbodytext, "- DEF Script Modules:\n");
+            for (i = 0; i < addonPtr->num_def_modules; i++)
+            {
+                Bstrcat(m_addonbodytext, addonPtr->def_modules[i]);
+                Bstrcat(m_addonbodytext, "\n");
+            }
+        }
+#endif
     }
-    m_addondesc_xysize = MenuAddon_BodyTextWrap(m_addondesc_buffer, tempcontentbuf, MENUADDON_MAXBODY);
+
+    // finally perform textwrap
+    char* unformatted_abt = m_addonbodytext;
+    m_addonbodytext = (char *) Xmalloc(abt_buffersize * sizeof(char));
+    m_addondesc_xysize = MenuAddon_BodyTextWrap(m_addonbodytext, unformatted_abt, abt_buffersize);
+    Xfree(unformatted_abt);
 }
 
 static void Menu_Addon_SetupMenuSpacer(int32_t & listIdx, const char* textlabel)
@@ -3677,13 +4053,15 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
                 MF_Bluefont.between.x, MF_Bluefont.between.y, MF_Bluefont.textflags, 0, 0, xdim-1, ydim-1);
 
         // addon body text
-        int const body_xpos = origin.x + (30<<16);
-        int const body_ypos = origin.y + ((FURY) ? (149<<16) : (145<<16)) + m_addondesc_scrollpos;
+        if (m_addonbodytext)
+        {
+            int const body_xpos = origin.x + (30<<16);
+            int const body_ypos = origin.y + ((FURY) ? (149<<16) : (145<<16)) + m_addondesc_scrollpos;
 
-        G_ScreenText(ABT_TNUM, body_xpos, body_ypos, ABT_ZOOM, ABT_BANGLE, 0, m_addondesc_buffer,
-                0, MF_Minifont.pal, ABT_ORIENT, 0, ABT_XSPACE, ABT_YLINE, ABT_XBETWEEN, ABT_YBETWEEN,
-                ABT_FLAGS, 0, ABT_YBOUNDS_TOP, xdim-1, ABT_YBOUNDS_BOTTOM);
-
+            G_ScreenText(ABT_TNUM, body_xpos, body_ypos, ABT_ZOOM, ABT_BANGLE, 0, m_addonbodytext,
+                    0, MF_Minifont.pal, ABT_ORIENT, 0, ABT_XSPACE, ABT_YLINE, ABT_XBETWEEN, ABT_YBETWEEN,
+                    ABT_FLAGS, 0, ABT_YBOUNDS_TOP, xdim-1, ABT_YBOUNDS_BOTTOM);
+        }
         // check if an addon is selected
         useraddon_t* addonPtr = EL2ADDONS[M_ADDONS.currentEntry];
 
@@ -3791,7 +4169,6 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
         break;
 
     case MENU_ADDONSVERIFY:
-        // TODO: Overhaul
         videoFadeToBlack(1);
         if (g_num_selected_addons == 0)
             Bsprintf(tempbuf, "Unload all custom content?\nThis will restart the current game.");
@@ -4360,7 +4737,7 @@ static void Menu_EntryFocus(/*MenuEntry_t *entry*/)
             // reset description scroll position on each selection
             m_addondesc_scrollpos = 0;
 
-            useraddon_t* addonPtr = EL2ADDONS[M_ADDONS.currentEntry];
+            useraddon_t* addonPtr = EL2ADDONS ? EL2ADDONS[M_ADDONS.currentEntry] : nullptr;
             Addon_UpdateMenuEntryName(addonPtr, 0);
 
             // update menu contents using given addon
@@ -5231,8 +5608,9 @@ static void Menu_Verify(int32_t input)
             if (g_num_selected_addons > 0)
                 g_bootState |= BOOTSTATE_ADDONS;
 
-            int ln, vn;
-            m_addons_launchmap = (Addon_RetrieveStartMap(ln, vn) != nullptr);
+            int ln = -1, vn = -1;
+            const char* mapfile = Addon_RetrieveStartMap(ln, vn);
+            m_addons_launchmap = (mapfile || (ln > -1 && vn > -1));
         }
         break;
     case MENU_COLCORRRESETVERIFY:
@@ -5951,6 +6329,10 @@ static void Menu_ChangingTo(Menu_t * m)
         // terrible hack
         if (g_previousMenu != MENU_SKILL && g_previousMenu != MENU_USERMAP)
             m->parentID = g_previousMenu;
+        break;
+    case MENU_MAIN:
+        // another terrible hack
+        DO_FREE_AND_NULL(m_addonbodytext);
         break;
     }
 
@@ -8847,7 +9229,7 @@ void M_DisplayMenus(void)
         return;
     }
 
-    // TODO: this is pretty hacky, need a better location to change the menu
+    // TODO: this is pretty hacky, may need a better location to change the menu
     if (EDUKE32_PREDICT_FALSE(m_addons_launchmap))
     {
         int ln, vn;

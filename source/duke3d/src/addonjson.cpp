@@ -810,6 +810,7 @@ static int32_t AddonJson_ParseDescriptor(sjson_context *ctx, char* json_fn, user
     if (parseResult == -1) jsonErrorCnt++;
 
     // RTS file path (optional)
+    // TODO: Check this again (bugged)
     parseResult = AddonJson_ParseFilePath(addonPtr, root, jsonkey_rts, addonPtr->mrts_path, basepath);
     if (parseResult == -1) jsonErrorCnt++;
 
