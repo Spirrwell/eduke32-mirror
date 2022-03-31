@@ -6071,7 +6071,8 @@ static void G_Cleanup(void)
 ===================
 */
 
-static const grpfile_t * BACKUP_g_selectedGrp;
+// base grp is set to the first parent grp that doesn't have GAMEFLAG_ADDON set
+static const grpfile_t * BACKUP_baseGrp;
 
 static user_defs BACKUP_ud = {};
 
@@ -6110,7 +6111,9 @@ static void G_BackupStartupValues(void)
     // CommandGrps and CommandPaths do not need to be saved
     G_FreeBackupValues();
 
-    BACKUP_g_selectedGrp = g_selectedGrp;
+    const grpfile_t *parentgrp = g_selectedGrp;
+    for (; parentgrp && (parentgrp->type->game & GAMEFLAG_ADDON); parentgrp = FindGroup(parentgrp->type->dependency));
+    BACKUP_baseGrp = parentgrp ? parentgrp : g_selectedGrp;
 
     BACKUP_ud = ud;
 
@@ -6150,7 +6153,7 @@ static void G_RestoreStartupValues(void)
 {
     // TODO: Needs to be fixed and completed.
     // CommandGrps and CommandPaths do not need to be restored
-    g_selectedGrp = BACKUP_g_selectedGrp;
+    g_selectedGrp = BACKUP_baseGrp;
 
     ud = BACKUP_ud;
 
@@ -7175,10 +7178,8 @@ int app_main(int argc, char const* const* argv)
     G_BackupStartupValues();
 
     g_bootState = BOOTSTATE_INITIAL;
-
     if (ud.setup.launchuseraddons)
         g_bootState |= BOOTSTATE_ADDONS;
-
 
 SOFT_REBOOT:
     if (g_bootState & BOOTSTATE_REBOOT)
