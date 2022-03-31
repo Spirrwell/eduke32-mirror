@@ -2251,10 +2251,16 @@ static int32_t Menu_Addon_EntryLinkActivate(int32_t const entryIndex)
 }
 
 // Update the text that is displayed in place of addon version and identity when no addon is selected
-static void Menu_Addon_RefreshLaunchAddonText(void)
+static void Menu_Addon_RefreshLaunchAddonBuffers(void)
 {
+    m_addontitle_buffer[0] = '\0';
     m_addonversion_buffer[0] = '\0';
     m_addonidentity_buffer[0] = '\0';
+
+    if (M_ADDONS.currentEntry > 0)
+        return;
+
+    Bstrcpy(m_addontitle_buffer, "Confirm Selection");
 
     // order of priority here is intentional
     // if no addons are active, game will unload all user content
@@ -2318,8 +2324,7 @@ static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
     if (!addonPtr || !addonPtr->isValid())
     {
         // no valid addon selected (this is normally the first entry for restarting the game)
-        Menu_Addon_RefreshLaunchAddonText();
-        Bstrcpy(m_addontitle_buffer, "Confirm Selection");
+        Menu_Addon_RefreshLaunchAddonBuffers();
 
         // allocate enough space for default description
         abt_buffersize = 2048;
