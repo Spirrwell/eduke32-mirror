@@ -220,18 +220,23 @@ MenuGameplayEntry_t g_MenuGameplayEntries[MAXMENUGAMEPLAYENTRIES];
 // common font types
 // tilenums are set after namesdyn runs
 
+// default values (hack: needed to restore fonts on cleanup)
 //                                      emptychar x,y       between x,y         zoom                cursorLeft          cursorCenter        cursorScale         textflags
 //                                      tilenum             shade_deselected    shade_disabled      pal                 pal_selected        pal_deselected      pal_disabled
-MenuFont_t MF_Redfont =               { { 5<<16, 15<<16 },  { 0, 0 }, 0,        65536,              20<<16,             110<<16,            65536,              TEXT_BIGALPHANUM | TEXT_UPPERCASE,
+MenuFont_t MF_Redfont_Default =       { { 5<<16, 15<<16 },  { 0, 0 }, 0,        65536,              20<<16,             110<<16,            65536,              TEXT_BIGALPHANUM | TEXT_UPPERCASE,
                                         -1,                 10,                 0,                  0,                  0,                  0,                  1,
                                         0,                  0,                  1 };
-MenuFont_t MF_Bluefont =              { { 5<<16, 7<<16 },   { 0, 0 }, 0,        65536,              10<<16,             110<<16,            32768,              0,
+MenuFont_t MF_Bluefont_Default =      { { 5<<16, 7<<16 },   { 0, 0 }, 0,        65536,              10<<16,             110<<16,            32768,              0,
                                         -1,                 10,                 0,                  0,                  10,                 10,                 16,
                                         0,                  0,                  16 };
-MenuFont_t MF_Minifont =              { { 4<<16, 5<<16 },   { 1<<16, 1<<16 },0, 65536,              10<<16,             110<<16,            32768,              0,
+MenuFont_t MF_Minifont_Default =      { { 4<<16, 5<<16 },   { 1<<16, 1<<16 },0, 65536,              10<<16,             110<<16,            32768,              0,
                                         -1,                 10,                 0,                  0,                  2,                  2,                  0,
                                         0,                  0,                  16 };
 
+// actual fonts to be altered
+MenuFont_t MF_Redfont = MF_Redfont_Default;
+MenuFont_t MF_Bluefont = MF_Bluefont_Default;
+MenuFont_t MF_Minifont = MF_Minifont_Default;
 
 // hack: runtime copies of Minifont for the addon menu entry list
 // these exist mainly to change the palette and size
@@ -370,6 +375,9 @@ static char const s_Options[] = "Options";
 static char const s_Credits[] = "Credits";
 static char const s_Addons[] = "Addons";
 static char const s_UserContent[] = "User Content";
+
+static char const s_Monsters[] = "Monsters";
+static char const s_DukeTalk[] = "Duke talk:";
 
 MAKE_MENU_TOP_ENTRYLINK( s_NewGame, MEF_MainMenu, MAIN_NEWGAME, MENU_EPISODE );
 #ifdef EDUKE32_RETAIL_MENU
@@ -1348,7 +1356,7 @@ static MenuEntry_t ME_SOUND_VOLUME_MUSIC = MAKE_MENUENTRY( s_Volume, &MF_Redfont
 
 #ifndef EDUKE32_STANDALONE
 static MenuOption_t MEO_SOUND_DUKETALK = MAKE_MENUOPTION(&MF_Redfont, &MEOS_NoYes, NULL);
-static MenuEntry_t ME_SOUND_DUKETALK = MAKE_MENUENTRY( "Duke talk:", &MF_Redfont, &MEF_BigOptionsRt, &MEO_SOUND_DUKETALK, Option );
+static MenuEntry_t ME_SOUND_DUKETALK = MAKE_MENUENTRY( s_DukeTalk, &MF_Redfont, &MEF_BigOptionsRt, &MEO_SOUND_DUKETALK, Option );
 #else
 static MenuOption_t MEO_SOUND_DUKETALK = MAKE_MENUOPTION(&MF_Redfont, &MEOS_YesNo, NULL);
 static MenuEntry_t ME_SOUND_DUKETALK = MAKE_MENUENTRY("Silent protagonist:", &MF_Redfont, &MEF_BigOptionsRt, &MEO_SOUND_DUKETALK, Option);
@@ -1550,7 +1558,7 @@ static MenuLink_t MEO_NETOPTIONS_USERMAP = { MENU_NETUSERMAP, MA_Advance, };
 static MenuEntry_t ME_NETOPTIONS_USERMAP = MAKE_MENUENTRY( "User Map", &MF_Redfont, &MEF_NetSetup, &MEO_NETOPTIONS_USERMAP, Link );
 static MenuOptionSet_t MEOS_NETOPTIONS_MONSTERS = MAKE_MENUOPTIONSET( MEOSN_NetSkills, NULL, 0x0 );
 static MenuOption_t MEO_NETOPTIONS_MONSTERS = MAKE_MENUOPTION( &MF_Bluefont, &MEOS_NETOPTIONS_MONSTERS, NULL );
-static MenuEntry_t ME_NETOPTIONS_MONSTERS = MAKE_MENUENTRY( "Monsters", &MF_Redfont, &MEF_NetSetup, &MEO_NETOPTIONS_MONSTERS, Option );
+static MenuEntry_t ME_NETOPTIONS_MONSTERS = MAKE_MENUENTRY( s_Monsters, &MF_Redfont, &MEF_NetSetup, &MEO_NETOPTIONS_MONSTERS, Option );
 static MenuOption_t MEO_NETOPTIONS_MARKERS = MAKE_MENUOPTION( &MF_Bluefont, &MEOS_OffOn, &ud.m_marker );
 static MenuEntry_t ME_NETOPTIONS_MARKERS = MAKE_MENUENTRY( "Markers", &MF_Redfont, &MEF_NetSetup, &MEO_NETOPTIONS_MARKERS, Option );
 static MenuOption_t MEO_NETOPTIONS_MAPEXITS = MAKE_MENUOPTION( &MF_Bluefont, &MEOS_OnOff, &ud.m_noexits );
@@ -3239,6 +3247,184 @@ void Menu_Init(void)
 
     MF_Minifont_Addon_Label.pal_selected = MENUTEXTPAL_GRAY;
     MF_Minifont_Addon_Label.pal_deselected = MENUTEXTPAL_GRAY;
+}
+
+// -------------------------------------------
+
+/*
+This function is the cleanup counterpart to Menu_Init(), resetting the menu and destroying dynamic allocated data
+*/
+void Menu_UnInit(void)
+{
+    int32_t i, j, k;
+
+    // clear the addon description text buffer
+    DO_FREE_AND_NULL(m_addonbodytext);
+
+    // undo menu layout changes if was FURY
+    MMF_Top_Skill.pos.x = (MENU_MARGIN_CENTER<<16);
+    ME_SKILL_TEMPLATE.format = &MEF_CenterMenu;
+
+    // reset menu fonts
+    MF_Redfont = MF_Redfont_Default;
+    MF_Bluefont = MF_Bluefont_Default;
+    MF_Minifont = MF_Minifont_Default;
+    MF_Minifont_Addon_Entry = {};
+    MF_Minifont_Addon_Label = {};
+    MF_Minifont_Addon_Active = {};
+    MF_Minifont_Addon_Warning = {};
+
+    // reset gamefuncs and keys
+    Bmemset(keybind_order_custom, 0, sizeof(keybind_order_custom));
+    keybind_order_custom[0] = -1;
+    for (i = 0; i < NUMGAMEFUNCTIONS; ++i)
+    {
+        MenuGameFuncs[i][0] = '\0';
+        MEOSN_Gamefuncs[i] = MenuGameFuncNone;
+        MEOSV_Gamefuncs[i] = -1;
+    }
+    MEOS_Gamefuncs.features &= ~4;
+    MEOS_Gamefuncs.numOptions = 0;
+    for (i = 0; i < NUMKEYS; ++i)
+        MEOSN_Keys[i] = MenuKeyNone;
+
+    // reset episode menu
+    for (i = 0; i < MAXVOLUMES; i++)
+    {
+        MEL_EPISODE[i] = nullptr;
+        ME_EPISODE[i] = {};
+        MEOSN_NetEpisodes[i] = nullptr;
+        MEOSV_NetEpisodes[i] = 0;
+        for (j = 0; j < MAXLEVELS; ++j)
+            MEOSN_NetLevels[i][j] = nullptr;
+        MEOS_NETOPTIONS_LEVEL[i] = {};
+    }
+    MEL_EPISODE[MAXVOLUMES] = nullptr;
+    MEL_EPISODE[MAXVOLUMES+1] = nullptr;
+    MEOSN_NetEpisodes[MAXVOLUMES] = nullptr;
+    MEOSV_NetEpisodes[MAXVOLUMES] = 0;
+    M_EPISODE.numEntries = 0;
+    NetEpisode = MEOS_NETOPTIONS_EPISODE.numOptions = 0;
+    MEO_EPISODE.linkID = MENU_SKILL;
+
+    // reset new game custom
+    MEO_MAIN_NEWGAME.linkID = M_NEWVERIFY.linkID = MENU_EPISODE;
+    for (i = 0; i < MAXMENUGAMEPLAYENTRIES; i++)
+    {
+        ME_NEWGAMECUSTOMENTRIES[i] = {};
+        MEO_NEWGAMECUSTOM[i] = {};
+        for (j = 0; j < MAXMENUGAMEPLAYENTRIES; j++)
+        {
+            ME_NEWGAMECUSTOMSUBENTRIES[i][j] = {};
+            MEO_NEWGAMECUSTOMSUB[i][j] = {};
+            for (k = 0; k < MAXMENUGAMEPLAYENTRIES; k++)
+            {
+                ME_NEWGAMECUSTOML3ENTRIES[i][j][k] = {};
+                MEO_NEWGAMECUSTOML3[i][j][k] = {};
+            }
+        }
+
+        MEL_NEWGAMECUSTOM[i] = nullptr;
+        MEL_NEWGAMECUSTOMSUB[i] = nullptr;
+        MEL_NEWGAMECUSTOML3[i] = nullptr;
+
+    }
+
+    // reset skills
+
+    for (i = 0; i < MAXSKILLS; ++i)
+    {
+        MEL_SKILL[i] = nullptr;
+        ME_SKILL[i] = {};
+        ME_SKILL[i].name = s_Undefined;
+        MEOSN_NetSkills[i] = s_Undefined;
+        ME_SKILL[i].flags |= MEF_Hidden;
+    }
+    M_SKILL.numEntries = 0;
+    M_SKILL.currentEntry = 0;
+    MEOS_NETOPTIONS_MONSTERS.numOptions = 1;
+    MEOSN_NetSkills[0] = MenuSkillNone;
+
+    // reset multiplayer gametypes
+    for (i = 0; i < MAXGAMETYPES; ++i)
+        MEOSN_NetGametypes[i] = nullptr;
+    MEOS_NETOPTIONS_GAMETYPE.numOptions = 0;
+
+
+    // reset cheats
+    for (i = 0; i < NUMCHEATFUNCS; ++i)
+        MEL_CHEATS[i+1] = nullptr;
+
+    // reset text chat macros
+    for (i = 0; i < MAXRIDECULE; ++i)
+    {
+        MEL_MACROS[i] = nullptr;
+        ME_MACROS[i] = {};
+        MEO_MACROS[i] = {};
+    }
+
+    // reset keyboard setup funcs
+    for (i = 0; i < NUMGAMEFUNCTIONS; ++i)
+    {
+        MEL_KEYBOARDSETUPFUNCS[i] = NULL;
+        ME_KEYBOARDSETUPFUNCS[i] = {};
+        MEO_KEYBOARDSETUPFUNCS[i] = {};
+    }
+    M_KEYBOARDKEYS.numEntries = 0;
+
+    // reset mouse functions
+    for (i = 0; i < ARRAY_SSIZE(MenuMouseData); ++i)
+    {
+        MEL_MOUSESETUPBTNS[i] = nullptr;
+        ME_MOUSESETUPBTNS[i] = {};
+        MEO_MOUSESETUPBTNS[i] = {};
+    }
+
+    // reset joystick buttons
+    for (i = 0; i < MAXJOYBUTTONSANDHATS; i++)
+    {
+        MenuJoystickNames[i][0] = '\0';
+        MEL_JOYSTICKBTNS[i] = nullptr;
+        ME_JOYSTICKBTNS[i] = {};
+        MEO_JOYSTICKBTNS[i] = {};
+    }
+    M_JOYSTICKBTNS.numEntries = 0;
+
+    // reset joystick axes
+    for (i = 0; i < MAXJOYAXES; i++)
+    {
+        MenuJoystickAxes[i][0] = '\0';
+        MEL_JOYSTICKAXES[i] = nullptr;
+        ME_JOYSTICKAXES[i] = {};
+    }
+    M_JOYSTICKAXES.numEntries = 0;
+
+    // reset strings changed by gametypes
+    ME_NETOPTIONS_MONSTERS.name = s_Monsters;
+    ME_SOUND_DUKETALK.name = s_DukeTalk;
+
+    // reset FURY changes to default (TODO: Need to move some of this out into static definitions... -DB64)
+    g_textstat = RS_AUTO | RS_NOCLIP | RS_TOPLEFT;
+    ME_Space2_Redfont.entry = &MEO_Space2;
+    ME_Space4_Redfont.entry = &MEO_Space4;
+    ME_Space6_Redfont.entry = &MEO_Space6;
+    ME_Space8_Redfont.entry = &MEO_Space8;
+    MMF_Top_Main = { {  MENU_MARGIN_CENTER<<16, 55<<16, }, -(170<<16) };
+    MEF_MainMenu = { 4<<16,      0,          0 };
+    M_OPTIONS.title = s_Options;
+    M_OPTIONS.format = &MMF_Top_Options;
+    SELECTDIR_z = 65536;
+
+    // reset credits
+    M_CREDITS.title = M_CREDITS2.title = M_CREDITS3.title = NoTitle;
+
+    // unhide and undisable unconditionally
+    ME_NETOPTIONS_EPISODE.flags &= ~MEF_Disabled;
+    ME_MAIN_HELP.flags &= ~MEF_Hidden;
+#ifndef EDUKE32_RETAIL_MENU
+    ME_MAIN_CREDITS.flags &= ~MEF_Hidden;
+#endif
+    ME_MAIN_ADDONS.flags &= ~MEF_Hidden;
 }
 
 static void Menu_Run(Menu_t *cm, vec2_t origin);
@@ -6335,10 +6521,6 @@ static void Menu_ChangingTo(Menu_t * m)
         if (g_previousMenu != MENU_SKILL && g_previousMenu != MENU_USERMAP)
             m->parentID = g_previousMenu;
         break;
-    case MENU_MAIN:
-        // another terrible hack
-        DO_FREE_AND_NULL(m_addonbodytext);
-        break;
     }
 
 #ifdef __ANDROID__
@@ -9234,7 +9416,7 @@ void M_DisplayMenus(void)
         return;
     }
 
-    // TODO: this is pretty hacky, may need a better location to change the menu
+    // DB64: this is pretty hacky, may need a better location to change the menu
     if (EDUKE32_PREDICT_FALSE(m_addons_launchmap))
     {
         int ln, vn;
@@ -9242,7 +9424,7 @@ void M_DisplayMenus(void)
         if (bfn && bfn[0])
         {
             // launch specified filename in usermap slot
-            // TODO: fix leading slash issues
+            // TODO: fix leading slash issues -DB64
             if (bfn[0] != '/')
             {
                 boardfilename[0] = '/';

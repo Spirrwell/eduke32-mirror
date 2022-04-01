@@ -6088,7 +6088,10 @@ static char BACKUP_g_rtsName[BMAX_PATH];
 // modules
 GrowArray<char *> BACKUP_g_scriptModules;
 GrowArray<char *> BACKUP_g_defModules;
+
+#ifdef HAVE_CLIPSHAPE_FEATURE
 GrowArray<char *> BACKUP_g_clipMapFiles;
+#endif
 
 // free the script module strings
 static void G_FreeBackupValues(void)
@@ -6171,11 +6174,13 @@ static void G_RestoreStartupValues(void)
     for (char * m : BACKUP_g_defModules)
         g_defModules.append(Xstrdup(m));
 
+#ifdef HAVE_CLIPSHAPE_FEATURE
     // restore clipmaps
     for (char * m : g_clipMapFiles) Xfree(m);
     g_clipMapFiles.clear();
     for (char * m : BACKUP_g_clipMapFiles)
         g_clipMapFiles.append(Xstrdup(m));
+#endif
 
     ud = {};
     duke3d_globalflags = 0;
@@ -6204,6 +6209,7 @@ static void G_EngineUnInit_Soft(void)
     //communityapiShutdown();
 
     // TODO: DB64 - Check which parts of this are required
+/*
 #ifdef USE_OPENGL
     if (qsetmode)
     {
@@ -6215,7 +6221,7 @@ static void G_EngineUnInit_Soft(void)
     }
     hicinit();
 #endif
-
+*/
     // TODO: DB64 - review
     // reset art and video mode
     videoResetMode();
@@ -6272,20 +6278,12 @@ static void G_EngineUnInit_Soft(void)
 
 static void G_SoftReboot(void)
 {
+    // TODO: Possibly revise order of the calls here, some of it may be bad -DB64
     // save the current user settings
     CONFIG_WriteSetup(0);
 
-    // clear all loaded paths, zips and groupfiles
-    removesearchpaths_withuser(SEARCHPATH_REBOOT | SEARCHPATH_REMOVE | SEARCHPATH_NAM | SEARCHPATH_WW2GI | SEARCHPATH_FURY);
-    uninitkzstack();
-    uninitgroupfile();
-    Bfflush(NULL);
-
     // uninitialize engine structs and arrays -- will be restored afterwards
     G_EngineUnInit_Soft();
-
-    if (enginePreInit())
-        G_FatalEngineInitError();
 
     // Reset some global variables and restore backed up startup values
     G_RestoreStartupValues();
@@ -6293,6 +6291,23 @@ static void G_SoftReboot(void)
     // restore user settings that may have been erased in erasing of userdef struct
     CONFIG_ReadSetup();
     CONFIG_ReadSettings();
+
+    // reset the menu structure
+    Menu_UnInit();
+
+    // clear and reset the newgamechoices menu
+    for (int i = 0; i < MAXMENUGAMEPLAYENTRIES; i++)
+    {
+        if (g_MenuGameplayEntries[i].subentries)
+            newgamechoices_recursive_free(&g_MenuGameplayEntries[i]);
+        g_MenuGameplayEntries[i] = {};
+    }
+
+    // clear all loaded paths, zips and groupfiles
+    removesearchpaths_withuser(SEARCHPATH_REBOOT | SEARCHPATH_REMOVE | SEARCHPATH_NAM | SEARCHPATH_WW2GI | SEARCHPATH_FURY);
+    uninitkzstack();
+    uninitgroupfile();
+    Bfflush(NULL);
 
     // reset tile and sound cache
     if (g_cache.getIndex())
@@ -6398,9 +6413,6 @@ static void G_SoftReboot(void)
     hash_free(&h_arrays);
     hash_free(&h_labels);
 
-    // clear the custom keybind order entries
-    Bmemset(keybind_order_custom, -1, sizeof(keybind_order_custom));
-
     // reinitialize the gamefuncs
     hash_init(&h_gamefuncs);
     for (bssize_t i=NUMGAMEFUNCTIONS-1; i>=0; i--)
@@ -6409,14 +6421,6 @@ static void G_SoftReboot(void)
             continue;
 
         hash_add(&h_gamefuncs,gamefunctions[i],i,0);
-    }
-
-    // clear and reset the newgamechoices menu
-    for (int i = 0; i < MAXMENUGAMEPLAYENTRIES; i++)
-    {
-        if (g_MenuGameplayEntries[i].subentries)
-            newgamechoices_recursive_free(&g_MenuGameplayEntries[i]);
-        g_MenuGameplayEntries[i] = {};
     }
 
     // free the vmoffset data
@@ -6429,6 +6433,10 @@ static void G_SoftReboot(void)
         ofs = next;
     }
     vmoffset = NULL;
+
+    // preinit engine
+    if (enginePreInit())
+        G_FatalEngineInitError();
 
     // this disables several potential startup parameters that should not be active on a soft reboot
     CommandName = NULL;
@@ -6451,9 +6459,6 @@ static void G_SoftReboot(void)
     ud.m_respawn_monsters = ud.respawn_monsters = 0;
     ud.m_respawn_items = ud.respawn_items = 0;
     ud.m_respawn_inventory = ud.respawn_inventory = 0;
-
-    // TODO: DB64 - we absolutely need a Menu_UnInit() function which resets the menu back to default
-    // Menu_Init();
 
     // TODO: DB64 - Have not analyzed these functions in detail:
     // loaddefinitionsfile
@@ -6479,6 +6484,7 @@ static void G_SoftReboot(void)
 void G_Shutdown(void)
 {
     CONFIG_WriteSetup(0);
+    Menu_UnInit();
     S_SoundShutdown();
     S_MusicShutdown();
     CONTROL_Shutdown();
