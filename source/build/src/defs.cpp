@@ -3854,6 +3854,13 @@ uint8_t* loadimagefromfile(const char *fn, vec2_t & xydim)
     kpzdecode(kpzbufload(fn), (intptr_t *)&picptr, &xydim.x, &xydim.y);
     paletteFlushClosestColor();
 
+    if (!picptr || xydim.x == 0 || xydim.y == 0)
+    {
+        LOG_F(ERROR, "Failed to load image file at: %s", fn);
+        Xfree(picptr);
+        return nullptr;
+    }
+
     uint8_t* imagebuffer = (uint8_t*) Xmalloc(xydim.x * xydim.y * sizeof(uint8_t));
     for (int j = 0; j < xydim.y; ++j)
     {
