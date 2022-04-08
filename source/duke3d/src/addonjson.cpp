@@ -913,14 +913,6 @@ static int32_t AddonJson_GetLocalDir(char * pathbuf, const int32_t buflen)
     return 0;
 }
 
-// remove leading slashes and other non-alpha chars from string, copy the string
-static char* AddonJson_DupString_RemoveLeadingNonAlpha(const char* src, const int32_t srclen)
-{
-    //TODO: Replace with a better approach -- this is used for internal ID generation
-    int i = 0;
-    while (i < srclen && !isalpha(src[i])) i++;
-    return (i >= srclen) ? nullptr : Xstrdup(&src[i]);
-}
 
 // read addon packages (zip, grp, pk3...) from local folder
 static void AddonJson_ReadLocalPackages(sjson_context *ctx, fnlist_t* fnlist, const char* addondir)
@@ -937,8 +929,9 @@ static void AddonJson_ReadLocalPackages(sjson_context *ctx, fnlist_t* fnlist, co
             // absolutely MUST be zero initialized
             useraddon_t* & addonPtr = s_useraddons[s_numuseraddons] = (useraddon_t*) Xcalloc(1, sizeof(useraddon_t));
 
-            // TODO: May want to change internal ID to just the filename, not the whole path
-            addonPtr->internalId = AddonJson_DupString_RemoveLeadingNonAlpha(package_path, nchar);
+            // internal identity must be initialized first
+            Bsnprintf(tempbuf, BMAX_PATH, "pkg/%s", rec->name);
+            addonPtr->internalId = Xstrdup(tempbuf);
 
             // set data path and default loadorder index
             addonPtr->data_path = Xstrdup(package_path);
@@ -1003,8 +996,9 @@ static void AddonJson_ReadLocalSubfolders(sjson_context *ctx, fnlist_t* fnlist, 
         // absolutely MUST be zero initialized
         useraddon_t* & addonPtr = s_useraddons[s_numuseraddons] = (useraddon_t*) Xcalloc(1, sizeof(useraddon_t));
 
-        // TODO: May want to change internal ID to just the subfolder name, not the whole path
-        addonPtr->internalId = AddonJson_DupString_RemoveLeadingNonAlpha(basepath, nchar);
+        // identity must be initialized first
+        Bsnprintf(tempbuf, BMAX_PATH, "dir/%s", rec->name);
+        addonPtr->internalId = Xstrdup(tempbuf);
 
         addonPtr->data_path = Xstrdup(basepath);
         addonPtr->loadorder_idx = DEFAULT_LOADORDER_IDX;

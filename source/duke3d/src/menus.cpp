@@ -2186,8 +2186,16 @@ static int32_t Menu_AddonMenuUpDown(int32_t const entryIndex, int32_t const othe
         otherAddon->loadorder_idx = thisAddon->loadorder_idx;
         thisAddon->loadorder_idx = temp_lo;
 
-        CONFIG_SetAddonLoadOrder(thisAddon->internalId, thisAddon->loadorder_idx);
-        CONFIG_SetAddonLoadOrder(otherAddon->internalId, otherAddon->loadorder_idx);
+        if (thisAddon->content_type & ADDONTYPE_TC)
+        {
+            CONFIG_SetTCLoadOrder(thisAddon->internalId, thisAddon->loadorder_idx);
+            CONFIG_SetTCLoadOrder(otherAddon->internalId, otherAddon->loadorder_idx);
+        }
+        else if (thisAddon->content_type & ADDONTYPE_MOD)
+        {
+            CONFIG_SetModLoadOrder(thisAddon->internalId, thisAddon->loadorder_idx);
+            CONFIG_SetModLoadOrder(otherAddon->internalId, otherAddon->loadorder_idx);
+        }
 
         Menu_Addon_UpdateMenuEntryStatus(MEL_ADDONS[entryIndex], thisAddon);
         Menu_Addon_UpdateMenuEntryStatus(MEL_ADDONS[otherIndex], otherAddon);

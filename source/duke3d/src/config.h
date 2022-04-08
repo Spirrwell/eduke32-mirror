@@ -51,6 +51,7 @@ const char * CONFIG_GetGameFuncOnJoystick(int gameFunc);
 int32_t CONFIG_GetAddonActivationStatus(const char* addonIdentifier);
 int32_t CONFIG_GetAddonLoadOrder(const char* addonIdentifier);
 int CONFIG_SetAddonActivationStatus(const char* addonIdentifier, bool const status);
-int CONFIG_SetAddonLoadOrder(const char* addonIdentifier, int32_t const loadOrder);
+int CONFIG_SetTCLoadOrder(const char* addonIdentifier, int32_t const loadOrder);
+int CONFIG_SetModLoadOrder(const char* addonIdentifier, int32_t const loadOrder);
 
 #endif

@@ -265,7 +265,10 @@ static void Addon_InitAndSanitizeLoadOrder(useraddon_t** addonlist, int32_t cons
         {
             lobuf[i]->loadorder_idx = newlo++;
             CONFIG_SetAddonActivationStatus(lobuf[i]->internalId, lobuf[i]->isSelected());
-            CONFIG_SetAddonLoadOrder(lobuf[i]->internalId, lobuf[i]->loadorder_idx);
+            if (lobuf[i]->content_type & ADDONTYPE_TC)
+                CONFIG_SetTCLoadOrder(lobuf[i]->internalId, lobuf[i]->loadorder_idx);
+            else if (lobuf[i]->content_type & ADDONTYPE_MOD)
+                CONFIG_SetModLoadOrder(lobuf[i]->internalId, lobuf[i]->loadorder_idx);
         }
     }
     Xfree(lobuf);

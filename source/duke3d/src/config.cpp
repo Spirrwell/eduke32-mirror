@@ -1140,7 +1140,8 @@ int32_t CONFIG_GetAddonActivationStatus(const char* addonIdentifier)
 int32_t CONFIG_GetAddonLoadOrder(const char* addonIdentifier)
 {
     int32_t loadOrder = -1;
-    SCRIPT_GetNumber(ud.config.scripthandle, "Addon Load Order", addonIdentifier, &loadOrder);
+    if (SCRIPT_GetNumber(ud.config.scripthandle, "TC Load Order", addonIdentifier, &loadOrder))
+        SCRIPT_GetNumber(ud.config.scripthandle, "Mod Load Order", addonIdentifier, &loadOrder);
     return loadOrder;
 }
 
@@ -1153,11 +1154,21 @@ int CONFIG_SetAddonActivationStatus(const char* addonIdentifier, bool const stat
     return 0;
 }
 
-int CONFIG_SetAddonLoadOrder(const char* addonIdentifier, int32_t const loadOrder)
+int CONFIG_SetTCLoadOrder(const char* addonIdentifier, int32_t const loadOrder)
 {
     if (ud.config.scripthandle < 0 && (ud.config.scripthandle = SCRIPT_Init(g_setupFileName)) < 0)
         return -1;
 
-    SCRIPT_PutNumber(ud.config.scripthandle, "Addon Load Order", addonIdentifier, loadOrder, FALSE, FALSE);
+    SCRIPT_PutNumber(ud.config.scripthandle, "TC Load Order", addonIdentifier, loadOrder, FALSE, FALSE);
+    return 0;
+}
+
+
+int CONFIG_SetModLoadOrder(const char* addonIdentifier, int32_t const loadOrder)
+{
+    if (ud.config.scripthandle < 0 && (ud.config.scripthandle = SCRIPT_Init(g_setupFileName)) < 0)
+        return -1;
+
+    SCRIPT_PutNumber(ud.config.scripthandle, "Mod Load Order", addonIdentifier, loadOrder, FALSE, FALSE);
     return 0;
 }
