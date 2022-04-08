@@ -534,7 +534,7 @@ static int32_t AddonJson_ParseGameFlag(const useraddon_t* addonPtr, sjson_node* 
 {
     sjson_node * ele = sjson_find_member_nocase(root, key);
     if (ele == nullptr || AddonJson_CheckStringTyped(addonPtr, ele, key))
-        return ADDONGF_NONE;
+        return ADDONGF_ANY;
 
     if (!Bstrncasecmp(ele->string_, jsonval_gt_any, ARRAY_SIZE(jsonval_gt_any)))
         return ADDONGF_ANY;
@@ -801,7 +801,7 @@ static int32_t AddonJson_ParseDescriptor(sjson_context *ctx, char* json_fn, user
     addonPtr->gametype = AddonJson_ParseGameFlag(addonPtr, root, jsonkey_game);
     if (addonPtr->gametype == ADDONGF_NONE)
     {
-        LOG_F(ERROR, "No valid game type specified for addon: '%s'! (key: %s)", addonPtr->internalId, jsonkey_game);
+        LOG_F(ERROR, "Invalid game type specified for addon: '%s'! (key: %s)", addonPtr->internalId, jsonkey_game);
         jsonErrorCnt++;
     }
 
@@ -924,7 +924,7 @@ static void AddonJson_ReadLocalPackages(sjson_context *ctx, fnlist_t* fnlist, co
         for (rec=fnlist->findfiles; rec; rec=rec->next)
         {
             char package_path[BMAX_PATH];
-            int const nchar = Bsnprintf(package_path, BMAX_PATH, "%s/%s", addondir, rec->name);
+            Bsnprintf(package_path, BMAX_PATH, "%s/%s", addondir, rec->name);
 
             // absolutely MUST be zero initialized
             useraddon_t* & addonPtr = s_useraddons[s_numuseraddons] = (useraddon_t*) Xcalloc(1, sizeof(useraddon_t));
@@ -991,7 +991,7 @@ static void AddonJson_ReadLocalSubfolders(sjson_context *ctx, fnlist_t* fnlist, 
         if (!strcmp(rec->name, "..")) continue;
 
         char basepath[BMAX_PATH];
-        int const nchar = Bsnprintf(basepath, BMAX_PATH, "%s/%s", addondir, rec->name);
+        Bsnprintf(basepath, BMAX_PATH, "%s/%s", addondir, rec->name);
 
         // absolutely MUST be zero initialized
         useraddon_t* & addonPtr = s_useraddons[s_numuseraddons] = (useraddon_t*) Xcalloc(1, sizeof(useraddon_t));
