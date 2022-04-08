@@ -434,6 +434,49 @@ static int32_t AddonJson_SetupDependencyVersion(addondependency_t * dep, const c
     return 0;
 }
 
+static int32_t AddonJson_HandleDependencyObject(useraddon_t* addonPtr, sjson_node* snode, const char* key,
+                                          addondependency_t*& dep_ptr, int32_t& num_valid_deps)
+{
+    sjson_node *dep_uid, *dep_version;
+    AddonJson_CheckUnknownKeys(addonPtr->internalId, snode, key, json_dependencykeys, ARRAY_SIZE(json_dependencykeys));
+
+    dep_uid = sjson_find_member_nocase(snode, jsonkey_depid);
+    if (dep_uid == nullptr || dep_uid->tag != SJSON_STRING)
+    {
+        LOG_F(ERROR, "Dependency Id in key '%s' is missing or has invalid format in addon '%s'!", key, addonPtr->internalId);
+        return -1;
+    }
+
+    dep_version = sjson_find_member_nocase(snode, jsonkey_version);
+    if (dep_version != nullptr)
+    {
+        if (dep_version->tag != SJSON_STRING)
+        {
+            LOG_F(ERROR, "Dependency version %s in key '%s' is not a string in addon '%s'!", dep_uid->string_, key, addonPtr->internalId);
+            return -1;
+        }
+    }
+
+    addondependency_t & adt = dep_ptr[num_valid_deps];
+    adt.setFulfilled(false);
+
+    // required checks on dependency Id
+    if (AddonJson_CheckExternalIdentityRestrictions(addonPtr, dep_uid->string_))
+        return -1;
+
+    // only bail if string specified and invalid, otherwise accept dependencies without version
+    adt.dependencyId = Xstrdup(dep_uid->string_);
+    if (dep_version && AddonJson_SetupDependencyVersion(&adt, dep_version->string_))
+    {
+        LOG_F(ERROR, "Invalid version string for dependency '%s' in addon: %s!", adt.dependencyId, addonPtr->internalId);
+        DO_FREE_AND_NULL(adt.dependencyId);
+        return -1;
+    }
+
+    num_valid_deps++;
+    return 0;
+}
+
 // get the dependency property
 static int32_t AddonJson_ParseDependencyList(useraddon_t* addonPtr, sjson_node* root, const char* key,
                                           addondependency_t*& dep_ptr, int32_t& num_valid_deps)
@@ -441,65 +484,36 @@ static int32_t AddonJson_ParseDependencyList(useraddon_t* addonPtr, sjson_node* 
     dep_ptr = nullptr;
     num_valid_deps = 0;
 
-    sjson_node * nodes = sjson_find_member_nocase(root, key);
-    if (nodes == nullptr) return 1;
+    int numchildren = 0;
+    sjson_node * elem = sjson_find_member_nocase(root, key);
+    if (elem == nullptr) return 1;
 
-    // TODO: Allow single object without array, see rendmode
-    if (nodes->tag != SJSON_ARRAY)
+    if (elem->tag == SJSON_OBJECT)
+    {
+        numchildren = 1;
+        dep_ptr = (addondependency_t *) Xcalloc(numchildren, sizeof(addondependency_t));
+        AddonJson_HandleDependencyObject(addonPtr, elem, key, dep_ptr, num_valid_deps);
+    }
+    else if (elem->tag == SJSON_ARRAY)
+    {
+        numchildren = sjson_child_count(elem);
+        dep_ptr = (addondependency_t *) Xcalloc(numchildren, sizeof(addondependency_t));
+
+        sjson_node *snode;
+        sjson_foreach(snode, elem)
+        {
+            if (snode->tag != SJSON_OBJECT)
+            {
+                LOG_F(ERROR, "Invalid type found in array of member '%s' of addon '%s'!", key, addonPtr->internalId);
+                continue;
+            }
+            AddonJson_HandleDependencyObject(addonPtr, snode, key, dep_ptr, num_valid_deps);
+        }
+    }
+    else
     {
         LOG_F(ERROR, "Content of member '%s' of addon '%s' is not an array!", key, addonPtr->internalId);
         return -1;
-    }
-
-    int const numchildren = sjson_child_count(nodes);
-    dep_ptr = (addondependency_t *) Xcalloc(numchildren, sizeof(addondependency_t));
-
-    sjson_node *snode;
-    sjson_node *dep_uid, *dep_version;
-    sjson_foreach(snode, nodes)
-    {
-        if (snode->tag != SJSON_OBJECT)
-        {
-            LOG_F(ERROR, "Invalid type found in array of member '%s' of addon '%s'!", key, addonPtr->internalId);
-            continue;
-        }
-
-        AddonJson_CheckUnknownKeys(addonPtr->internalId, snode, key, json_dependencykeys, ARRAY_SIZE(json_dependencykeys));
-
-        dep_uid = sjson_find_member_nocase(snode, jsonkey_depid);
-        if (dep_uid == nullptr || dep_uid->tag != SJSON_STRING)
-        {
-            LOG_F(ERROR, "Dependency Id in key '%s' is missing or has invalid format in addon '%s'!", key, addonPtr->internalId);
-            continue;
-        }
-
-        dep_version = sjson_find_member_nocase(snode, jsonkey_version);
-        if (dep_version != nullptr)
-        {
-            if (dep_version->tag != SJSON_STRING)
-            {
-                LOG_F(ERROR, "Dependency version %s in key '%s' is not a string in addon '%s'!", dep_uid->string_, key, addonPtr->internalId);
-                continue;
-            }
-        }
-
-        addondependency_t & adt = dep_ptr[num_valid_deps];
-        adt.setFulfilled(false);
-
-        // required checks on dependency Id
-        if (AddonJson_CheckExternalIdentityRestrictions(addonPtr, dep_uid->string_))
-            continue;
-
-        // only bail if string specified and invalid, otherwise accept dependencies without version
-        adt.dependencyId = Xstrdup(dep_uid->string_);
-        if (dep_version && AddonJson_SetupDependencyVersion(&adt, dep_version->string_))
-        {
-            LOG_F(ERROR, "Invalid version string for dependency '%s' in addon: %s!", adt.dependencyId, addonPtr->internalId);
-            DO_FREE_AND_NULL(adt.dependencyId);
-            continue;
-        }
-
-        num_valid_deps++;
     }
 
     if (num_valid_deps < numchildren)
