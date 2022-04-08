@@ -115,7 +115,7 @@ static void Addon_LoadAddonPreview(useraddon_t* addonPtr)
     if (!(addonPtr->isValid() && addonPtr->preview_path && Addon_MatchesSelectedGame(addonPtr)))
         return;
 
-    intptr_t cachedImage = hash_find(&h_addonpreviews, addonPtr->preview_path);
+    intptr_t cachedImage = hash_find(&h_addonpreviews, addonPtr->internalId);
     if (cachedImage != -1)
         addonPtr->preview_image_data = (uint8_t*) cachedImage;
     else
@@ -137,7 +137,7 @@ static void Addon_LoadAddonPreview(useraddon_t* addonPtr)
         }
 
         // even store nullpointers, indicates that we shouldn't try again
-        hash_add(&h_addonpreviews, addonPtr->preview_path, (intptr_t) addonPtr->preview_image_data, 0);
+        hash_add(&h_addonpreviews, addonPtr->internalId, (intptr_t) addonPtr->preview_image_data, 0);
     }
 }
 
