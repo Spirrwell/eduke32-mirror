@@ -602,16 +602,24 @@ static void Addon_UpdateDependencies(useraddon_t* addonPtr, addondependency_t* d
                 continue;
         }
 
-        // finally with mods
-        // TODO: some mods may depend on load order, need some way to express this in the JSON
-        for_modaddons(otherAddon,
+        // assume that load order already sanitized, each index unique
+        useraddon_t** lobuf = (useraddon_t**) Xcalloc(g_addoncount_mods, sizeof(useraddon_t*));
+        for_modaddons(otherPtr, lobuf[otherPtr->loadorder_idx] = otherPtr);
+
+        // addons in load order
+        for (int i = 0; i < g_addoncount_mods; i++)
         {
-            if (otherAddon->isSelected() && Addon_DependencyMatch(&dep, otherAddon))
+            useraddon_t* otherPtr = lobuf[i];
+            if (otherPtr == addonPtr) break;
+
+            if (otherPtr->isSelected() && Addon_DependencyMatch(&dep, otherPtr))
             {
                 dep.setFulfilled(true);
                 break;
             }
-        });
+        }
+
+        Xfree(lobuf);
     }
 }
 

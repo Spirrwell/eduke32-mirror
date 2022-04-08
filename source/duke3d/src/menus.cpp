@@ -2197,9 +2197,6 @@ static int32_t Menu_AddonMenuUpDown(int32_t const entryIndex, int32_t const othe
             CONFIG_SetModLoadOrder(otherAddon->internalId, otherAddon->loadorder_idx);
         }
 
-        Menu_Addon_UpdateMenuEntryStatus(MEL_ADDONS[entryIndex], thisAddon);
-        Menu_Addon_UpdateMenuEntryStatus(MEL_ADDONS[otherIndex], otherAddon);
-
         MenuEntry_t* me_temp = MEL_ADDONS[entryIndex];
         MEL_ADDONS[entryIndex] = MEL_ADDONS[otherIndex];
         MEL_ADDONS[otherIndex] = me_temp;
@@ -2207,6 +2204,15 @@ static int32_t Menu_AddonMenuUpDown(int32_t const entryIndex, int32_t const othe
         EL2ADDONS[entryIndex] = otherAddon;
         EL2ADDONS[otherIndex] = thisAddon;
 
+        Addon_RefreshDependencyStates();
+        Addon_RefreshPropertyTrackers();
+
+        // update menu entries
+        for (int j = 0; j < M_ADDONS.numEntries; j++)
+        {
+            useraddon_t * iterAddon = EL2ADDONS[j];
+            if (iterAddon) Menu_Addon_UpdateMenuEntryStatus(MEL_ADDONS[j], iterAddon);
+        }
     }
 
     Addon_UpdateMenuEntryName(thisAddon, 0);
