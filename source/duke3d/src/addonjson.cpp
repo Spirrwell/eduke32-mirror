@@ -717,8 +717,13 @@ static int32_t AddonJson_CorrectAndCheckFile(const useraddon_t * addonPtr, char*
     // different path depending on package type
     if (addonPtr->package_type & (ADDONLT_GRP | ADDONLT_SSI | ADDONLT_ZIP))
         Bstrncpy(tempbuf, relpath, BMAX_PATH);
-    else
+    else if (addonPtr->package_type & (ADDONLT_FOLDER | ADDONLT_WORKSHOP))
         Bsnprintf(tempbuf, BMAX_PATH, "%s/%s", addonPtr->data_path, relpath);
+    else
+    {
+        LOG_F(ERROR, "Addon '%s' has invalid package type for filename check: %d!", addonPtr->internalId, addonPtr->package_type);
+        return -1;
+    }
 
     // try to open the path
     buildvfs_kfd jsonfil = kopen4load(tempbuf, 0);

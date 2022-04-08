@@ -120,14 +120,25 @@ static void Addon_LoadAddonPreview(useraddon_t* addonPtr)
         addonPtr->preview_image_data = (uint8_t*) cachedImage;
     else
     {
+        // prepare and construct image path
         if (addonPtr->package_type & (ADDONLT_GRP | ADDONLT_ZIP | ADDONLT_SSI))
         {
             initgroupfile(addonPtr->data_path);
             Bstrncpy(tempbuf, addonPtr->preview_path, BMAX_PATH);
         }
-        else Bsnprintf(tempbuf, BMAX_PATH, "%s/%s", addonPtr->data_path, addonPtr->preview_path);
+        else if (addonPtr->package_type & (ADDONLT_FOLDER | ADDONLT_WORKSHOP))
+            Bsnprintf(tempbuf, BMAX_PATH, "%s/%s", addonPtr->data_path, addonPtr->preview_path);
+        else
+        {
+            LOG_F(ERROR, "Error: Unhandled package type %d on addon %s when trying to load preview image.",
+                    addonPtr->package_type, addonPtr->internalId);
+            return;
+        }
+
+        // try to load the image
         addonPtr->preview_image_data = Addon_LoadPreviewFromFile(tempbuf);
 
+        // cleanup
         if (addonPtr->package_type & (ADDONLT_GRP | ADDONLT_ZIP | ADDONLT_SSI))
         {
             if ((addonPtr->package_type & ADDONLT_ZIP))
