@@ -101,18 +101,6 @@ static const char jsonval_rendmode_opengl[] = "opengl";
 static const char jsonval_rendmode_polymost[] = "polymost";
 static const char jsonval_rendmode_polymer[] = "polymer";
 
-// utility to check for file existence
-static int32_t AddonJson_CheckFilePresence(const char* filepath)
-{
-    buildvfs_kfd jsonfil = kopen4load(filepath, 0);
-    if (jsonfil != buildvfs_kfd_invalid)
-    {
-        kclose(jsonfil);
-        return 0;
-    }
-
-    return -1;
-}
 
 // This awful function verifies that version strings adhere to the following format:
 // REGEX: ((([1-9][0-9]*)|0)\.)*(([1-9][0-9]*))(\-[a-zA-Z0-9]+)?
@@ -229,27 +217,6 @@ static int32_t AddonJson_ParseString(useraddon_t *addonPtr, sjson_node *root, co
     return 0;
 }
 
-// treat sjson string content as a file path and check for file presence, otherwise treat same as string
-static int32_t AddonJson_ParseFilePath(useraddon_t* addonPtr, sjson_node* root, const char *key, char* & dstPtr, const char* basepath)
-{
-    sjson_node * ele = sjson_find_member_nocase(root, key);
-    dstPtr = nullptr;
-
-    if (ele == nullptr) return 1;
-    else if (AddonJson_CheckStringTyped(addonPtr, ele, key)) return -1;
-
-    Bsnprintf(tempbuf, BMAX_PATH, "%s/%s", basepath, ele->string_);
-    if (AddonJson_CheckFilePresence(tempbuf))
-    {
-        //TODO: Need to verify whether this actually works properly with Ken GRP/SSI/ZIP files
-        LOG_F(ERROR, "Preview image for addon '%s' at location '%s' does not exist!", addonPtr->internalId, tempbuf);
-        return -1;
-    }
-
-    dstPtr = Xstrdup(tempbuf);
-    Bcorrectfilename(dstPtr, 0);
-    return 0;
-}
 
 // return 0 if given string satisfies the restrictions set on external identity
 // TODO: currently on disallows whitespace and empty strings, maybe increase restriction?
@@ -307,7 +274,7 @@ static int32_t AddonJson_ParseVersion(useraddon_t *addonPtr, sjson_node *root, c
 }
 
 // handle a single CON/DEF script json object
-static int32_t AddonJson_HandleScriptObject(useraddon_t *addonPtr, sjson_node* snode, const char* key, const char* basepath,
+static int32_t AddonJson_HandleScriptObject(useraddon_t *addonPtr, sjson_node* snode, const char* key,
                                         char* & mscriptPtr, char** & modulebuffer, int32_t & nummodules)
 {
     sjson_node *script_path, *script_type;
@@ -317,14 +284,6 @@ static int32_t AddonJson_HandleScriptObject(useraddon_t *addonPtr, sjson_node* s
     if (script_path == nullptr || script_path->tag != SJSON_STRING)
     {
         LOG_F(ERROR, "Script path of key %s missing or has invalid format in addon '%s'!", key, addonPtr->internalId);
-        return -1;
-    }
-
-    Bsnprintf(tempbuf, BMAX_PATH, "%s/%s", basepath, script_path->string_);
-    if (AddonJson_CheckFilePresence(tempbuf))
-    {
-        //TODO: Need to verify whether this actually works properly with Ken GRP/SSI/ZIP files
-        LOG_F(ERROR, "Script file of addon '%s' at location '%s' does not exist!", addonPtr->internalId, tempbuf);
         return -1;
     }
 
@@ -359,7 +318,7 @@ static int32_t AddonJson_HandleScriptObject(useraddon_t *addonPtr, sjson_node* s
 }
 
 // parse and store script file paths, check for file presence and other errors
-static int32_t AddonJson_ParseScriptModules(useraddon_t *addonPtr, sjson_node* root, const char* key, const char* basepath,
+static int32_t AddonJson_ParseScriptModules(useraddon_t *addonPtr, sjson_node* root, const char* key,
                                         char* & mscriptPtr, char** & modulebuffer, int32_t & modulecount)
 {
     mscriptPtr = nullptr;
@@ -377,7 +336,7 @@ static int32_t AddonJson_ParseScriptModules(useraddon_t *addonPtr, sjson_node* r
         // zero or one module
         modulebuffer = (char **) Xmalloc(1 * sizeof(char*));
 
-        hasError = AddonJson_HandleScriptObject(addonPtr, elem, key, basepath, mscriptPtr, modulebuffer, numvalidmodules);
+        hasError = AddonJson_HandleScriptObject(addonPtr, elem, key, mscriptPtr, modulebuffer, numvalidmodules);
     }
     else if (elem->tag == SJSON_ARRAY)
     {
@@ -394,7 +353,7 @@ static int32_t AddonJson_ParseScriptModules(useraddon_t *addonPtr, sjson_node* r
                 continue;
             }
 
-            if (AddonJson_HandleScriptObject(addonPtr, snode, key, basepath, mscriptPtr, modulebuffer, numvalidmodules))
+            if (AddonJson_HandleScriptObject(addonPtr, snode, key, mscriptPtr, modulebuffer, numvalidmodules))
                 hasError = true;
         }
     }
@@ -721,8 +680,65 @@ static int32_t AddonJson_ParseRendmode(useraddon_t* addonPtr, sjson_node* root, 
     }
 }
 
+static void AddonJson_RemoveLeadingSlash(char* filename)
+{
+    int i = 0, j = 0;
+    while(filename[j] == '/') j++;
+    if (j == 0) return;
+
+    while(filename[j])
+        filename[i++] = filename[j++];
+    filename[i] = '\0';
+}
+
+// corrects the filepaths and checks if the specified file actually exists
+static int32_t AddonJson_CorrectAndCheckFile(const useraddon_t * addonPtr, char* relpath)
+{
+    if (!relpath || (relpath[0] == '\0'))
+        return 0;
+
+    Bcorrectfilename(relpath, 0);
+    AddonJson_RemoveLeadingSlash(relpath);
+
+    // different path depending on package type
+    if (addonPtr->package_type & (ADDONLT_GRP | ADDONLT_SSI | ADDONLT_ZIP))
+        Bstrncpy(tempbuf, relpath, BMAX_PATH);
+    else
+        Bsnprintf(tempbuf, BMAX_PATH, "%s/%s", addonPtr->data_path, relpath);
+
+    // try to open the path
+    buildvfs_kfd jsonfil = kopen4load(tempbuf, 0);
+    if (jsonfil != buildvfs_kfd_invalid)
+    {
+        kclose(jsonfil);
+        return 0;
+    }
+
+    LOG_F(ERROR, "File '%s' specified in addon '%s' does not exist!", tempbuf, addonPtr->internalId);
+    return 1;
+}
+
+// check if files specified in addon struct exist
+static int32_t AddonJson_CheckFilesPresence(const useraddon_t * addonPtr)
+{
+    int missingCnt = 0;
+    missingCnt += AddonJson_CorrectAndCheckFile(addonPtr, addonPtr->mscript_path);
+    missingCnt += AddonJson_CorrectAndCheckFile(addonPtr, addonPtr->mdef_path);
+    missingCnt += AddonJson_CorrectAndCheckFile(addonPtr, addonPtr->mrts_path);
+    missingCnt += AddonJson_CorrectAndCheckFile(addonPtr, addonPtr->preview_path);
+    missingCnt += AddonJson_CorrectAndCheckFile(addonPtr, addonPtr->startmapfilename);
+
+    for (int i = 0; i < addonPtr->num_con_modules; i++)
+        missingCnt += AddonJson_CorrectAndCheckFile(addonPtr, addonPtr->con_modules[i]);
+
+    for (int i = 0; i < addonPtr->num_def_modules; i++)
+        missingCnt += AddonJson_CorrectAndCheckFile(addonPtr, addonPtr->def_modules[i]);
+
+    return missingCnt;
+}
+
 // Load data from json file into addon -- assumes that unique ID for the addon has been defined!
-static int32_t AddonJson_ParseDescriptor(sjson_context *ctx, char* json_fn, useraddon_t* addonPtr, const char* basepath, const char* packfn)
+static int32_t AddonJson_ParseDescriptor(sjson_context *ctx, char* json_fn, useraddon_t* addonPtr, const char* packfn)
 {
     // open json descriptor (try 8.3 format as well, due to ken grp restrictions)
     const bool isgroup = addonPtr->package_type & (ADDONLT_ZIP | ADDONLT_GRP | ADDONLT_SSI);
@@ -811,22 +827,21 @@ static int32_t AddonJson_ParseDescriptor(sjson_context *ctx, char* json_fn, user
         jsonErrorCnt++;
 
     // CON script paths (optional)
-    parseResult = AddonJson_ParseScriptModules(addonPtr, root, jsonkey_con, basepath,
-                    addonPtr->mscript_path, addonPtr->script_modules, addonPtr->num_script_modules);
+    parseResult = AddonJson_ParseScriptModules(addonPtr, root, jsonkey_con, addonPtr->mscript_path,
+                                                addonPtr->con_modules, addonPtr->num_con_modules);
     if (parseResult == -1) jsonErrorCnt++;
 
     // DEF script paths (optional)
-    parseResult = AddonJson_ParseScriptModules(addonPtr, root, jsonkey_def, basepath,
-                    addonPtr->mdef_path, addonPtr->def_modules, addonPtr->num_def_modules);
+    parseResult = AddonJson_ParseScriptModules(addonPtr, root, jsonkey_def, addonPtr->mdef_path,
+                                                addonPtr->def_modules, addonPtr->num_def_modules);
     if (parseResult == -1) jsonErrorCnt++;
 
     // Preview image filepath (optional)
-    parseResult = AddonJson_ParseFilePath(addonPtr, root, jsonkey_image, addonPtr->preview_path, basepath);
+    parseResult = AddonJson_ParseString(addonPtr, root, jsonkey_image, addonPtr->preview_path);
     if (parseResult == -1) jsonErrorCnt++;
 
     // RTS file path (optional)
-    // TODO: Check this again (bugged)
-    parseResult = AddonJson_ParseFilePath(addonPtr, root, jsonkey_rts, addonPtr->mrts_path, basepath);
+    parseResult = AddonJson_ParseString(addonPtr, root, jsonkey_rts, addonPtr->mrts_path);
     if (parseResult == -1) jsonErrorCnt++;
 
     // map to launch after reboot (optional)
@@ -840,6 +855,10 @@ static int32_t AddonJson_ParseDescriptor(sjson_context *ctx, char* json_fn, user
     // incompatibles (optional)
     parseResult = AddonJson_ParseDependencyList(addonPtr, root, jsonkey_incompatibles, addonPtr->incompatibles, addonPtr->num_incompatibles);
     if (parseResult == -1) jsonErrorCnt++;
+
+    // after parsing all properties, check if filepaths exist
+    parseResult = AddonJson_CheckFilesPresence(addonPtr);
+    if (parseResult > 0) jsonErrorCnt++;
 
     if (jsonErrorCnt > 0)
     {
@@ -929,7 +948,7 @@ static void AddonJson_ReadLocalPackages(sjson_context *ctx, fnlist_t* fnlist, co
             Bsnprintf(json_path, BMAX_PATH, "/%s", addonjsonfn);
 
             // parse the json, cleanup
-            int parsingFailed = AddonJson_ParseDescriptor(ctx, json_path, addonPtr, "/", rec->name);
+            int parsingFailed = AddonJson_ParseDescriptor(ctx, json_path, addonPtr, rec->name);
             if (grpfileidx < numgroupfiles) popgroupfile();
             else popgroupfromkzstack();
 
@@ -974,7 +993,7 @@ static void AddonJson_ReadLocalSubfolders(sjson_context *ctx, fnlist_t* fnlist, 
 
         char json_path[BMAX_PATH];
         Bsnprintf(json_path, BMAX_PATH, "%s/%s", basepath, addonjsonfn);
-        if (AddonJson_ParseDescriptor(ctx, json_path, addonPtr, basepath, rec->name))
+        if (AddonJson_ParseDescriptor(ctx, json_path, addonPtr, rec->name))
         {
             addonPtr->cleanup();
             DO_FREE_AND_NULL(addonPtr);

@@ -2465,8 +2465,8 @@ static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
         abt_buffersize += addonPtr->mdef_path ? strlen(addonPtr->mdef_path) : 0;
         abt_buffersize += addonPtr->mrts_path ? strlen(addonPtr->mrts_path) : 0;
 
-        for (i = 0; i < addonPtr->num_script_modules; i++)
-            abt_buffersize += strlen(addonPtr->script_modules[i]);
+        for (i = 0; i < addonPtr->num_con_modules; i++)
+            abt_buffersize += strlen(addonPtr->con_modules[i]);
 
         for (i = 0; i < addonPtr->num_def_modules; i++)
             abt_buffersize += strlen(addonPtr->def_modules[i]);
@@ -2638,9 +2638,9 @@ static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
                 Bstrcat(m_addonbodytext, tempbuf);
             }
 
-            if (addonPtr->num_script_modules > 0)
+            if (addonPtr->num_con_modules > 0)
             {
-                Bsprintf(tempbuf, "^%d- CON script modules:^%d %d\n", abt_headerpal, abt_textpal, addonPtr->num_script_modules);
+                Bsprintf(tempbuf, "^%d- CON script modules:^%d %d\n", abt_headerpal, abt_textpal, addonPtr->num_con_modules);
                 Bstrcat(m_addonbodytext, tempbuf);
             }
 
@@ -2700,12 +2700,12 @@ static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
             Bstrcat(m_addonbodytext, tempbuf);
         }
 
-        if (addonPtr->num_script_modules > 0)
+        if (addonPtr->num_con_modules > 0)
         {
             Bstrcat(m_addonbodytext, "- CON Script Modules:\n");
-            for (i = 0; i < addonPtr->num_script_modules; i++)
+            for (i = 0; i < addonPtr->num_con_modules; i++)
             {
-                Bstrcat(m_addonbodytext, addonPtr->script_modules[i]);
+                Bstrcat(m_addonbodytext, addonPtr->con_modules[i]);
                 Bstrcat(m_addonbodytext, "\n");
             }
         }

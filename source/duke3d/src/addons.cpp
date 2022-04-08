@@ -93,14 +93,15 @@ static uint8_t* Addon_LoadPreviewFromFile(const char *fn)
 
     if (!imagebuffer)
     {
-        LOG_F(ERROR, "Failed to load preview image: %s", fn);
+        LOG_F(ERROR, "Failed to load addon preview image: %s", fn);
         return nullptr;
     }
 
     // TODO: May want to support different sizes here based on ratio, but not that important
     if (xydim.x != PREVIEWTILE_XSIZE || xydim.y != PREVIEWTILE_YSIZE)
     {
-        LOG_F(ERROR, "Addon preview image '%s' does not have required format: %dx%d", fn, PREVIEWTILE_XSIZE, PREVIEWTILE_YSIZE);
+        LOG_F(ERROR, "Addon preview image '%s' has dimensions %dx%d. Required format %dx%d",
+                     fn, xydim.x, xydim.y, PREVIEWTILE_XSIZE, PREVIEWTILE_YSIZE);
         return nullptr;
     }
 
@@ -120,10 +121,12 @@ static void Addon_LoadAddonPreview(useraddon_t* addonPtr)
     else
     {
         if (addonPtr->package_type & (ADDONLT_GRP | ADDONLT_ZIP | ADDONLT_SSI))
+        {
             initgroupfile(addonPtr->data_path);
-
-        //TODO: Check if this works with Ken GRP/ SSI/ ZIP files
-        addonPtr->preview_image_data = Addon_LoadPreviewFromFile(addonPtr->preview_path);
+            Bstrncpy(tempbuf, addonPtr->preview_path, BMAX_PATH);
+        }
+        else Bsnprintf(tempbuf, BMAX_PATH, "%s/%s", addonPtr->data_path, addonPtr->preview_path);
+        addonPtr->preview_image_data = Addon_LoadPreviewFromFile(tempbuf);
 
         if (addonPtr->package_type & (ADDONLT_GRP | ADDONLT_ZIP | ADDONLT_SSI))
         {
@@ -643,8 +646,8 @@ static int32_t Addon_PrepareUserAddon(const useraddon_t* addonPtr)
     if (addonPtr->mscript_path)
         G_AddCon(addonPtr->mscript_path);
 
-    for (int i = 0; i < addonPtr->num_script_modules; i++)
-        G_AddConModule(addonPtr->script_modules[i]);
+    for (int i = 0; i < addonPtr->num_con_modules; i++)
+        G_AddConModule(addonPtr->con_modules[i]);
 
     if (addonPtr->mdef_path)
         G_AddDef(addonPtr->mdef_path);

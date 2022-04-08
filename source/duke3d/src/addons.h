@@ -151,8 +151,8 @@ struct useraddon_t
     int32_t loadorder_idx;
 
     char *mscript_path, *mdef_path, *mrts_path;
-    char **script_modules, **def_modules;
-    int32_t num_script_modules, num_def_modules;
+    char **con_modules, **def_modules;
+    int32_t num_con_modules, num_def_modules;
 
     char* startmapfilename;
     int32_t startlevel, startvolume;
@@ -190,10 +190,10 @@ struct useraddon_t
         DO_FREE_AND_NULL(mdef_path);
         DO_FREE_AND_NULL(mrts_path);
 
-        for (int j = 0; j < num_script_modules; j++)
-            Xfree(script_modules[j]);
-        DO_FREE_AND_NULL(script_modules);
-        num_script_modules = 0;
+        for (int j = 0; j < num_con_modules; j++)
+            Xfree(con_modules[j]);
+        DO_FREE_AND_NULL(con_modules);
+        num_con_modules = 0;
 
         for (int j = 0; j < num_def_modules; j++)
             Xfree(def_modules[j]);
