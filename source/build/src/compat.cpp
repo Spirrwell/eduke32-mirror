@@ -181,11 +181,14 @@ char *Bgetappdir(void)
     return dir;
 }
 
+// This function takes a filepath and converts "\" to "/" on Windows, and cleans up tokens
+// such as ".", ".." and "//" if possible. It also removes the final filename if "removefn" is nonzero.
 int32_t Bcorrectfilename(char *filename, int32_t removefn)
 {
     char *fn = Xstrdup(filename);
     char *tokarr[64], *first, *next = NULL;
 
+    // replace backwards-slashes with forwards-slashes on Windows
     for (first=fn; *first; first++)
     {
 #ifdef _WIN32
@@ -200,6 +203,7 @@ int32_t Bcorrectfilename(char *filename, int32_t removefn)
     first = fn;
     do
     {
+        // split the path up by slashes, fills an array of pointers to the start of each folder- and filename on the path
         char *token = Bstrtoken(first, "/", &next, 1);
         first = NULL;
         if (!token) break;
@@ -210,9 +214,14 @@ int32_t Bcorrectfilename(char *filename, int32_t removefn)
     }
     while (1);
 
+    // if removefn is 1, removes the filename at the end of the path from the token array. Directories are unaffected.
+    // Note: if path points to a directory, must end with a slash!
     if (!trailslash && removefn) { ntok = max(0,ntok-1); trailslash = 1; }
+
+    // in this case we have a variation of the root path "/"
     if (ntok == 0 && trailslash && leadslash) trailslash = 0;
 
+    // reconstruct the path
     first = filename;
     if (leadslash) *(first++) = '/';
     for (int i=0; i<ntok; i++)
