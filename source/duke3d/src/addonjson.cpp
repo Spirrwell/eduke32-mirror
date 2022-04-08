@@ -306,6 +306,58 @@ static int32_t AddonJson_ParseVersion(useraddon_t *addonPtr, sjson_node *root, c
     return 0;
 }
 
+// handle a single CON/DEF script json object
+static int32_t AddonJson_HandleScriptObject(useraddon_t *addonPtr, sjson_node* snode, const char* key, const char* basepath,
+                                        char* & mscriptPtr, char** & modulebuffer, int32_t & nummodules)
+{
+    sjson_node *script_path, *script_type;
+    AddonJson_CheckUnknownKeys(addonPtr->internalId, snode, key, json_scriptkeys, ARRAY_SIZE(json_scriptkeys));
+
+    script_path = sjson_find_member_nocase(snode, jsonkey_scriptpath);
+    if (script_path == nullptr || script_path->tag != SJSON_STRING)
+    {
+        LOG_F(ERROR, "Script path of key %s missing or has invalid format in addon '%s'!", key, addonPtr->internalId);
+        return -1;
+    }
+
+    Bsnprintf(tempbuf, BMAX_PATH, "%s/%s", basepath, script_path->string_);
+    if (AddonJson_CheckFilePresence(tempbuf))
+    {
+        //TODO: Need to verify whether this actually works properly with Ken GRP/SSI/ZIP files
+        LOG_F(ERROR, "Script file of addon '%s' at location '%s' does not exist!", addonPtr->internalId, tempbuf);
+        return -1;
+    }
+
+    script_type = sjson_find_member_nocase(snode, jsonkey_scripttype);
+    if (script_type == nullptr || script_type->tag != SJSON_STRING)
+    {
+        LOG_F(ERROR, "Script type of key %s missing or has invalid format in addon '%s'!", key, addonPtr->internalId);
+        return -1;
+    }
+
+    if (!Bstrncasecmp(script_type->string_, jsonval_scriptmain, ARRAY_SIZE(jsonval_scriptmain)))
+    {
+        if (mscriptPtr)
+        {
+            LOG_F(ERROR, "More than one main '%s' script specified in addon '%s'!", key, addonPtr->internalId);
+            return -1;
+        }
+        mscriptPtr = Xstrdup(script_path->string_);
+        return 0;
+    }
+    else if (!Bstrncasecmp(script_type->string_, jsonval_scriptmodule, ARRAY_SIZE(jsonval_scriptmodule)))
+    {
+        modulebuffer[nummodules++] = Xstrdup(script_path->string_);
+        return 0;
+    }
+    else
+    {
+        LOG_F(ERROR, "Invalid script type '%s' specified in addon '%s'!", script_type->string_, addonPtr->internalId);
+        LOG_F(INFO, "Valid types are: {\"%s\", \"%s\"}", jsonval_scriptmain, jsonval_scriptmodule);
+        return -1;
+    }
+}
+
 // parse and store script file paths, check for file presence and other errors
 static int32_t AddonJson_ParseScriptModules(useraddon_t *addonPtr, sjson_node* root, const char* key, const char* basepath,
                                         char* & mscriptPtr, char** & modulebuffer, int32_t & modulecount)
@@ -314,92 +366,55 @@ static int32_t AddonJson_ParseScriptModules(useraddon_t *addonPtr, sjson_node* r
     modulebuffer = nullptr;
     modulecount = 0;
 
-    sjson_node * nodes = sjson_find_member_nocase(root, key);
-    if (nodes == nullptr) return 1;
-
-    // TODO: Allow single object without array, see rendmode
-    if (nodes->tag != SJSON_ARRAY)
-    {
-        LOG_F(ERROR, "Value of key '%s' of addon '%s' must be an array!", key, addonPtr->internalId);
-        return -1;
-    }
-
-    int const numchildren = sjson_child_count(nodes);
-    modulebuffer = (char **) Xmalloc(numchildren * sizeof(char*));
-
-    sjson_node *snode, *script_path, *script_type;
     bool hasError = false;
-    int32_t numvalidchildren = 0;
-    sjson_foreach(snode, nodes)
+    int32_t numvalidmodules = 0;
+
+    sjson_node * elem = sjson_find_member_nocase(root, key);
+    if (elem == nullptr) return 1;
+
+    if (elem->tag == SJSON_OBJECT)
     {
-        if (snode->tag != SJSON_OBJECT)
-        {
-            LOG_F(ERROR, "Invalid type found in array of member '%s' of addon '%s'!", key, addonPtr->internalId);
-            hasError = true;
-            continue;
-        }
+        // zero or one module
+        modulebuffer = (char **) Xmalloc(1 * sizeof(char*));
 
-        AddonJson_CheckUnknownKeys(addonPtr->internalId, snode, key, json_scriptkeys, ARRAY_SIZE(json_scriptkeys));
+        hasError = AddonJson_HandleScriptObject(addonPtr, elem, key, basepath, mscriptPtr, modulebuffer, numvalidmodules);
+    }
+    else if (elem->tag == SJSON_ARRAY)
+    {
+        // at most every object is a module
+        modulebuffer = (char **) Xmalloc(sjson_child_count(elem) * sizeof(char*));
 
-        script_path = sjson_find_member_nocase(snode, jsonkey_scriptpath);
-        if (script_path == nullptr || script_path->tag != SJSON_STRING)
+        sjson_node *snode;
+        sjson_foreach(snode, elem)
         {
-            LOG_F(ERROR, "Script path of key %s missing or has invalid format in addon '%s'!", key, addonPtr->internalId);
-            hasError = true;
-            continue;
-        }
-
-        Bsnprintf(tempbuf, BMAX_PATH, "%s/%s", basepath, script_path->string_);
-        if (AddonJson_CheckFilePresence(tempbuf))
-        {
-            //TODO: Need to verify whether this actually works properly with Ken GRP/SSI/ZIP files
-            LOG_F(ERROR, "Script file of addon '%s' at location '%s' does not exist!", addonPtr->internalId, tempbuf);
-            hasError = true;
-            continue;
-        }
-
-        script_type = sjson_find_member_nocase(snode, jsonkey_scripttype);
-        if (script_type == nullptr || script_type->tag != SJSON_STRING)
-        {
-            LOG_F(ERROR, "Script type of key %s missing or has invalid format in addon '%s'!", key, addonPtr->internalId);
-            hasError = true;
-            continue;
-        }
-
-        if (!Bstrncasecmp(script_type->string_, jsonval_scriptmain, ARRAY_SIZE(jsonval_scriptmain)))
-        {
-            if (mscriptPtr)
+            if (snode->tag != SJSON_OBJECT)
             {
-                LOG_F(ERROR, "More than one main '%s' script specified in addon '%s'!", key, addonPtr->internalId);
+                LOG_F(ERROR, "Invalid type found in array of member '%s' of addon '%s'!", key, addonPtr->internalId);
                 hasError = true;
                 continue;
             }
-            mscriptPtr = Xstrdup(script_path->string_);
+
+            if (AddonJson_HandleScriptObject(addonPtr, snode, key, basepath, mscriptPtr, modulebuffer, numvalidmodules))
+                hasError = true;
         }
-        else if (!Bstrncasecmp(script_type->string_, jsonval_scriptmodule, ARRAY_SIZE(jsonval_scriptmodule)))
-        {
-            modulebuffer[numvalidchildren] = Xstrdup(script_path->string_);
-            numvalidchildren++;
-        }
-        else
-        {
-            LOG_F(ERROR, "Invalid script type '%s' specified in addon '%s'!", script_type->string_, addonPtr->internalId);
-            LOG_F(INFO, "Valid types are: {\"%s\", \"%s\"}", jsonval_scriptmain, jsonval_scriptmodule);
-            hasError = true;
-        }
+    }
+    else
+    {
+        LOG_F(ERROR, "Value of key '%s' of addon '%s' must be an array!", key, addonPtr->internalId);
+        return -1;
     }
 
     // on error, abort and free valid items again
     if (hasError)
     {
         DO_FREE_AND_NULL(mscriptPtr);
-        for (int i = 0; i < numvalidchildren; i++)
+        for (int i = 0; i < numvalidmodules; i++)
             Xfree(modulebuffer[i]);
-        numvalidchildren = 0;
+        numvalidmodules = 0;
     }
 
     // valid children may be zero from error or no modules specified
-    if (numvalidchildren == 0)
+    if (numvalidmodules == 0)
     {
         DO_FREE_AND_NULL(modulebuffer);
         modulecount = 0;
@@ -407,8 +422,8 @@ static int32_t AddonJson_ParseScriptModules(useraddon_t *addonPtr, sjson_node* r
     }
     else
     {
-        modulebuffer = (char **) Xrealloc(modulebuffer, numvalidchildren * sizeof(char*));
-        modulecount = numvalidchildren;
+        modulebuffer = (char **) Xrealloc(modulebuffer, numvalidmodules * sizeof(char*));
+        modulecount = numvalidmodules;
         return 0;
     }
 }
