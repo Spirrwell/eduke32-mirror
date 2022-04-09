@@ -2252,7 +2252,48 @@ static int32_t Menu_Addon_EntryLinkActivate(int32_t const entryIndex)
             }
         }
 
+        // change the selected addon state
         addonPtr->setSelected(!addonPtr->isSelected());
+
+        // activate dependencies
+        if (addonPtr->isSelected())
+        {
+            for (int i = 0; i < addonPtr->num_dependencies; i++)
+            {
+                if (!(addonPtr->content_type & ADDONTYPE_GRPINFO))
+                {
+                    for_grpaddons(otherAddon, {
+                        if (Bstrcmp(addonPtr->dependencies[i].dependencyId, otherAddon->externalId) == 0)
+                        {
+                            otherAddon->setSelected(true);
+                            break;
+                        }
+                    });
+                }
+
+                if (addonPtr->content_type & ADDONTYPE_MOD)
+                {
+                    for_tcaddons(otherAddon, {
+                        if (Bstrcmp(addonPtr->dependencies[i].dependencyId, otherAddon->externalId) == 0)
+                        {
+                            CONFIG_SetAddonActivationStatus(otherAddon->internalId, otherAddon->isSelected());
+                            otherAddon->setSelected(true);
+                            break;
+                        }
+                    });
+
+                    for_modaddons(otherAddon, {
+                        if (addonPtr == otherAddon) break;
+                        if (Bstrcmp(addonPtr->dependencies[i].dependencyId, otherAddon->externalId) == 0)
+                        {
+                            CONFIG_SetAddonActivationStatus(otherAddon->internalId, otherAddon->isSelected());
+                            otherAddon->setSelected(true);
+                        }
+                    });
+                }
+            }
+        }
+
         if (!(addonPtr->content_type & ADDONTYPE_GRPINFO))
             CONFIG_SetAddonActivationStatus(addonPtr->internalId, addonPtr->isSelected());
 
