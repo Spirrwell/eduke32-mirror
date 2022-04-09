@@ -564,7 +564,7 @@ static int32_t Addon_DependencyMatch(const addondependency_t* depPtr, const user
 }
 
 // update an addon's dependency state (or incompatibles)
-static void Addon_UpdateDependencies(useraddon_t* addonPtr, addondependency_t* depList, const int32_t depCount)
+static void Addon_UpdateDependencies(useraddon_t* addonPtr, addondependency_t* depList, const int32_t depCount, const bool incompat)
 {
     // grp info addons have no dependencies
     if (addonPtr->content_type == ADDONTYPE_GRPINFO)
@@ -613,7 +613,7 @@ static void Addon_UpdateDependencies(useraddon_t* addonPtr, addondependency_t* d
         for (int i = 0; i < g_addoncount_mods; i++)
         {
             useraddon_t* otherPtr = lobuf[i];
-            if (otherPtr == addonPtr) break;
+            if (!incompat && (otherPtr == addonPtr)) break;
 
             if (otherPtr->isSelected() && Addon_DependencyMatch(&dep, otherPtr))
             {
@@ -630,13 +630,13 @@ static void Addon_UpdateDependencies(useraddon_t* addonPtr, addondependency_t* d
 void Addon_RefreshDependencyStates(void)
 {
     for_tcaddons(addonPtr,{
-        Addon_UpdateDependencies(addonPtr, addonPtr->dependencies, addonPtr->num_dependencies);
-        Addon_UpdateDependencies(addonPtr, addonPtr->incompatibles, addonPtr->num_incompatibles);
+        Addon_UpdateDependencies(addonPtr, addonPtr->dependencies, addonPtr->num_dependencies, false);
+        Addon_UpdateDependencies(addonPtr, addonPtr->incompatibles, addonPtr->num_incompatibles, true);
     });
 
     for_modaddons(addonPtr,{
-        Addon_UpdateDependencies(addonPtr, addonPtr->dependencies, addonPtr->num_dependencies);
-        Addon_UpdateDependencies(addonPtr, addonPtr->incompatibles, addonPtr->num_incompatibles);
+        Addon_UpdateDependencies(addonPtr, addonPtr->dependencies, addonPtr->num_dependencies, false);
+        Addon_UpdateDependencies(addonPtr, addonPtr->incompatibles, addonPtr->num_incompatibles, true);
     });
 }
 
