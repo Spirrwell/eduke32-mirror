@@ -122,11 +122,12 @@ static int32_t AddonJson_CorrectAndCheckFile(const useraddon_t * addonPtr, char*
     Bcorrectfilename(relpath, 0);
     AddonJson_RemoveLeadingSlash(relpath);
 
+    char fullpath[BMAX_PATH];
     // different path depending on package type
     if (addonPtr->package_type & (ADDONLT_GRP | ADDONLT_SSI | ADDONLT_ZIP))
-        Bstrncpy(tempbuf, relpath, BMAX_PATH);
+        Bstrncpy(fullpath, relpath, BMAX_PATH);
     else if (addonPtr->package_type & (ADDONLT_FOLDER | ADDONLT_WORKSHOP))
-        Bsnprintf(tempbuf, BMAX_PATH, "%s/%s", addonPtr->data_path, relpath);
+        Bsnprintf(fullpath, BMAX_PATH, "%s/%s", addonPtr->data_path, relpath);
     else
     {
         LOG_F(ERROR, "Addon '%s' has invalid package type for filename check: %d!", addonPtr->internalId, addonPtr->package_type);
@@ -134,14 +135,14 @@ static int32_t AddonJson_CorrectAndCheckFile(const useraddon_t * addonPtr, char*
     }
 
     // try to open the path
-    buildvfs_kfd jsonfil = kopen4load(tempbuf, (isgroup) ? 2 : 0);
+    buildvfs_kfd jsonfil = kopen4load(fullpath, (isgroup) ? 2 : 0);
     if (jsonfil != buildvfs_kfd_invalid)
     {
         kclose(jsonfil);
         return 0;
     }
 
-    LOG_F(ERROR, "File '%s' specified in addon '%s' does not exist!", tempbuf, addonPtr->internalId);
+    LOG_F(ERROR, "File '%s' specified in addon '%s' does not exist!", fullpath, addonPtr->internalId);
     return 1;
 }
 
