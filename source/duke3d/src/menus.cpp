@@ -2720,7 +2720,7 @@ static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
 
 #ifdef DEBUGGINGAIDS
         // debug description
-        Bsprintf(tempbuf, "\n\n^%dDebug Info:\n", abt_headerpal);
+        Bsprintf(tempbuf, "\n\n^%dDebug Info:\n^%d", abt_headerpal, abt_textpal);
         Bstrcat(m_addonbodytext, tempbuf);
 
         Bsprintf(tempbuf, "- Internal ID: %s\n", addonPtr->internalId);
@@ -2735,13 +2735,17 @@ static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
         Bsprintf(tempbuf, "- Game Type: %d\n", addonPtr->gametype);
         Bstrcat(m_addonbodytext, tempbuf);
 
-        Bstrcat(tempbuf, "- Compatible CRCs: ");
-        Bstrcat(m_addonbodytext, tempbuf);
-        for (int i = 0; i < addonPtr->num_gamecrcs; i++)
+        Bstrcat(m_addonbodytext, "- Compatible CRCs: ");
+        if (addonPtr->num_gamecrcs > 0)
         {
-            Bsprintf(tempbuf, "0x%x, ", addonPtr->gamecrcs[i]);
-            Bstrcat(m_addonbodytext, tempbuf);
+            for (int i = 0; i < addonPtr->num_gamecrcs; i++)
+            {
+                Bsprintf(tempbuf, "0x%x, ", addonPtr->gamecrcs[i]);
+                Bstrcat(m_addonbodytext, tempbuf);
+            }
         }
+        else
+            Bstrcat(m_addonbodytext, "Any");
         Bstrcat(m_addonbodytext, "\n");
 
         Bsprintf(tempbuf, "- Content and Package Type: %d, %d\n", addonPtr->content_type, addonPtr->package_type);
@@ -2767,22 +2771,24 @@ static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
 
         if (addonPtr->num_con_modules > 0)
         {
-            Bstrcat(m_addonbodytext, "- CON Script Modules:\n");
+            Bstrcat(m_addonbodytext, "- CON Script Modules: ");
             for (i = 0; i < addonPtr->num_con_modules; i++)
             {
                 Bstrcat(m_addonbodytext, addonPtr->con_modules[i]);
-                Bstrcat(m_addonbodytext, "\n");
+                Bstrcat(m_addonbodytext, ", ");
             }
+            Bstrcat(m_addonbodytext, "\n");
         }
 
         if (addonPtr->num_def_modules > 0)
         {
-            Bstrcat(m_addonbodytext, "- DEF Script Modules:\n");
+            Bstrcat(m_addonbodytext, "- DEF Script Modules: ");
             for (i = 0; i < addonPtr->num_def_modules; i++)
             {
                 Bstrcat(m_addonbodytext, addonPtr->def_modules[i]);
-                Bstrcat(m_addonbodytext, "\n");
+                Bstrcat(m_addonbodytext, ", ");
             }
+            Bstrcat(m_addonbodytext, "\n");
         }
 #endif
     }
