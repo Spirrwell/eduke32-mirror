@@ -101,6 +101,49 @@ static const char jsonval_rendmode_opengl[] = "opengl";
 static const char jsonval_rendmode_polymost[] = "polymost";
 static const char jsonval_rendmode_polymer[] = "polymer";
 
+// remove leading slash from the given filename string (edit in-place)
+static void AddonJson_RemoveLeadingSlash(char* filename)
+{
+    int i = 0, j = 0;
+    while(filename[j] == '/') j++;
+    if (j == 0) return;
+
+    while(filename[j])
+        filename[i++] = filename[j++];
+    filename[i] = '\0';
+}
+
+// corrects the filepaths and checks if the specified file actually exists
+static int32_t AddonJson_CorrectAndCheckFile(const useraddon_t * addonPtr, char* relpath, bool isgroup)
+{
+    if (!relpath || (relpath[0] == '\0'))
+        return 0;
+
+    Bcorrectfilename(relpath, 0);
+    AddonJson_RemoveLeadingSlash(relpath);
+
+    // different path depending on package type
+    if (addonPtr->package_type & (ADDONLT_GRP | ADDONLT_SSI | ADDONLT_ZIP))
+        Bstrncpy(tempbuf, relpath, BMAX_PATH);
+    else if (addonPtr->package_type & (ADDONLT_FOLDER | ADDONLT_WORKSHOP))
+        Bsnprintf(tempbuf, BMAX_PATH, "%s/%s", addonPtr->data_path, relpath);
+    else
+    {
+        LOG_F(ERROR, "Addon '%s' has invalid package type for filename check: %d!", addonPtr->internalId, addonPtr->package_type);
+        return -1;
+    }
+
+    // try to open the path
+    buildvfs_kfd jsonfil = kopen4load(tempbuf, (isgroup) ? 2 : 0);
+    if (jsonfil != buildvfs_kfd_invalid)
+    {
+        kclose(jsonfil);
+        return 0;
+    }
+
+    LOG_F(ERROR, "File '%s' specified in addon '%s' does not exist!", tempbuf, addonPtr->internalId);
+    return 1;
+}
 
 // This awful function verifies that version strings adhere to the following format:
 // REGEX: ((([1-9][0-9]*)|0)\.)*(([1-9][0-9]*))(\-[a-zA-Z0-9]+)?
@@ -202,6 +245,74 @@ static int32_t AddonJson_CheckStringTyped(const useraddon_t *addonPtr, sjson_nod
         return -1;
     }
     return 0;
+}
+
+// parse description -- may be sourced from an external file
+static int32_t AddonJson_ParseDescription(useraddon_t *addonPtr, sjson_node *root, const char *key, bool isgroup)
+{
+    sjson_node * descNode = sjson_find_member_nocase(root, key);
+    DO_FREE_AND_NULL(addonPtr->description);
+    if (descNode == nullptr) return 1;
+
+    if (descNode->tag == SJSON_STRING)
+    {
+        addonPtr->description = Xstrdup(descNode->string_);
+        return 0;
+    }
+    else if (descNode->tag == SJSON_OBJECT)
+    {
+        sjson_node * fnode = sjson_find_member_nocase(descNode, jsonkey_scriptpath);
+
+        const char *pathKey[] = { jsonkey_scriptpath };
+        AddonJson_CheckUnknownKeys(addonPtr->internalId, fnode, key, pathKey, 1);
+
+        if (!fnode || AddonJson_CheckStringTyped(addonPtr, fnode, key))
+        {
+            LOG_F(ERROR, "Addon description path missing or not a valid string for addon: %s", addonPtr->internalId);
+            return -1;
+        }
+
+        char full_descpath[BMAX_PATH];
+        char relative_descpath[BMAX_PATH];
+        Bstrcpy(relative_descpath, fnode->string_);
+        if (AddonJson_CorrectAndCheckFile(addonPtr, relative_descpath, isgroup))
+            return -1;
+
+        // different path depending on package type
+        if (addonPtr->package_type & (ADDONLT_GRP | ADDONLT_SSI | ADDONLT_ZIP))
+            Bstrncpy(full_descpath, relative_descpath, BMAX_PATH);
+        else if (addonPtr->package_type & (ADDONLT_FOLDER | ADDONLT_WORKSHOP))
+            Bsnprintf(full_descpath, BMAX_PATH, "%s/%s", addonPtr->data_path, relative_descpath);
+        else
+        {
+            LOG_F(ERROR, "Unhandled package type %d in addon %s!", addonPtr->package_type, addonPtr->internalId);
+            return -1;
+        }
+
+        buildvfs_kfd descfile = kopen4load(full_descpath, (isgroup ? 2 : 0));
+        if (descfile == buildvfs_kfd_invalid)
+            return -1;
+
+        const int32_t len = kfilelength(descfile);
+        char* descBuf = (char *)Xmalloc(len+1);
+        descBuf[len] = '\0';
+        if (kread_and_test(descfile, descBuf, len))
+        {
+            LOG_F(ERROR, "Failed to access and read description at '%s' for addon '%s'", full_descpath, addonPtr->internalId);
+            kclose(descfile);
+            Xfree(descBuf);
+            return -1;
+        }
+        kclose(descfile);
+
+        addonPtr->description = descBuf;
+        return 0;
+    }
+    else
+    {
+        LOG_F(ERROR, "Invalid type in '%s' token for addon: %s", key, addonPtr->internalId);
+        return -1;
+    }
 }
 
 // parse arbitrary sjson string content and replace given reference pointer (nulled if key not found)
@@ -741,64 +852,21 @@ static int32_t AddonJson_ParseRendmode(useraddon_t* addonPtr, sjson_node* root, 
     }
 }
 
-static void AddonJson_RemoveLeadingSlash(char* filename)
-{
-    int i = 0, j = 0;
-    while(filename[j] == '/') j++;
-    if (j == 0) return;
-
-    while(filename[j])
-        filename[i++] = filename[j++];
-    filename[i] = '\0';
-}
-
-// corrects the filepaths and checks if the specified file actually exists
-static int32_t AddonJson_CorrectAndCheckFile(const useraddon_t * addonPtr, char* relpath)
-{
-    if (!relpath || (relpath[0] == '\0'))
-        return 0;
-
-    Bcorrectfilename(relpath, 0);
-    AddonJson_RemoveLeadingSlash(relpath);
-
-    // different path depending on package type
-    if (addonPtr->package_type & (ADDONLT_GRP | ADDONLT_SSI | ADDONLT_ZIP))
-        Bstrncpy(tempbuf, relpath, BMAX_PATH);
-    else if (addonPtr->package_type & (ADDONLT_FOLDER | ADDONLT_WORKSHOP))
-        Bsnprintf(tempbuf, BMAX_PATH, "%s/%s", addonPtr->data_path, relpath);
-    else
-    {
-        LOG_F(ERROR, "Addon '%s' has invalid package type for filename check: %d!", addonPtr->internalId, addonPtr->package_type);
-        return -1;
-    }
-
-    // try to open the path
-    buildvfs_kfd jsonfil = kopen4load(tempbuf, 0);
-    if (jsonfil != buildvfs_kfd_invalid)
-    {
-        kclose(jsonfil);
-        return 0;
-    }
-
-    LOG_F(ERROR, "File '%s' specified in addon '%s' does not exist!", tempbuf, addonPtr->internalId);
-    return 1;
-}
-
 // check if files specified in addon struct exist
-static int32_t AddonJson_CheckFilesPresence(const useraddon_t * addonPtr)
+static int32_t AddonJson_CheckFilesPresence(const useraddon_t * addonPtr, bool isgroup)
 {
     int missingCnt = 0;
-    missingCnt += AddonJson_CorrectAndCheckFile(addonPtr, addonPtr->mscript_path);
-    missingCnt += AddonJson_CorrectAndCheckFile(addonPtr, addonPtr->mdef_path);
-    missingCnt += AddonJson_CorrectAndCheckFile(addonPtr, addonPtr->mrts_path);
-    missingCnt += AddonJson_CorrectAndCheckFile(addonPtr, addonPtr->preview_path);
-    missingCnt += AddonJson_CorrectAndCheckFile(addonPtr, addonPtr->startmapfilename);
+    missingCnt += AddonJson_CorrectAndCheckFile(addonPtr, addonPtr->mscript_path, isgroup);
+    missingCnt += AddonJson_CorrectAndCheckFile(addonPtr, addonPtr->mdef_path, isgroup);
+    missingCnt += AddonJson_CorrectAndCheckFile(addonPtr, addonPtr->mrts_path, isgroup);
+    missingCnt += AddonJson_CorrectAndCheckFile(addonPtr, addonPtr->preview_path, isgroup);
+    missingCnt += AddonJson_CorrectAndCheckFile(addonPtr, addonPtr->startmapfilename, isgroup);
 
     for (int i = 0; i < addonPtr->num_con_modules; i++)
-        missingCnt += AddonJson_CorrectAndCheckFile(addonPtr, addonPtr->con_modules[i]);
+        missingCnt += AddonJson_CorrectAndCheckFile(addonPtr, addonPtr->con_modules[i], isgroup);
 
     for (int i = 0; i < addonPtr->num_def_modules; i++)
-        missingCnt += AddonJson_CorrectAndCheckFile(addonPtr, addonPtr->def_modules[i]);
+        missingCnt += AddonJson_CorrectAndCheckFile(addonPtr, addonPtr->def_modules[i], isgroup);
 
     return missingCnt;
 }
@@ -811,7 +879,7 @@ static int32_t AddonJson_ParseDescriptor(sjson_context *ctx, char* json_fn, user
     buildvfs_kfd jsonfil = kopen4load(json_fn, (isgroup ? 2 : 0));
     if (jsonfil == buildvfs_kfd_invalid)
     {
-        json_fn[strlen(json_fn) - 1] = '\0';
+        json_fn[strlen(json_fn)-1] = '\0';
         jsonfil = kopen4load(json_fn, (isgroup ? 2 : 0));
         if (jsonfil == buildvfs_kfd_invalid)
             return 1; // not found, is not an addon
@@ -880,7 +948,7 @@ static int32_t AddonJson_ParseDescriptor(sjson_context *ctx, char* json_fn, user
         jsonErrorCnt++;
 
     // description for addon (optional)
-    parseResult = AddonJson_ParseString(addonPtr, root, jsonkey_desc, addonPtr->description);
+    parseResult = AddonJson_ParseDescription(addonPtr, root, jsonkey_desc, isgroup);
     if (parseResult == -1)
         jsonErrorCnt++;
 
@@ -923,7 +991,7 @@ static int32_t AddonJson_ParseDescriptor(sjson_context *ctx, char* json_fn, user
     if (parseResult == -1) jsonErrorCnt++;
 
     // after parsing all properties, check if filepaths exist
-    parseResult = AddonJson_CheckFilesPresence(addonPtr);
+    parseResult = AddonJson_CheckFilesPresence(addonPtr, isgroup);
     if (parseResult > 0) jsonErrorCnt++;
 
     if (jsonErrorCnt > 0)
@@ -982,6 +1050,7 @@ static void AddonJson_ReadLocalPackages(sjson_context *ctx, fnlist_t* fnlist, co
 
             // set data path and default loadorder index
             addonPtr->data_path = Xstrdup(package_path);
+            Bcorrectfilename(addonPtr->data_path, 0);
             addonPtr->loadorder_idx = DEFAULT_LOADORDER_IDX;
 
             // set initial file type based on extension
@@ -1048,6 +1117,7 @@ static void AddonJson_ReadLocalSubfolders(sjson_context *ctx, fnlist_t* fnlist, 
         addonPtr->internalId = Xstrdup(tempbuf);
 
         addonPtr->data_path = Xstrdup(basepath);
+        Bcorrectfilename(addonPtr->data_path, 0);
         addonPtr->loadorder_idx = DEFAULT_LOADORDER_IDX;
         addonPtr->package_type = ADDONLT_FOLDER;
 
