@@ -554,30 +554,77 @@ static int32_t AddonJson_ParseGameFlag(const useraddon_t* addonPtr, sjson_node* 
     }
 }
 
+// add game crc -- assumes that the array is initialized
+static int32_t AddonJson_AddGameCRC(useraddon_t* addonPtr, sjson_node* ele, const char* key, const int index)
+{
+    if (ele->tag == SJSON_NUMBER)
+    {
+        addonPtr->gamecrcs[index] = ele->number_;
+        return 0;
+    }
+    else if (ele->tag == SJSON_STRING)
+    {
+        // hexadecimals aren't supported in json, hence have string option
+        if (ele->string_[0] != '0' || (ele->string_[1] != 'x' && ele->string_[1] != 'X'))
+        {
+            LOG_F(ERROR, "Missing hexadecimal prefix on '%s' for addon %s!", key, addonPtr->internalId);
+            return -1;
+        }
+
+        char* endptr;
+        int32_t hex = Bstrtol(ele->string_, &endptr, 0);
+        if (hex == 0 || *endptr)
+        {
+            LOG_F(ERROR, "Value %s in addon %s is not a valid hexadecimal!", ele->string_, addonPtr->internalId);
+            return -1;
+        }
+
+        addonPtr->gamecrcs[index] = hex;
+        return 0;
+    }
+    else
+    {
+        LOG_F(ERROR, "Invalid type for CRC on key '%s' for addon %s!", key, addonPtr->internalId);
+        return -1;
+    }
+}
+
 // The gameCRC acts as an additional method to finegrain control for which game the addon should show up.
 static int32_t AddonJson_ParseGameCRC(useraddon_t* addonPtr, sjson_node* root, const char* key)
 {
     sjson_node * ele = sjson_find_member_nocase(root, key);
-    addonPtr->gamecrc = 0;
-
+    DO_FREE_AND_NULL(addonPtr->gamecrcs);
+    addonPtr->num_gamecrcs = 0;
     if (ele == nullptr) return 1;
-    else if (AddonJson_CheckStringTyped(addonPtr, ele, key)) return -1;
 
-    if (ele->string_[0] != '0' || (ele->string_[1] != 'x' && ele->string_[1] != 'X'))
+    if (ele->tag == SJSON_ARRAY)
     {
-        LOG_F(ERROR, "Missing hexadecimal prefix on '%s' for addon %s!", key, addonPtr->internalId);
-        return -1;
+        addonPtr->gamecrcs = (int32_t*) Xmalloc(sjson_child_count(ele) * sizeof(int32_t));
+
+        sjson_node * snode;
+        int crc_count = 0;
+
+        sjson_foreach(snode, ele)
+        {
+            if (AddonJson_AddGameCRC(addonPtr, snode, key, crc_count++))
+            {
+                DO_FREE_AND_NULL(addonPtr->gamecrcs);
+                return -1;
+            }
+        }
+        addonPtr->num_gamecrcs = crc_count;
+    }
+    else
+    {
+        addonPtr->gamecrcs = (int32_t*) Xmalloc(sizeof(int32_t));
+        if (AddonJson_AddGameCRC(addonPtr, ele, key, 0))
+        {
+            DO_FREE_AND_NULL(addonPtr->gamecrcs);
+            return -1;
+        }
+        addonPtr->num_gamecrcs = 1;
     }
 
-    char* endptr;
-    int32_t hex = Bstrtol(ele->string_, &endptr, 0);
-    if (hex == 0 || *endptr)
-    {
-        LOG_F(ERROR, "Value %s in addon %s is not a valid hexadecimal!", ele->string_, addonPtr->internalId);
-        return -1;
-    }
-
-    addonPtr->gamecrc = hex;
     return 0;
 }
 

@@ -46,27 +46,30 @@ int32_t g_num_active_incompats = 0;
 // check if addon matches current game and crc, if specified
 static bool Addon_MatchesSelectedGame(const useraddon_t* addonPtr)
 {
-    if ((addonPtr->gametype & g_gameType) == 0)
+    if ((addonPtr->gametype != ADDONGF_ANY) && ((addonPtr->gametype & g_gameType) == 0))
         return false;
 
-    if (addonPtr->gamecrc == 0)
+    // if gamecrc not specified, assume any CRC is valid -- return true
+    if (!addonPtr->gamecrcs)
         return true;
-    else
-    {
-        // check if selected grp, or any of the parent GRPs, match the gamecrc
-        const grpfile_t * parentGrp = g_selectedGrp;
-        while (parentGrp)
-        {
-            if (addonPtr->gamecrc == parentGrp->type->crcval)
-                return true;
 
-            if (parentGrp->type->dependency && parentGrp->type->dependency != parentGrp->type->crcval)
-                parentGrp = FindGroup(parentGrp->type->dependency);
-            else
-                parentGrp = NULL;
+    // check if selected grp, or any of the parent GRPs, match any of the gamecrcs
+    const grpfile_t * parentGrp = g_selectedGrp;
+    while (parentGrp)
+    {
+        for (int i = 0; i < addonPtr->num_gamecrcs; i++)
+        {
+            if (addonPtr->gamecrcs[i] == parentGrp->type->crcval)
+                return true;
         }
-        return false;
+
+        if (parentGrp->type->dependency && parentGrp->type->dependency != parentGrp->type->crcval)
+            parentGrp = FindGroup(parentGrp->type->dependency);
+        else
+            parentGrp = NULL;
     }
+
+    return false;
 }
 
 // utility to free preview image storage

@@ -146,7 +146,10 @@ struct useraddon_t
     char *title, *version, *author;
     char *description;
 
-    int32_t gametype, gamecrc;
+    int32_t gametype;
+    int32_t num_gamecrcs;
+    int32_t* gamecrcs;
+
     int32_t content_type, package_type;
     int32_t loadorder_idx;
 
@@ -172,7 +175,6 @@ struct useraddon_t
         DO_FREE_AND_NULL(externalId);
 
         gametype = ADDONGF_NONE;
-        gamecrc = 0;
 
         content_type = ADDONTYPE_INVALID;
         package_type = ADDONLT_INVALID;
@@ -185,6 +187,7 @@ struct useraddon_t
 
         DO_FREE_AND_NULL(data_path);
         DO_FREE_AND_NULL(preview_path);
+        DO_FREE_AND_NULL(gamecrcs);
 
         DO_FREE_AND_NULL(mscript_path);
         DO_FREE_AND_NULL(mdef_path);

@@ -131,7 +131,8 @@ static void inline Addon_GrpInfo_SetVersion(useraddon_t * addonPtr, const grpfil
 static void inline Addon_GrpInfo_SetGameDependency(useraddon_t * addonPtr, const grpfile_t * agrpf)
 {
     addonPtr->gametype = agrpf->type->game;
-    addonPtr->gamecrc = agrpf->type->dependency;
+    addonPtr->gamecrcs = (int32_t*) Xmalloc(sizeof(int32_t));
+    *addonPtr->gamecrcs = agrpf->type->dependency;
 }
 
 static void inline Addon_GrpInfo_SetTitle(useraddon_t * addonPtr, const grpfile_t * agrpf)

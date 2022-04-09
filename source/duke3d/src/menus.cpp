@@ -2478,6 +2478,7 @@ static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
         abt_buffersize += addonPtr->mscript_path ? strlen(addonPtr->mscript_path) : 0;
         abt_buffersize += addonPtr->mdef_path ? strlen(addonPtr->mdef_path) : 0;
         abt_buffersize += addonPtr->mrts_path ? strlen(addonPtr->mrts_path) : 0;
+        abt_buffersize += addonPtr->num_gamecrcs * 16;
 
         for (i = 0; i < addonPtr->num_con_modules; i++)
             abt_buffersize += strlen(addonPtr->con_modules[i]);
@@ -2690,8 +2691,17 @@ static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
             Bstrcat(m_addonbodytext, tempbuf);
         }
 
-        Bsprintf(tempbuf, "- Game Type: %d (%x)\n", addonPtr->gametype, addonPtr->gamecrc);
+        Bsprintf(tempbuf, "- Game Type: %d\n", addonPtr->gametype);
         Bstrcat(m_addonbodytext, tempbuf);
+
+        Bstrcat(tempbuf, "- Compatible CRCs: ");
+        Bstrcat(m_addonbodytext, tempbuf);
+        for (int i = 0; i < addonPtr->num_gamecrcs; i++)
+        {
+            Bsprintf(tempbuf, "0x%x, ", addonPtr->gamecrcs[i]);
+            Bstrcat(m_addonbodytext, tempbuf);
+        }
+        Bstrcat(m_addonbodytext, "\n");
 
         Bsprintf(tempbuf, "- Content and Package Type: %d, %d\n", addonPtr->content_type, addonPtr->package_type);
         Bstrcat(m_addonbodytext, tempbuf);
