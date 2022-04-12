@@ -1267,6 +1267,8 @@ static MenuEntry_t **MEL_SAVE;
 // initial and interval wait for addon menu entry scrolling, in gametics
 #define MENUADDON_SCROLLDELAY 60
 #define MENUADDON_SCROLLINTERVAL 30
+#define MENUADDON_ORDERDELAY 40
+#define MENUADDON_ORDERINTERVAL 20
 
 // menu addon body text formatting properties
 #define ABT_TNUM      (MF_Minifont.tilenum)
@@ -1305,12 +1307,16 @@ static char m_addonidentity_buffer[MENUADDON_MAXID];
 static char m_addonversion_buffer[MENUADDON_MAXVERSION];
 static char* m_addonbodytext = nullptr;
 
+// timestamps for last controller trigger on addon menu
+static int64_t m_addon_shoulderdelay = MENUADDON_ORDERDELAY;
+static int64_t m_addon_lastshoulderpress = 0;
+
 // scroll position and number of lines of body (to determine whether scrolling should be enabled)
 static int32_t m_addondesc_scrollpos = 0;
 static vec2_t m_addondesc_xysize = {0, 0};
 
 // determines the horizontal text shift of the selected addon menu entry
-static int32_t m_addontitle_hscroll_lastticks = 0;
+static int64_t m_addontitle_hscroll_lastticks = 0;
 static int32_t m_addontitle_hscroll = 0;
 
 // various strings
@@ -2167,55 +2173,52 @@ static void Menu_Addon_UpdateMenuEntryStatus(MenuEntry_t* menuEntry, useraddon_t
 }
 
 // this function handles the loadorder change in the menu
-static int32_t Menu_AddonMenuUpDown(int32_t const entryIndex, int32_t const otherIndex, int32_t const minBound, int32_t const maxBound)
+static int32_t Menu_SwapAddonOrder(int32_t const entryIndex, int32_t const otherIndex, int32_t const minBound, int32_t const maxBound)
 {
     useraddon_t* thisAddon = EL2ADDONS[entryIndex];
+    Addon_UpdateMenuEntryName(thisAddon, 0);
 
     // When shift is held, load order is changed
-    if (KB_KeyPressed(sc_LeftShift) || KB_KeyPressed(sc_RightShift))
+    if (otherIndex < minBound || otherIndex > maxBound)
+        return 1;
+
+    useraddon_t* otherAddon = EL2ADDONS[otherIndex];
+    if (!otherAddon)
+        return 1;
+
+    // update load orders and entries
+    int32_t const temp_lo = otherAddon->loadorder_idx;
+    otherAddon->loadorder_idx = thisAddon->loadorder_idx;
+    thisAddon->loadorder_idx = temp_lo;
+
+    if (thisAddon->content_type & ADDONTYPE_TC)
     {
-        if (otherIndex < minBound || otherIndex > maxBound)
-            return 1;
-
-        useraddon_t* otherAddon = EL2ADDONS[otherIndex];
-        if (!otherAddon)
-            return 1;
-
-        // update load orders and entries
-        int32_t const temp_lo = otherAddon->loadorder_idx;
-        otherAddon->loadorder_idx = thisAddon->loadorder_idx;
-        thisAddon->loadorder_idx = temp_lo;
-
-        if (thisAddon->content_type & ADDONTYPE_TC)
-        {
-            CONFIG_SetTCLoadOrder(thisAddon->internalId, thisAddon->loadorder_idx);
-            CONFIG_SetTCLoadOrder(otherAddon->internalId, otherAddon->loadorder_idx);
-        }
-        else if (thisAddon->content_type & ADDONTYPE_MOD)
-        {
-            CONFIG_SetModLoadOrder(thisAddon->internalId, thisAddon->loadorder_idx);
-            CONFIG_SetModLoadOrder(otherAddon->internalId, otherAddon->loadorder_idx);
-        }
-
-        MenuEntry_t* me_temp = MEL_ADDONS[entryIndex];
-        MEL_ADDONS[entryIndex] = MEL_ADDONS[otherIndex];
-        MEL_ADDONS[otherIndex] = me_temp;
-
-        EL2ADDONS[entryIndex] = otherAddon;
-        EL2ADDONS[otherIndex] = thisAddon;
-
-        Addon_RefreshDependencyStates();
-        Addon_RefreshPropertyTrackers();
-
-        // update menu entries
-        for (int j = 0; j < M_ADDONS.numEntries; j++)
-        {
-            useraddon_t * iterAddon = EL2ADDONS[j];
-            if (iterAddon) Menu_Addon_UpdateMenuEntryStatus(MEL_ADDONS[j], iterAddon);
-        }
+        CONFIG_SetTCLoadOrder(thisAddon->internalId, thisAddon->loadorder_idx);
+        CONFIG_SetTCLoadOrder(otherAddon->internalId, otherAddon->loadorder_idx);
+    }
+    else if (thisAddon->content_type & ADDONTYPE_MOD)
+    {
+        CONFIG_SetModLoadOrder(thisAddon->internalId, thisAddon->loadorder_idx);
+        CONFIG_SetModLoadOrder(otherAddon->internalId, otherAddon->loadorder_idx);
     }
 
-    Addon_UpdateMenuEntryName(thisAddon, 0);
+    MenuEntry_t* me_temp = MEL_ADDONS[entryIndex];
+    MEL_ADDONS[entryIndex] = MEL_ADDONS[otherIndex];
+    MEL_ADDONS[otherIndex] = me_temp;
+
+    EL2ADDONS[entryIndex] = otherAddon;
+    EL2ADDONS[otherIndex] = thisAddon;
+
+    Addon_RefreshDependencyStates();
+    Addon_RefreshPropertyTrackers();
+
+    // update menu entries
+    for (int j = 0; j < M_ADDONS.numEntries; j++)
+    {
+        useraddon_t * iterAddon = EL2ADDONS[j];
+        if (iterAddon) Menu_Addon_UpdateMenuEntryStatus(MEL_ADDONS[j], iterAddon);
+    }
+
     return 0;
 }
 
@@ -9033,7 +9036,7 @@ static void Menu_RunInput(Menu_t *cm)
 
                             Menu_RunInput_EntryLink_Activate(currentry);
 
-                            if (g_player[myconnectindex].ps->gm&MODE_MENU) // for skill selection
+                            if (g_player[myconnectindex].ps->gm & MODE_MENU) // for skill selection
                                 S_PlaySound(PISTOL_BODYHIT);
                         }
                         break;
@@ -9069,7 +9072,7 @@ static void Menu_RunInput(Menu_t *cm)
                             S_PlaySound(PISTOL_BODYHIT);
                         }
                     }
-                        break;
+                    break;
                     case Custom2Col:
                         if (I_MenuLeft() || I_MenuRight())
                         {
@@ -9146,7 +9149,7 @@ static void Menu_RunInput(Menu_t *cm)
 #ifdef MENU_ENABLE_RANGEDOUBLE
                     case RangeDouble:
                     {
-                        MenuRangeDouble_t *object = (MenuRangeDouble_t*)currentry->entry;
+                        MenuRangeDouble_t* object = (MenuRangeDouble_t*)currentry->entry;
 
                         if (currentry->flags & MEF_Disabled)
                             break;
@@ -9189,6 +9192,12 @@ static void Menu_RunInput(Menu_t *cm)
                     }
                 }
 
+                if (g_currentMenu == MENU_ADDONS && !(JOYSTICK_GetControllerButtons() & ((1 << CONTROLLER_BUTTON_RIGHTSHOULDER) | (1 << CONTROLLER_BUTTON_LEFTSHOULDER))))
+                {
+                    m_addon_lastshoulderpress = 0;
+                    m_addon_shoulderdelay = MENUADDON_ORDERDELAY;
+                }
+
                 if (I_ReturnTrigger() || I_EscapeTrigger() || Menu_RunInput_MouseReturn())
                 {
                     I_ReturnTriggerClear();
@@ -9216,16 +9225,42 @@ static void Menu_RunInput(Menu_t *cm)
 
                     currentry = Menu_RunInput_Menu_Movement(menu, MM_End);
                 }
+                else if (g_currentMenu == MENU_ADDONS && (JOYSTICK_GetControllerButtons() & (1 << CONTROLLER_BUTTON_LEFTSHOULDER)) 
+                            && !(JOYSTICK_GetControllerButtons() & (1 << CONTROLLER_BUTTON_RIGHTSHOULDER)))
+                {
+                    if (m_addon_lastshoulderpress > 0 && (((int64_t)timer120()) - m_addon_lastshoulderpress < m_addon_shoulderdelay))
+                        break;
+
+                    if (Menu_SwapAddonOrder(M_ADDONS.currentEntry, M_ADDONS.currentEntry - 1, 0, M_ADDONS.numEntries - 1))
+                        break;
+
+                    m_addon_shoulderdelay = (m_addon_lastshoulderpress == 0) ? MENUADDON_ORDERDELAY : MENUADDON_ORDERINTERVAL;
+                    m_addon_lastshoulderpress = timer120();
+
+                    S_PlaySound(KICK_HIT);
+                    currentry = Menu_RunInput_Menu_Movement(menu, MM_Up);
+                }
+                else if (g_currentMenu == MENU_ADDONS && (JOYSTICK_GetControllerButtons() & (1 << CONTROLLER_BUTTON_RIGHTSHOULDER))
+                            && !(JOYSTICK_GetControllerButtons() & (1 << CONTROLLER_BUTTON_LEFTSHOULDER)))
+                {
+                    if (m_addon_lastshoulderpress > 0 && (((int64_t)timer120()) - m_addon_lastshoulderpress < m_addon_shoulderdelay))
+                        break;
+
+                    if (Menu_SwapAddonOrder(M_ADDONS.currentEntry, M_ADDONS.currentEntry + 1, 0, M_ADDONS.numEntries - 1))
+                        break;
+
+                    m_addon_shoulderdelay = (m_addon_lastshoulderpress == 0) ? MENUADDON_ORDERDELAY : MENUADDON_ORDERINTERVAL;
+                    m_addon_lastshoulderpress = timer120();
+                    S_PlaySound(KICK_HIT);
+                    currentry = Menu_RunInput_Menu_Movement(menu, MM_Down);
+                }
                 else if (I_MenuUp())
                 {
                     I_MenuUpClear();
 
-                    if (g_currentMenu == MENU_ADDONS)
-                    {
-                        int32_t const cEntry = M_ADDONS.currentEntry;
-                        if (Menu_AddonMenuUpDown(cEntry, cEntry - 1, 0, M_ADDONS.numEntries - 1))
+                    if (g_currentMenu == MENU_ADDONS && (KB_KeyPressed(sc_LeftShift) || KB_KeyPressed(sc_RightShift)))
+                        if (Menu_SwapAddonOrder(M_ADDONS.currentEntry, M_ADDONS.currentEntry - 1, 0, M_ADDONS.numEntries - 1))
                             break;
-                    }
 
                     S_PlaySound(KICK_HIT);
 
@@ -9235,12 +9270,9 @@ static void Menu_RunInput(Menu_t *cm)
                 {
                     I_MenuDownClear();
 
-                    if (g_currentMenu == MENU_ADDONS)
-                    {
-                        int32_t const cEntry = M_ADDONS.currentEntry;
-                        if (Menu_AddonMenuUpDown(cEntry, cEntry + 1, 0, M_ADDONS.numEntries - 1))
+                    if (g_currentMenu == MENU_ADDONS && (KB_KeyPressed(sc_LeftShift) || KB_KeyPressed(sc_RightShift)))
+                        if (Menu_SwapAddonOrder(M_ADDONS.currentEntry, M_ADDONS.currentEntry + 1, 0, M_ADDONS.numEntries - 1))
                             break;
-                    }
 
                     S_PlaySound(KICK_HIT);
 
