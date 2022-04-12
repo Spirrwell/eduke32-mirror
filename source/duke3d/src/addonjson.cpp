@@ -331,20 +331,31 @@ static int32_t AddonJson_ParseString(useraddon_t *addonPtr, sjson_node *root, co
 
 
 // return 0 if given string satisfies the restrictions set on external identity
-// TODO: currently on disallows whitespace and empty strings, maybe increase restriction?
 static int32_t AddonJson_CheckExternalIdentityRestrictions(const useraddon_t *addonPtr, const char* ident)
 {
     if (!ident || !ident[0])
     {
-        LOG_F(ERROR, "Identity string of addon %s cannot be empty!", addonPtr->internalId);
+        LOG_F(ERROR, "Identity string of addon '%s' cannot be empty!", addonPtr->internalId);
         return -1;
     }
 
-    for (int i = 0; ident[i]; i++)
+    if (!isalpha(ident[0]))
+    {
+        LOG_F(ERROR, "Starting character in identity string of addon '%s' must be alphabetical!", addonPtr->internalId);
+        return -1;
+    }
+
+    for (int i = 1; ident[i]; i++)
     {
         if (isspace(ident[i]))
         {
-            LOG_F(ERROR, "Identity string of addon %s must not contain whitespace!", addonPtr->internalId);
+            LOG_F(ERROR, "Identity string of addon '%s' may not contain whitespace!", addonPtr->internalId);
+            return -1;
+        }
+
+        if (!isalnum(ident[i]) && ident[i] != '_')
+        {
+            LOG_F(ERROR, "Invalid character '%c' in identity string of addon '%s'!", ident[i], addonPtr->internalId);
             return -1;
         }
     }
@@ -922,9 +933,10 @@ static int32_t AddonJson_ParseDescriptor(sjson_context *ctx, char* json_fn, user
     }
 
     // creator must specify an identity for the addon, such that other addons can reference it (required)
-    if (AddonJson_ParseExternalId(addonPtr, root, jsonkey_depid) != 0)
+    parseResult = AddonJson_ParseExternalId(addonPtr, root, jsonkey_depid);
+    if (parseResult != 0)
     {
-        LOG_F(ERROR, "Missing identity for addon: '%s'! (key: %s)", addonPtr->internalId, jsonkey_depid);
+        if (parseResult == 1) LOG_F(ERROR, "Missing identity for addon: '%s'! (key: %s)", addonPtr->internalId, jsonkey_depid);
         jsonErrorCnt++;
     }
 
