@@ -347,15 +347,17 @@ static int32_t AddonJson_CheckExternalIdentityRestrictions(const useraddon_t *ad
 
     for (int i = 1; ident[i]; i++)
     {
-        if (isspace(ident[i]))
+        const char c = ident[i];
+        if (isspace(c))
         {
             LOG_F(ERROR, "Identity string of addon '%s' may not contain whitespace!", addonPtr->internalId);
             return -1;
         }
 
-        if (!isalnum(ident[i]) && ident[i] != '_')
+        if (!isalnum(c) && c != '_' && c != '+' && c != '-')
         {
-            LOG_F(ERROR, "Invalid character '%c' in identity string of addon '%s'!", ident[i], addonPtr->internalId);
+            LOG_F(ERROR, "Invalid character '%c' in identity string of addon '%s'!", c, addonPtr->internalId);
+            LOG_F(INFO, "Valid characters are: { A-Z, a-z, 0-9, '_', '+', '-' }");
             return -1;
         }
     }
