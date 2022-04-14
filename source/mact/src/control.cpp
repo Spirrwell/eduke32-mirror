@@ -101,7 +101,7 @@ static void controlUpdateMouseState(ControlInfo *const info)
 {
     vec2_t input;
     mouseReadPos(&input.x, &input.y);
-    
+
     vec2f_t finput = { input.x * CONTROL_MouseSensitivityUnit * CONTROL_MouseSensitivity * CONTROL_MouseAxesSensitivity[0],
                        input.y * CONTROL_MouseSensitivityUnit * CONTROL_MouseSensitivity * CONTROL_MouseAxesSensitivity[1] };
 
@@ -244,7 +244,7 @@ void CONTROL_MapButton(int whichfunction, int whichbutton, int doubleclicked, co
     default:
         return;
     }
-    
+
     if (doubleclicked)
         set->doubleclicked = whichfunction;
     else
@@ -485,7 +485,7 @@ static void controlUpdateAxisState(int index, ControlInfo *const info)
 
     if (axisScaled10k >= a.saturation)
         out->analog = 32767 * ksgn(in);
-    else 
+    else
     {
         // this assumes there are two sticks comprised of axes 0 and 1, and 2 and 3... because when isGameController is true, there are
         if (index <= CONTROLLER_AXIS_LEFTY || (joystick.isGameController && (index <= CONTROLLER_AXIS_RIGHTY)))
@@ -751,7 +751,7 @@ bool CONTROL_Startup(controltype which, int32_t(*TimeFunction)(void), int32_t ti
     KB_Startup();
 
     CONTROL_NumMouseButtons = MAXMOUSEBUTTONS;
-    CONTROL_MousePresent    = MOUSE_Startup();    
+    CONTROL_MousePresent    = MOUSE_Startup();
 
     if (!(CONTROL_MouseEnabled = CONTROL_MousePresent))
         DVLOG_F(LOG_INPUT, "No mice found.");
@@ -797,29 +797,31 @@ UserInput *CONTROL_GetUserInput(UserInput *info)
     if (info == nullptr)
         info = &userInput.local;
 
-    direction newdir = dir_None;
+    direction new_ldir = dir_None;
+    direction new_rdir = dir_None;
 
+    // left stick / dpad
     if ((joyAxes[CONTROLLER_AXIS_LEFTY].axis.digital == -1 && SCALEAXIS(LEFTY) <= -SATU(LEFTY))
         || (JOYSTICK_GetControllerButtons() & (1 << CONTROLLER_BUTTON_DPAD_UP)))
-        newdir = dir_Up;
+        new_ldir = dir_Up;
     else if ((joyAxes[CONTROLLER_AXIS_LEFTY].axis.digital == 1 && SCALEAXIS(LEFTY) >= SATU(LEFTY))
                 || (JOYSTICK_GetControllerButtons() & (1 << CONTROLLER_BUTTON_DPAD_DOWN)))
-        newdir = dir_Down;
+        new_ldir = dir_Down;
     else if ((joyAxes[CONTROLLER_AXIS_LEFTX].axis.digital == -1 && SCALEAXIS(LEFTX) <= -SATU(LEFTX))
                 || (JOYSTICK_GetControllerButtons() & (1 << CONTROLLER_BUTTON_DPAD_LEFT)))
-        newdir = dir_Left;
+        new_ldir = dir_Left;
     else if ((joyAxes[CONTROLLER_AXIS_LEFTX].axis.digital == 1 && SCALEAXIS(LEFTX) >= SATU(LEFTX))
                 || (JOYSTICK_GetControllerButtons() & (1 << CONTROLLER_BUTTON_DPAD_RIGHT)))
-        newdir = dir_Right;
+        new_ldir = dir_Right;
 
     // allow the user to press the dpad as fast as they like without being rate limited
-    if (newdir == dir_None)
+    if (new_ldir == dir_None)
     {
         userInput.clock = -1;
         userInput.repeat = dir_None;
     }
 
-    info->dir = (ExtGetTime() >= userInput.clock) ? newdir : dir_None;
+    info->dir = (ExtGetTime() >= userInput.clock) ? new_ldir : dir_None;
 
     if (KB_KeyDown[sc_kpad_8] || KB_KeyDown[sc_UpArrow])
         info->dir = dir_Up;
@@ -830,10 +832,31 @@ UserInput *CONTROL_GetUserInput(UserInput *info)
     else if (KB_KeyDown[sc_kpad_6] || KB_KeyDown[sc_RightArrow])
         info->dir = dir_Right;
 
+    // check right stick
+    if (joyAxes[CONTROLLER_AXIS_RIGHTY].axis.digital == -1 && SCALEAXIS(RIGHTY) <= -SATU(RIGHTY))
+        new_rdir = dir_Up;
+    else if (joyAxes[CONTROLLER_AXIS_RIGHTY].axis.digital == 1 && SCALEAXIS(RIGHTY) >= SATU(RIGHTY))
+        new_rdir = dir_Down;
+    else if (joyAxes[CONTROLLER_AXIS_RIGHTX].axis.digital == -1 && SCALEAXIS(RIGHTX) <= -SATU(RIGHTX))
+        new_rdir = dir_Left;
+    else if (joyAxes[CONTROLLER_AXIS_RIGHTX].axis.digital == 1 && SCALEAXIS(RIGHTX) >= SATU(RIGHTX))
+        new_rdir = dir_Right;
+
+    if (new_rdir == dir_None)
+    {
+        userInput.rsclock = -1;
+        userInput.rsrepeat = dir_None;
+    }
+
+    info->rdir = (ExtGetTime() >= userInput.rsclock) ? new_rdir : dir_None;
+
     info->b_advance = KB_KeyPressed(sc_Enter) || KB_KeyPressed(sc_kpad_Enter) || (MOUSE_GetButtons() & M_LEFTBUTTON)
                     || (JOYSTICK_GetControllerButtons() & (1 << CONTROLLER_BUTTON_A));
     info->b_return   = KB_KeyPressed(sc_Escape) || (MOUSE_GetButtons() & M_RIGHTBUTTON) || (JOYSTICK_GetControllerButtons() & (1 << CONTROLLER_BUTTON_B));
     info->b_escape = KB_KeyPressed(sc_Escape) || (JOYSTICK_GetControllerButtons() & (1 << CONTROLLER_BUTTON_START));
+
+    info->b_special1 = JOYSTICK_GetControllerButtons() & (1 << CONTROLLER_BUTTON_LEFTSHOULDER);
+    info->b_special2 = JOYSTICK_GetControllerButtons() & (1 << CONTROLLER_BUTTON_RIGHTSHOULDER);
 
 #if defined(GEKKO)
     if (JOYSTICK_GetButtons()&(WII_A))
@@ -846,28 +869,44 @@ UserInput *CONTROL_GetUserInput(UserInput *info)
         info->b_escape = true;
 #endif
 
-    if (userInput.buttonCleared[1])
+    if (userInput.buttonCleared[2])
     {
         if (!info->b_advance)
-            userInput.buttonCleared[1] = false;
+            userInput.buttonCleared[2] = false;
         else
             info->b_advance = false;
     }
 
-    if (userInput.buttonCleared[2])
+    if (userInput.buttonCleared[3])
     {
         if (!info->b_return)
-            userInput.buttonCleared[2] = false;
+            userInput.buttonCleared[3] = false;
         else
             info->b_return = false;
     }
 
-    if (userInput.buttonCleared[3])
+    if (userInput.buttonCleared[4])
     {
         if (!info->b_escape)
-            userInput.buttonCleared[3] = false;
+            userInput.buttonCleared[4] = false;
         else
             info->b_escape = false;
+    }
+
+    if (userInput.buttonCleared[5])
+    {
+        if (!info->b_special1)
+            userInput.buttonCleared[5] = false;
+        else
+            info->b_special1 = false;
+    }
+
+    if (userInput.buttonCleared[6])
+    {
+        if (!info->b_special2)
+            userInput.buttonCleared[6] = false;
+        else
+            info->b_special2 = false;
     }
 
     return info;
@@ -907,25 +946,47 @@ void CONTROL_ClearUserInput(UserInput * info)
         userInput.buttonCleared[0] = true;
     }
 
+    if (info->rdir != dir_None)
+    {
+        auto const clk = ExtGetTime();
+
+        if (userInput.rsrepeat == info->rdir)
+            userInput.rsclock = clk + ((ticrate * USERINPUTFASTDELAY) / 1000);
+        else
+        {
+            userInput.rsrepeat = info->rdir;
+            userInput.rsclock = clk + ((ticrate * USERINPUTDELAY) / 1000);
+        }
+
+        userInput.buttonCleared[1] = true;
+    }
+
     if (info->b_advance)
     {
         KB_ClearKeyDown(sc_kpad_Enter);
         KB_ClearKeyDown(sc_Enter);
         MOUSE_ClearButton(M_LEFTBUTTON);
-        userInput.buttonCleared[1] = true;
+        userInput.buttonCleared[2] = true;
     }
 
     if (info->b_return)
     {
         KB_ClearKeyDown(sc_Escape);
         MOUSE_ClearButton(M_RIGHTBUTTON);
-        userInput.buttonCleared[2] = true;
+        userInput.buttonCleared[3] = true;
     }
 
     if (info->b_escape)
     {
         KB_ClearKeyDown(sc_Escape);
-        userInput.buttonCleared[3] = true;    
+        userInput.buttonCleared[4] = true;
     }
+
+    if (info->b_special1)
+        userInput.buttonCleared[5] = true;
+
+    if (info->b_special2)
+        userInput.buttonCleared[6] = true;
+
     inputchecked = 1;
 }

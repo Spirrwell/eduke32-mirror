@@ -131,9 +131,9 @@ typedef struct ControllerAxis
 typedef struct UserInputState
 {
     UserInput local;
-    int32_t   clock;
-    direction repeat;
-    bool      buttonCleared[4];
+    int32_t   clock, rsclock;
+    direction repeat, rsrepeat;
+    bool      buttonCleared[7];
 } UserInputState_t;
 
 #ifdef __cplusplus

@@ -94,7 +94,10 @@ typedef struct
     union { bool button0, b_advance; };
     union { bool button1, b_return; };
     union { bool button2, b_escape; };
+    union { bool button3, b_special1; };
+    union { bool button4, b_special2; };
     direction dir;
+    direction rdir;
 } UserInput;
 
 typedef struct
