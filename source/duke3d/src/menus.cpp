@@ -1267,8 +1267,6 @@ static MenuEntry_t **MEL_SAVE;
 // initial and interval wait for addon menu entry scrolling, in gametics
 #define MENUADDON_SCROLLDELAY 60
 #define MENUADDON_SCROLLINTERVAL 30
-#define MENUADDON_ORDERDELAY 40
-#define MENUADDON_ORDERINTERVAL 20
 
 // menu addon body text formatting properties
 #define ABT_TNUM      (MF_Minifont.tilenum)
@@ -1306,10 +1304,6 @@ static char m_addontitle_buffer[MENUADDON_MAXTITLE];
 static char m_addonidentity_buffer[MENUADDON_MAXID];
 static char m_addonversion_buffer[MENUADDON_MAXVERSION];
 static char* m_addonbodytext = nullptr;
-
-// timestamps for last controller trigger on addon menu
-static int64_t m_addon_shoulderdelay = MENUADDON_ORDERDELAY;
-static int64_t m_addon_lastshoulderpress = 0;
 
 // scroll position and number of lines of body (to determine whether scrolling should be enabled)
 static int32_t m_addondesc_scrollpos = 0;
@@ -2139,6 +2133,18 @@ static vec2_t MenuAddon_BodyTextWrap(char* dst, const char *src, int32_t const b
     }
 
     return ABT_GETXYSIZE(dst);
+}
+
+static void inline Menu_Addon_ScrollDescriptionUp(void)
+{
+    if (m_addondesc_xysize.y > ABT_SCROLL_THRESHOLD)
+        m_addondesc_scrollpos = min(0, m_addondesc_scrollpos + ABT_SCROLL_INC);
+}
+
+static void inline Menu_Addon_ScrollDescriptionDown(void)
+{
+    if (m_addondesc_xysize.y > ABT_SCROLL_THRESHOLD)
+        m_addondesc_scrollpos = max(ABT_SCROLL_THRESHOLD - m_addondesc_xysize.y, m_addondesc_scrollpos - ABT_SCROLL_INC);
 }
 
 static void inline Menu_Addon_ResetHorizontalScroll(void)
@@ -9192,12 +9198,6 @@ static void Menu_RunInput(Menu_t *cm)
                     }
                 }
 
-                if (g_currentMenu == MENU_ADDONS && !(JOYSTICK_GetControllerButtons() & ((1 << CONTROLLER_BUTTON_RIGHTSHOULDER) | (1 << CONTROLLER_BUTTON_LEFTSHOULDER))))
-                {
-                    m_addon_lastshoulderpress = 0;
-                    m_addon_shoulderdelay = MENUADDON_ORDERDELAY;
-                }
-
                 if (I_ReturnTrigger() || I_EscapeTrigger() || Menu_RunInput_MouseReturn())
                 {
                     I_ReturnTriggerClear();
@@ -9225,39 +9225,11 @@ static void Menu_RunInput(Menu_t *cm)
 
                     currentry = Menu_RunInput_Menu_Movement(menu, MM_End);
                 }
-                else if (g_currentMenu == MENU_ADDONS && (JOYSTICK_GetControllerButtons() & (1 << CONTROLLER_BUTTON_LEFTSHOULDER)) 
-                            && !(JOYSTICK_GetControllerButtons() & (1 << CONTROLLER_BUTTON_RIGHTSHOULDER)))
-                {
-                    if (m_addon_lastshoulderpress > 0 && (((int64_t)timer120()) - m_addon_lastshoulderpress < m_addon_shoulderdelay))
-                        break;
-
-                    if (Menu_SwapAddonOrder(M_ADDONS.currentEntry, M_ADDONS.currentEntry - 1, 0, M_ADDONS.numEntries - 1))
-                        break;
-
-                    m_addon_shoulderdelay = (m_addon_lastshoulderpress == 0) ? MENUADDON_ORDERDELAY : MENUADDON_ORDERINTERVAL;
-                    m_addon_lastshoulderpress = timer120();
-
-                    S_PlaySound(KICK_HIT);
-                    currentry = Menu_RunInput_Menu_Movement(menu, MM_Up);
-                }
-                else if (g_currentMenu == MENU_ADDONS && (JOYSTICK_GetControllerButtons() & (1 << CONTROLLER_BUTTON_RIGHTSHOULDER))
-                            && !(JOYSTICK_GetControllerButtons() & (1 << CONTROLLER_BUTTON_LEFTSHOULDER)))
-                {
-                    if (m_addon_lastshoulderpress > 0 && (((int64_t)timer120()) - m_addon_lastshoulderpress < m_addon_shoulderdelay))
-                        break;
-
-                    if (Menu_SwapAddonOrder(M_ADDONS.currentEntry, M_ADDONS.currentEntry + 1, 0, M_ADDONS.numEntries - 1))
-                        break;
-
-                    m_addon_shoulderdelay = (m_addon_lastshoulderpress == 0) ? MENUADDON_ORDERDELAY : MENUADDON_ORDERINTERVAL;
-                    m_addon_lastshoulderpress = timer120();
-                    S_PlaySound(KICK_HIT);
-                    currentry = Menu_RunInput_Menu_Movement(menu, MM_Down);
-                }
                 else if (I_MenuUp())
                 {
                     I_MenuUpClear();
 
+                    // if shift held, will move load order up in addons menu
                     if (g_currentMenu == MENU_ADDONS && (KB_KeyPressed(sc_LeftShift) || KB_KeyPressed(sc_RightShift)))
                         if (Menu_SwapAddonOrder(M_ADDONS.currentEntry, M_ADDONS.currentEntry - 1, 0, M_ADDONS.numEntries - 1))
                             break;
@@ -9270,6 +9242,7 @@ static void Menu_RunInput(Menu_t *cm)
                 {
                     I_MenuDownClear();
 
+                    // if shift held, will move load order down in addons menu
                     if (g_currentMenu == MENU_ADDONS && (KB_KeyPressed(sc_LeftShift) || KB_KeyPressed(sc_RightShift)))
                         if (Menu_SwapAddonOrder(M_ADDONS.currentEntry, M_ADDONS.currentEntry + 1, 0, M_ADDONS.numEntries - 1))
                             break;
@@ -9287,11 +9260,7 @@ static void Menu_RunInput(Menu_t *cm)
                     MOUSE_ClearButton(M_WHEELUP);
 
                     if (g_currentMenu == MENU_ADDONS)
-                    {
-                        // scroll the text content up instead of entry list
-                        if (m_addondesc_xysize.y > ABT_SCROLL_THRESHOLD)
-                            m_addondesc_scrollpos = min(0, m_addondesc_scrollpos + ABT_SCROLL_INC);
-                    }
+                        Menu_Addon_ScrollDescriptionUp();
                     else
                     {
                         menu->currentEntry -= 6;
@@ -9313,11 +9282,7 @@ static void Menu_RunInput(Menu_t *cm)
                     MOUSE_ClearButton(M_WHEELDOWN);
 
                     if (g_currentMenu == MENU_ADDONS)
-                    {
-                        // scroll the text content down instead of entry list
-                        if (m_addondesc_xysize.y > ABT_SCROLL_THRESHOLD)
-                            m_addondesc_scrollpos = max(ABT_SCROLL_THRESHOLD - m_addondesc_xysize.y, m_addondesc_scrollpos - ABT_SCROLL_INC);
-                    }
+                        Menu_Addon_ScrollDescriptionDown();
                     else
                     {
                         menu->currentEntry += 6;
@@ -9371,6 +9336,43 @@ static void Menu_RunInput(Menu_t *cm)
                         Menu_RunInput_Menu_MovementVerify(menu);
 
                         S_PlaySound(KICK_HIT);
+                    }
+                }
+
+                // controller inputs for the addons menu
+                if (g_currentMenu == MENU_ADDONS)
+                {
+                    // move load order up (left shoulder button)
+                    if (I_Special1Trigger())
+                    {
+                        I_Special1TriggerClear();
+                        if (Menu_SwapAddonOrder(M_ADDONS.currentEntry, M_ADDONS.currentEntry - 1, 0, M_ADDONS.numEntries - 1))
+                            break;
+
+                        S_PlaySound(KICK_HIT);
+                        currentry = Menu_RunInput_Menu_Movement(menu, MM_Up);
+                    }
+                    // move load order down (right shoulder button)
+                    else if (I_Special2Trigger())
+                    {
+                        I_Special2TriggerClear();
+                        if (Menu_SwapAddonOrder(M_ADDONS.currentEntry, M_ADDONS.currentEntry + 1, 0, M_ADDONS.numEntries - 1))
+                            break;
+
+                        S_PlaySound(KICK_HIT);
+                        currentry = Menu_RunInput_Menu_Movement(menu, MM_Down);
+                    }
+                    // scroll description up with controller
+                    else if (I_MenuRightStickUp())
+                    {
+                        I_MenuRightStickUpClear();
+                        Menu_Addon_ScrollDescriptionUp();
+                    }
+                    // scroll description down with controller
+                    else if (I_MenuRightStickDown())
+                    {
+                        I_MenuRightStickDownClear();
+                        Menu_Addon_ScrollDescriptionDown();
                     }
                 }
 

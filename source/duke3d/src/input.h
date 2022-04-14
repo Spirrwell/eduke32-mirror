@@ -36,12 +36,16 @@ extern int32_t I_AdvanceTrigger(void);
 extern int32_t I_GeneralTrigger(void);
 extern int32_t I_ReturnTrigger(void);
 extern int32_t I_EscapeTrigger(void);
+extern int32_t I_Special1Trigger(void);
+extern int32_t I_Special2Trigger(void);
 
 extern void I_AdvanceTriggerClear(void);
 extern void I_GeneralTriggerClear(void);
 
 #define I_ReturnTriggerClear I_ClearLast
 #define I_EscapeTriggerClear I_ClearLast
+#define I_Special1TriggerClear I_ClearLast
+#define I_Special2TriggerClear I_ClearLast
 
 extern int32_t I_MenuUp(void);
 extern int32_t I_MenuDown(void);
@@ -52,6 +56,16 @@ extern int32_t I_MenuRight(void);
 #define I_MenuDownClear  I_ClearLast
 #define I_MenuLeftClear  I_ClearLast
 #define I_MenuRightClear I_ClearLast
+
+extern int32_t I_MenuRightStickUp(void);
+extern int32_t I_MenuRightStickDown(void);
+extern int32_t I_MenuRightStickLeft(void);
+extern int32_t I_MenuRightStickRight(void);
+
+#define I_MenuRightStickUpClear    I_ClearLast
+#define I_MenuRightStickDownClear  I_ClearLast
+#define I_MenuRightStickLeftClear  I_ClearLast
+#define I_MenuRightStickRightClear I_ClearLast
 
 extern int32_t I_PanelUp(void);
 extern int32_t I_PanelDown(void);

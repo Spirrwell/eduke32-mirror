@@ -65,6 +65,9 @@ int32_t I_TextSubmit(void)
 int32_t I_ReturnTrigger(void) { return CONTROL_GetUserInput(nullptr)->b_return; }
 int32_t I_AdvanceTrigger(void) { return I_TextSubmit() || KB_KeyPressed(sc_Space); }
 
+int32_t I_Special1Trigger(void) { return CONTROL_GetUserInput(nullptr)->b_special1; }
+int32_t I_Special2Trigger(void) { return CONTROL_GetUserInput(nullptr)->b_special2; }
+
 void I_TextSubmitClear(void) { I_ClearAllInput(); }
 
 void I_AdvanceTriggerClear(void)
@@ -112,6 +115,11 @@ int32_t I_MenuDown(void)
 
 int32_t I_MenuLeft(void) { return CONTROL_GetUserInput(nullptr)->dir == dir_Left || BUTTON(gamefunc_Turn_Left) || BUTTON(gamefunc_Strafe_Left); }
 int32_t I_MenuRight(void) { return CONTROL_GetUserInput(nullptr)->dir == dir_Right || BUTTON(gamefunc_Turn_Right) || BUTTON(gamefunc_Strafe_Right); }
+
+int32_t I_MenuRightStickUp(void) { return CONTROL_GetUserInput(nullptr)->rdir == dir_Up; }
+int32_t I_MenuRightStickDown(void) { return CONTROL_GetUserInput(nullptr)->rdir == dir_Down; }
+int32_t I_MenuRightStickLeft(void) { return CONTROL_GetUserInput(nullptr)->rdir == dir_Left; }
+int32_t I_MenuRightStickRight(void) { return CONTROL_GetUserInput(nullptr)->rdir == dir_Right; }
 
 int32_t I_SliderLeft(void) { return I_MenuLeft() || /*MOUSEACTIVECONDITIONAL*/(MOUSE_GetButtons() & M_WHEELDOWN); }
 int32_t I_SliderRight(void) { return I_MenuRight() || /*MOUSEACTIVECONDITIONAL*/(MOUSE_GetButtons() & M_WHEELUP); }
