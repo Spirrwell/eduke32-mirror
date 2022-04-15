@@ -2695,9 +2695,17 @@ static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
                 Bstrcat(m_addonbodytext, issuebuf);
         }
 
+        // append the description
+        Bsprintf(tempbuf, "\n^%dDescription:^%d\n", abt_headerpal, abt_textpal);
+        Bstrcat(m_addonbodytext, tempbuf);
+        if (addonPtr->description)
+            Bstrcat(m_addonbodytext, addonPtr->description);
+        else
+            Bstrcat(m_addonbodytext, "No description available.");
+
         // properties section
         {
-            Bsprintf(tempbuf, "\n^%dProperties:^%d\n", abt_headerpal, abt_textpal);
+            Bsprintf(tempbuf, "\n\n^%dProperties:^%d\n", abt_headerpal, abt_textpal);
             Bstrcat(m_addonbodytext, tempbuf);
 
             const size_t startlen = strlen(m_addonbodytext);
@@ -2773,17 +2781,9 @@ static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
                 Bstrcat(m_addonbodytext, "- None\n");
         }
 
-        // append the description
-        Bsprintf(tempbuf, "\n^%dDescription:^%d\n", abt_headerpal, abt_textpal);
-        Bstrcat(m_addonbodytext, tempbuf);
-        if (addonPtr->description)
-            Bstrcat(m_addonbodytext, addonPtr->description);
-        else
-            Bstrcat(m_addonbodytext, "No description available.");
-
 #ifdef DEBUGGINGAIDS
         // debug description
-        Bsprintf(tempbuf, "\n\n^%dDebug Info:\n^%d", abt_headerpal, abt_textpal);
+        Bsprintf(tempbuf, "\n^%dDebug Info:\n^%d", abt_headerpal, abt_textpal);
         Bstrcat(m_addonbodytext, tempbuf);
 
         Bsprintf(tempbuf, "- Internal ID: %s\n", addonPtr->internalId);
