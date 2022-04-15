@@ -54,6 +54,7 @@ static const char jsonkey_title[] = "title";
 static const char jsonkey_author[] = "author";
 static const char jsonkey_desc[] = "description";
 static const char jsonkey_image[] = "preview";
+static const char jsonkey_grpdata[] = "GRP";
 static const char jsonkey_con[] = "CON";
 static const char jsonkey_def[] = "DEF";
 static const char jsonkey_rts[] = "RTS";
@@ -65,8 +66,8 @@ static const char jsonkey_startmap[] = "startmap";
 // all keys of the base json level -- anything else being present triggers a warning
 static const char* json_basekeys[] =
 {
-    jsonkey_depid, jsonkey_game, jsonkey_gamecrc, jsonkey_version,jsonkey_title,
-    jsonkey_author, jsonkey_desc, jsonkey_image, jsonkey_con, jsonkey_def, jsonkey_rts,
+    jsonkey_depid, jsonkey_game, jsonkey_gamecrc, jsonkey_version,jsonkey_title,jsonkey_author,
+    jsonkey_desc, jsonkey_image, jsonkey_con, jsonkey_def, jsonkey_rts, jsonkey_grpdata,
     jsonkey_dependencies,jsonkey_incompatibles,jsonkey_rendmodes,jsonkey_startmap
 };
 
@@ -512,6 +513,54 @@ static int32_t AddonJson_ParseScriptModules(useraddon_t *addonPtr, sjson_node* r
     }
 }
 
+static int32_t AddonJson_ParseGrpFilePaths(useraddon_t *addonPtr, sjson_node* root, const char* key)
+{
+    addonPtr->grp_datapaths = nullptr;
+    addonPtr->num_grp_datapaths = 0;
+
+    sjson_node * elem = sjson_find_member_nocase(root, key);
+    if (elem == nullptr) return 1;
+
+    bool hasError = false;
+    int num_valid_grps = 0;
+    if (elem->tag == SJSON_STRING)
+    {
+        addonPtr->grp_datapaths = (char **) Xmalloc(1 * sizeof(char*));
+        addonPtr->grp_datapaths[num_valid_grps++] = Xstrdup(elem->string_);
+    }
+    else if (elem->tag == SJSON_ARRAY)
+    {
+        sjson_node *snode;
+        addonPtr->grp_datapaths = (char **) Xmalloc(sjson_child_count(elem) * sizeof(char*));
+        sjson_foreach(snode, elem)
+        {
+            if (AddonJson_CheckStringTyped(addonPtr, snode, key))
+            {
+                hasError = true;
+                continue;
+            }
+            addonPtr->grp_datapaths[num_valid_grps++] = Xstrdup(snode->string_);
+        }
+    }
+    else
+    {
+        LOG_F(ERROR, "Value of key '%s' of addon '%s' must be an array!", key, addonPtr->internalId);
+        return -1;
+    }
+
+    if (hasError)
+    {
+        for (int i = 0; i < num_valid_grps; i++)
+            Xfree(addonPtr->grp_datapaths[i]);
+        DO_FREE_AND_NULL(addonPtr->grp_datapaths);
+        return -1;
+    }
+
+    addonPtr->num_grp_datapaths = num_valid_grps;
+    return 0;
+}
+
+
 // the version string in the dependency portion is prepended with comparison characters
 static int32_t AddonJson_SetupDependencyVersion(addondependency_t * dep, const char* versionString)
 {
@@ -882,6 +931,9 @@ static int32_t AddonJson_CheckFilesPresence(const useraddon_t * addonPtr, bool i
     for (int i = 0; i < addonPtr->num_def_modules; i++)
         missingCnt += AddonJson_CorrectAndCheckFile(addonPtr, addonPtr->def_modules[i], isgroup);
 
+    for (int i = 0; i < addonPtr->num_grp_datapaths; i++)
+        missingCnt += AddonJson_CorrectAndCheckFile(addonPtr, addonPtr->grp_datapaths[i], isgroup);
+
     return missingCnt;
 }
 
@@ -983,6 +1035,10 @@ static int32_t AddonJson_ParseDescriptor(sjson_context *ctx, char* json_fn, user
     // DEF script paths (optional)
     parseResult = AddonJson_ParseScriptModules(addonPtr, root, jsonkey_def, addonPtr->mdef_path,
                                                 addonPtr->def_modules, addonPtr->num_def_modules);
+    if (parseResult == -1) jsonErrorCnt++;
+
+    // GRP Datapaths (optional)
+    parseResult = AddonJson_ParseGrpFilePaths(addonPtr, root, jsonkey_grpdata);
     if (parseResult == -1) jsonErrorCnt++;
 
     // Preview image filepath (optional)

@@ -137,10 +137,10 @@ struct useraddon_t
     char *internalId, *externalId;
     char *data_path, *preview_path;
 
-    // reference to an existing grpfile_t
-    const grpfile_t* grpfile;
+    // reference to an existing grpfile_t, do not free contents
+    const grpfile_t* gamegrpfile;
 
-    // reference to hash table contents
+    // reference to hash table contents, do not free contents
     uint8_t* preview_image_data;
 
     char *title, *version, *author;
@@ -156,6 +156,9 @@ struct useraddon_t
     char *mscript_path, *mdef_path, *mrts_path;
     char **con_modules, **def_modules;
     int32_t num_con_modules, num_def_modules;
+
+    char **grp_datapaths;
+    int32_t num_grp_datapaths;
 
     char* startmapfilename;
     int32_t startlevel, startvolume;
@@ -203,6 +206,11 @@ struct useraddon_t
         DO_FREE_AND_NULL(def_modules);
         num_def_modules = 0;
 
+        for (int j = 0; j < num_grp_datapaths; j++)
+            Xfree(grp_datapaths[j]);
+        DO_FREE_AND_NULL(grp_datapaths);
+        num_grp_datapaths = 0;
+
         DO_FREE_AND_NULL(startmapfilename);
         startlevel = startvolume = 0;
         compatrendmode = ADDONRM_NONE;
@@ -221,7 +229,7 @@ struct useraddon_t
         missing_deps = active_incompats = 0;
 
         // do not free this -- this is a reference to an existing grpfile_t
-        grpfile = nullptr;
+        gamegrpfile = nullptr;
 
         // do not free this here -- freed when the hash table is destroyed
         preview_image_data = nullptr;

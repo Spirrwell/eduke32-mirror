@@ -650,7 +650,7 @@ static int32_t Addon_PrepareUserAddon(const useraddon_t* addonPtr)
         case ADDONLT_WORKSHOP:
             if (addsearchpath_user(addonPtr->data_path, SEARCHPATH_REBOOT))
             {
-                LOG_F(ERROR, "Failed to add search path '%s' of addon: %s", addonPtr->data_path, addonPtr->internalId);
+                LOG_F(ERROR, "Fatal: Failed to add search path '%s' of addon: %s", addonPtr->data_path, addonPtr->internalId);
                 return -1;
             }
             break;
@@ -659,27 +659,33 @@ static int32_t Addon_PrepareUserAddon(const useraddon_t* addonPtr)
         case ADDONLT_GRP:
             if ((initgroupfile(addonPtr->data_path)) == -1)
             {
-                LOG_F(ERROR, "Failed to open group file '%s' of addon: %s", addonPtr->data_path, addonPtr->internalId);
+                LOG_F(ERROR, "Fatal: Failed to open group file '%s' of addon: %s", addonPtr->data_path, addonPtr->internalId);
                 return -1;
             }
             break;
         case ADDONLT_GRPINFO:
         case ADDONLT_INVALID:
-            LOG_F(ERROR, "Not a user addon or invalid: '%s'", addonPtr->internalId);
+            LOG_F(ERROR, "Fatal: Tried to load invalid addon: '%s'", addonPtr->internalId);
             return -1;
     }
 
-    if (addonPtr->mscript_path)
-        G_AddCon(addonPtr->mscript_path);
+    if (addonPtr->mscript_path) G_AddCon(addonPtr->mscript_path);
+    if (addonPtr->mdef_path) G_AddDef(addonPtr->mdef_path);
 
     for (int i = 0; i < addonPtr->num_con_modules; i++)
         G_AddConModule(addonPtr->con_modules[i]);
 
-    if (addonPtr->mdef_path)
-        G_AddDef(addonPtr->mdef_path);
-
     for (int i = 0; i < addonPtr->num_def_modules; i++)
         G_AddDefModule(addonPtr->def_modules[i]);
+
+    for (int i = 0; i < addonPtr->num_grp_datapaths; i++)
+    {
+        if ((initgroupfile(addonPtr->grp_datapaths[i])) == -1)
+        {
+            LOG_F(ERROR, "Fatal: Failed to open additional package file '%s' of addon: %s", addonPtr->grp_datapaths[i], addonPtr->internalId);
+            return -1;
+        }
+    }
 
     if (addonPtr->mrts_path)
     {
@@ -701,7 +707,7 @@ int32_t Addon_LoadGrpInfoAddons(void)
         if (!addonPtr->isSelected() || !Addon_MatchesSelectedGame(addonPtr))
             continue;
 
-        g_selectedGrp = addonPtr->grpfile;
+        g_selectedGrp = addonPtr->gamegrpfile;
         break; // only load one at most
     });
 

@@ -246,7 +246,7 @@ static void inline Addon_GrpInfo_CheckOfficial(useraddon_t * addonPtr, const grp
 // populate the contents of the addon json struct for grpinfo addons
 static int32_t Addon_GrpInfo_ParseDescriptor(useraddon_t * addonPtr, const grpfile_t * agrpf)
 {
-    addonPtr->grpfile = agrpf;
+    addonPtr->gamegrpfile = agrpf;
 
     Addon_GrpInfo_SetInternalIdentity(addonPtr, agrpf);
     Addon_GrpInfo_SetExternalIdentity(addonPtr, agrpf);
