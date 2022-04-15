@@ -2403,24 +2403,56 @@ static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
         m_addonbodytext = (char*) Xrealloc(m_addonbodytext, abt_buffersize * sizeof(char));
         m_addonbodytext[0] = '\0';
 
-        //TODO: Controller instructions
         Bsprintf(tempbuf, "^%dMenu Controls:^%d\n", abt_headerpal, abt_textpal);
         Bstrcat(m_addonbodytext, tempbuf);
 
-        Bsprintf(tempbuf, "^%d- PgUp/PgDn/Mousewheel:^%d Scroll content description up and down.\n", abt_headerpal, abt_textpal);
+        if (CONTROL_LastSeenInput == LastSeenInput::Joystick)
+        {
+            Bsprintf(tempbuf, "^%d- [A] Button: ", abt_headerpal);
+            Bstrcat(m_addonbodytext, tempbuf);
+        }
+        else
+        {
+            Bsprintf(tempbuf, "^%d- Enter / Left Mouse Button: ", abt_headerpal);
+            Bstrcat(m_addonbodytext, tempbuf);
+        }
+        Bsprintf(tempbuf, "^%dEnable selected addon for next restart.\n",  abt_textpal);
         Bstrcat(m_addonbodytext, tempbuf);
 
-        Bsprintf(tempbuf, "^%d- Hold Shift + Arrow Keys:^%d Changes the load order of the addons.\n", abt_headerpal, abt_textpal);
+        if (CONTROL_LastSeenInput == LastSeenInput::Joystick)
+        {
+            Bsprintf(tempbuf, "^%d- Right Control Stick: ", abt_headerpal);
+            Bstrcat(m_addonbodytext, tempbuf);
+        }
+        else
+        {
+            Bsprintf(tempbuf, "^%d- PgUp / PgDn / Mousewheel: ", abt_headerpal);
+            Bstrcat(m_addonbodytext, tempbuf);
+        }
+        Bsprintf(tempbuf, "^%dScroll content description.\n",  abt_textpal);
         Bstrcat(m_addonbodytext, tempbuf);
 
-        Bsprintf(tempbuf, "\n^%dUser Instructions:^%d\n", abt_headerpal, abt_textpal);
+        if (CONTROL_LastSeenInput == LastSeenInput::Joystick)
+        {
+            Bsprintf(tempbuf, "^%d- Left / Right Shoulder Buttons: ", abt_headerpal);
+            Bstrcat(m_addonbodytext, tempbuf);
+        }
+        else
+        {
+            Bsprintf(tempbuf, "^%d- Hold Shift + Arrow Keys: ", abt_headerpal);
+            Bstrcat(m_addonbodytext, tempbuf);
+        }
+        Bsprintf(tempbuf, "^%dChange addon load order.\n", abt_textpal);
+        Bstrcat(m_addonbodytext, tempbuf);
+
+        Bsprintf(tempbuf, "\n^%dHow to load addons:^%d\n", abt_headerpal, abt_textpal);
         Bstrcat(m_addonbodytext, tempbuf);
 
         Bstrcat(m_addonbodytext, "- Select the content you wish to enable on next boot.\n"
-                                "- Then confirm the selection. This will reboot the game.\n"
-                                "- After rebooting, the selected addons should be loaded and ready.\n");
+                                 "- Then confirm the selection. This will reboot the game.\n"
+                                 "- After rebooting, the selected addons will be loaded and ready.\n");
 
-        Bsprintf(tempbuf, "\n^%dMaking user content show up in this menu:^%d\n", abt_headerpal, abt_textpal);
+        Bsprintf(tempbuf, "\n^%dAdding user content:^%d\n", abt_headerpal, abt_textpal);
         Bstrcat(m_addonbodytext, tempbuf);
 
         if (true || communityapiEnabled())
@@ -2449,7 +2481,6 @@ static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
 
         Bsprintf(tempbuf, "^%d- Mods and Maps:^%d Additive modifications, user levels and episodes.\n", abt_headerpal, abt_textpal);
         Bstrcat(m_addonbodytext, tempbuf);
-
     }
     else
     {
