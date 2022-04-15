@@ -321,7 +321,7 @@ static int32_t AddonJson_ParseDescription(useraddon_t *addonPtr, sjson_node *roo
 static int32_t AddonJson_ParseString(useraddon_t *addonPtr, sjson_node *root, const char *key, char* & dstPtr)
 {
     sjson_node * ele = sjson_find_member_nocase(root, key);
-    dstPtr = nullptr;
+    DO_FREE_AND_NULL(dstPtr);
 
     if (ele == nullptr) return 1;
     else if (AddonJson_CheckStringTyped(addonPtr, ele, key)) return -1;
@@ -370,7 +370,7 @@ static int32_t AddonJson_CheckExternalIdentityRestrictions(const useraddon_t *ad
 static int32_t AddonJson_ParseExternalId(useraddon_t *addonPtr, sjson_node *root, const char *key)
 {
     sjson_node * ele = sjson_find_member_nocase(root, key);
-    addonPtr->externalId = nullptr;
+    DO_FREE_AND_NULL(addonPtr->externalId);
 
     if (ele == nullptr) return 1;
     else if (AddonJson_CheckStringTyped(addonPtr, ele, key) || AddonJson_CheckExternalIdentityRestrictions(addonPtr, ele->string_))
@@ -384,7 +384,7 @@ static int32_t AddonJson_ParseExternalId(useraddon_t *addonPtr, sjson_node *root
 static int32_t AddonJson_ParseVersion(useraddon_t *addonPtr, sjson_node *root, const char *key)
 {
     sjson_node * ele = sjson_find_member_nocase(root, key);
-    addonPtr->version = nullptr;
+    DO_FREE_AND_NULL(addonPtr->version);
 
     if (ele == nullptr) return 1;
     else if (AddonJson_CheckStringTyped(addonPtr, ele, key)) return -1;
@@ -447,8 +447,10 @@ static int32_t AddonJson_HandleScriptObject(useraddon_t *addonPtr, sjson_node* s
 static int32_t AddonJson_ParseScriptModules(useraddon_t *addonPtr, sjson_node* root, const char* key,
                                         char* & mscriptPtr, char** & modulebuffer, int32_t & modulecount)
 {
-    mscriptPtr = nullptr;
-    modulebuffer = nullptr;
+    DO_FREE_AND_NULL(mscriptPtr);
+    for (int i = 0; modulebuffer && i < modulecount; i++)
+        Xfree(modulebuffer[i]);
+    DO_FREE_AND_NULL(modulebuffer);
     modulecount = 0;
 
     bool hasError = false;
@@ -515,7 +517,9 @@ static int32_t AddonJson_ParseScriptModules(useraddon_t *addonPtr, sjson_node* r
 
 static int32_t AddonJson_ParseGrpFilePaths(useraddon_t *addonPtr, sjson_node* root, const char* key)
 {
-    addonPtr->grp_datapaths = nullptr;
+    for (int i = 0; addonPtr->grp_datapaths && i < addonPtr->num_grp_datapaths; i++)
+        Xfree(addonPtr->grp_datapaths[i]);
+    DO_FREE_AND_NULL(addonPtr->grp_datapaths);
     addonPtr->num_grp_datapaths = 0;
 
     sjson_node * elem = sjson_find_member_nocase(root, key);
@@ -564,8 +568,8 @@ static int32_t AddonJson_ParseGrpFilePaths(useraddon_t *addonPtr, sjson_node* ro
 // the version string in the dependency portion is prepended with comparison characters
 static int32_t AddonJson_SetupDependencyVersion(addondependency_t * dep, const char* versionString)
 {
-    dep->version = nullptr;
     dep->cOp = AVCOMP_NOOP;
+    DO_FREE_AND_NULL(dep->version);
     if (versionString == nullptr || !versionString[0])
         return 1;
 
@@ -655,7 +659,7 @@ static int32_t AddonJson_HandleDependencyObject(useraddon_t* addonPtr, sjson_nod
 static int32_t AddonJson_ParseDependencyList(useraddon_t* addonPtr, sjson_node* root, const char* key,
                                           addondependency_t*& dep_ptr, int32_t& num_valid_deps)
 {
-    dep_ptr = nullptr;
+    DO_FREE_AND_NULL(dep_ptr);
     num_valid_deps = 0;
 
     int numchildren = 0;
@@ -805,7 +809,7 @@ static int32_t AddonJson_ParseGameCRC(useraddon_t* addonPtr, sjson_node* root, c
 static int32_t AddonJson_ParseStartMap(useraddon_t* addonPtr, sjson_node* root, const char* key)
 {
     sjson_node * ele = sjson_find_member_nocase(root, key);
-    addonPtr->startmapfilename = nullptr;
+    DO_FREE_AND_NULL(addonPtr->startmapfilename);
     addonPtr->startlevel = addonPtr->startvolume = 0;
     addonPtr->aflags &= ~ADDONFLAG_STARTMAP;
 
