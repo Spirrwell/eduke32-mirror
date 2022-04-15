@@ -1314,6 +1314,7 @@ static int64_t m_addontitle_hscroll_lastticks = 0;
 static int32_t m_addontitle_hscroll = 0;
 
 // various strings
+static const char m_addontext_deactivate[] = "Unload Addons and Restart";
 static const char m_addontext_launch[] = "Confirm Selection and Restart";
 static const char m_addontext_grpinfolabel[] = "Predefined Addons";
 static const char m_addontext_tclabel[] = "Total Conversions";
@@ -2154,6 +2155,26 @@ static void inline Menu_Addon_ResetHorizontalScroll(void)
     m_addontitle_hscroll_lastticks = timer120() + MENUADDON_SCROLLDELAY;
 }
 
+static void Menu_Addon_UpdateConfirmationEntry(MenuEntry_t* menuEntry)
+{
+    // check if the current selection of addons contains a problem
+    const bool hasIssue = (g_num_active_incompats > 0) || (g_num_active_mdeps > 0)
+                            || ((g_addon_compatrendmode & ADDON_SUPPORTED_RENDMODES) == 0);
+
+    if (g_num_selected_addons > 0)
+    {
+        menuEntry->name = m_addontext_launch;
+        menuEntry->font = hasIssue ? &MF_Minifont_Addon_Warning : &MF_Minifont_Addon_Active;
+    }
+    else
+    {
+        menuEntry->name = m_addontext_deactivate;
+        menuEntry->font = &MF_Minifont_Addon_Entry;
+    }
+
+    MenuEntry_DisableOnCondition(menuEntry, (NUM_TOTAL_ADDONS == 0) || (hasIssue && cvar_addonmenu_strict));
+}
+
 // update font for the menu entry depending on status
 static void Menu_Addon_UpdateMenuEntryStatus(MenuEntry_t* menuEntry, useraddon_t* addonPtr)
 {
@@ -2219,7 +2240,8 @@ static int32_t Menu_SwapAddonOrder(int32_t const entryIndex, int32_t const other
     Addon_RefreshPropertyTrackers();
 
     // update menu entries
-    for (int j = 0; j < M_ADDONS.numEntries; j++)
+    Menu_Addon_UpdateConfirmationEntry(MEL_ADDONS[0]);
+    for (int j = 1; j < M_ADDONS.numEntries; j++)
     {
         useraddon_t * iterAddon = EL2ADDONS[j];
         if (iterAddon) Menu_Addon_UpdateMenuEntryStatus(MEL_ADDONS[j], iterAddon);
@@ -2310,6 +2332,7 @@ static int32_t Menu_Addon_EntryLinkActivate(int32_t const entryIndex)
         Addon_RefreshPropertyTrackers();
 
         // update menu entries
+        Menu_Addon_UpdateConfirmationEntry(MEL_ADDONS[0]);
         for (int j = 0; j < M_ADDONS.numEntries; j++)
         {
             useraddon_t * iterAddon = EL2ADDONS[j];
@@ -2337,22 +2360,22 @@ static void Menu_Addon_RefreshLaunchAddonBuffers(void)
     // order of priority here is intentional
     // if no addons are active, game will unload all user content
     if (g_num_selected_addons == 0)
-        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%dUnload User Content", MENUTEXTPAL_BLUE);
+        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%d%20s", MENUTEXTPAL_BLUE, "No Addons Selected");
     // if at least one incompatible addon active, show warning
     else if (g_num_active_incompats > 0)
-        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%dIncompatible Addons: %d", MENUTEXTPAL_RED, g_num_active_incompats);
+        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%d%20s: %d", MENUTEXTPAL_RED, "Incompatible Addons", g_num_active_incompats);
     // if at least one missing dependency present, show warning
     else if (g_num_active_mdeps > 0)
-        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%dMissing Dependencies: %d", MENUTEXTPAL_RED, g_num_active_mdeps);
+        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%d%20s: %d", MENUTEXTPAL_RED, "Missing Dependencies", g_num_active_mdeps);
     // when no compatible rendermodes left, we have a conflict
     else if (!g_addon_compatrendmode)
-        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%dRendermode Conflict!", MENUTEXTPAL_RED);
+        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%d%20s", MENUTEXTPAL_RED, "Rendermode Conflict!");
     // if compatible rendermodes are not supported, we also have a conflict
     else if ((g_addon_compatrendmode & ADDON_SUPPORTED_RENDMODES) == 0)
-        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%dUnsupported Rendmode!", MENUTEXTPAL_RED);
+        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%d%20s", MENUTEXTPAL_RED, "Unsupported Rendmode!");
     // else show default "launch content" string
     else
-        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%dLaunch User Content", MENUTEXTPAL_GREEN);
+        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%d%20s: %d", MENUTEXTPAL_GREEN, "Selected Addons", g_num_selected_addons);
 }
 
 static const char* Menu_Addon_GetStringforCOp(int8_t cOp)
@@ -2905,7 +2928,7 @@ static void Menu_PopulateAddonsMenu(void)
     MEL_ADDONS[k] = (MenuEntry_t*) Xmalloc(sizeof(MenuEntry_t));
     *MEL_ADDONS[k] = ME_ADDONS_ACCEPT;
     EL2ADDONS[k] = nullptr;
-    MenuEntry_DisableOnCondition(MEL_ADDONS[k], NUM_TOTAL_ADDONS == 0);
+    Menu_Addon_UpdateConfirmationEntry(MEL_ADDONS[k]);
     k++;
 
     // grp addons
