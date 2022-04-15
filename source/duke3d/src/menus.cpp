@@ -4448,7 +4448,7 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
                 int const mprev_xpos = origin.x + ((FURY) ? (44<<16) : (40<<16));
                 int const mprev_ypos = origin.y + (68<<16);
                 int const mprev_zoom = ((FURY) ? (20*1024) : (48*1024));
-                const char* mprev_text = "No Preview";
+                const char* mprev_text = g_previewsDisabled ? "Disabled" : "No Preview";
 
                 G_ScreenText(MF_Redfont.tilenum, mprev_xpos, mprev_ypos, mprev_zoom, 0, 0, mprev_text,
                     0, MF_Redfont.pal, g_textstat, 0, MF_Redfont.emptychar.x, MF_Redfont.emptychar.y,
@@ -5069,14 +5069,7 @@ static void Menu_EntryFocus(/*MenuEntry_t *entry*/)
             Menu_Addon_RefreshTextBuffers(addonPtr);
 
             // load preview tile or invalidate tile if not found
-            if (!addonPtr || !addonPtr->isValid() || Addon_LoadPreviewTile(addonPtr))
-            {
-                // addon image not loaded
-                if (waloff[TILE_ADDONSHOT] != 0)
-                    Bmemset((char *)waloff[TILE_ADDONSHOT], 0, tilesiz[TILE_ADDONSHOT].x * tilesiz[TILE_ADDONSHOT].y);
-                waloff[TILE_ADDONSHOT] = 0;
-                tileInvalidate(TILE_ADDONSHOT, 0, 255);
-            }
+            Addon_LoadPreviewTile(addonPtr);
         }
         break;
     default:

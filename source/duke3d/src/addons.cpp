@@ -159,7 +159,7 @@ static void Addon_LoadAddonPreview(useraddon_t* addonPtr)
 // initializing of preview images requires access to palette, and is run after game content is loaded
 void Addon_LoadPreviewImages(void)
 {
-    if ((G_GetLogoFlags() & LOGO_NOADDONS))
+    if (g_previewsDisabled || (G_GetLogoFlags() & LOGO_NOADDONS))
         return;
 
     if (!h_addonpreviews.items)
@@ -176,18 +176,26 @@ void Addon_LoadPreviewImages(void)
 // Load data from cache into the tilespace
 int32_t Addon_LoadPreviewTile(const useraddon_t * addonPtr)
 {
-    if (!addonPtr->preview_image_data)
-        return -1;
+    if (g_previewsDisabled || !addonPtr || !addonPtr->isValid() || !addonPtr->preview_image_data)
+    {
+        // addon image not loaded
+        walock[TILE_ADDONSHOT] = CACHE1D_FREE;
+        if (waloff[TILE_ADDONSHOT] != 0)
+            Bmemset((char *)waloff[TILE_ADDONSHOT], 0, tilesiz[TILE_ADDONSHOT].x * tilesiz[TILE_ADDONSHOT].y);
+        waloff[TILE_ADDONSHOT] = 0;
+    }
+    else
+    {
+        walock[TILE_ADDONSHOT] = CACHE1D_PERMANENT;
 
-    walock[TILE_ADDONSHOT] = CACHE1D_PERMANENT;
+        if (waloff[TILE_ADDONSHOT] == 0)
+            g_cache.allocateBlock(&waloff[TILE_ADDONSHOT], PREVIEWTILE_XSIZE * PREVIEWTILE_YSIZE, &walock[TILE_ADDONSHOT]);
 
-    if (waloff[TILE_ADDONSHOT] == 0)
-        g_cache.allocateBlock(&waloff[TILE_ADDONSHOT], PREVIEWTILE_XSIZE * PREVIEWTILE_YSIZE, &walock[TILE_ADDONSHOT]);
+        tilesiz[TILE_ADDONSHOT].x = PREVIEWTILE_XSIZE;
+        tilesiz[TILE_ADDONSHOT].y = PREVIEWTILE_YSIZE;
+        Bmemcpy((char *)waloff[TILE_ADDONSHOT], addonPtr->preview_image_data, PREVIEWTILE_XSIZE * PREVIEWTILE_YSIZE);
+    }
 
-    tilesiz[TILE_ADDONSHOT].x = PREVIEWTILE_XSIZE;
-    tilesiz[TILE_ADDONSHOT].y = PREVIEWTILE_YSIZE;
-
-    Bmemcpy((char *)waloff[TILE_ADDONSHOT], addonPtr->preview_image_data, PREVIEWTILE_XSIZE * PREVIEWTILE_YSIZE);
     tileInvalidate(TILE_ADDONSHOT, 0, 255);
     return 0;
 }
