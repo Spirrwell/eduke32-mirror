@@ -1682,7 +1682,7 @@ static MenuVerify_t M_KEYSRESETVERIFY = { CURSOR_CENTER_2LINE, MENU_KEYBOARDSETU
 static MenuVerify_t M_KEYSCLASSICVERIFY = { CURSOR_CENTER_2LINE, MENU_KEYBOARDSETUP, MA_None, };
 static MenuVerify_t M_JOYSTANDARDVERIFY = { CURSOR_CENTER_2LINE, MENU_JOYSTICKSETUP, MA_None, };
 static MenuVerify_t M_KEYOVERRIDEVERIFY = { CURSOR_BOTTOMRIGHT, MENU_KEYBOARDKEYS, MA_None, };
-static MenuVerify_t M_ADDONSVERIFY = { CURSOR_CENTER_2LINE, MENU_ADDONS, MA_None, };
+static MenuVerify_t M_ADDONSVERIFY = { CURSOR_CENTER_3LINE, MENU_ADDONS, MA_None, };
 
 static MenuMessage_t M_NETWAITMASTER = { CURSOR_BOTTOMRIGHT, MENU_NULL, MA_None, };
 static MenuMessage_t M_NETWAITVOTES = { CURSOR_BOTTOMRIGHT, MENU_NULL, MA_None, };
@@ -2360,22 +2360,22 @@ static void Menu_Addon_RefreshLaunchAddonBuffers(void)
     // order of priority here is intentional
     // if no addons are active, game will unload all user content
     if (g_num_selected_addons == 0)
-        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%d%20s", MENUTEXTPAL_BLUE, "No Addons Selected");
+        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%d%21s", MENUTEXTPAL_BLUE, "No Addons Selected");
     // if at least one incompatible addon active, show warning
     else if (g_num_active_incompats > 0)
-        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%d%20s: %d", MENUTEXTPAL_RED, "Incompatible Addons", g_num_active_incompats);
+        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%d%19s: %d", MENUTEXTPAL_RED, "Incompatible Addons", g_num_active_incompats);
     // if at least one missing dependency present, show warning
     else if (g_num_active_mdeps > 0)
-        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%d%20s: %d", MENUTEXTPAL_RED, "Missing Dependencies", g_num_active_mdeps);
+        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%d%19s: %d", MENUTEXTPAL_RED, "Missing Dependencies", g_num_active_mdeps);
     // when no compatible rendermodes left, we have a conflict
     else if (!g_addon_compatrendmode)
-        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%d%20s", MENUTEXTPAL_RED, "Rendermode Conflict!");
+        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%d%22s", MENUTEXTPAL_RED, "Rendermode Conflict!");
     // if compatible rendermodes are not supported, we also have a conflict
     else if ((g_addon_compatrendmode & ADDON_SUPPORTED_RENDMODES) == 0)
-        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%d%20s", MENUTEXTPAL_RED, "Unsupported Rendmode!");
+        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%d%22s", MENUTEXTPAL_RED, "Unsupported Rendmode!");
     // else show default "launch content" string
     else
-        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%d%20s: %d", MENUTEXTPAL_GREEN, "Selected Addons", g_num_selected_addons);
+        Bsnprintf(m_addonidentity_buffer, MENUADDON_MAXID, "^%d%19s: %d", MENUTEXTPAL_GREEN, "Selected Addons", g_num_selected_addons);
 }
 
 static const char* Menu_Addon_GetStringforCOp(int8_t cOp)
@@ -4354,7 +4354,7 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
         Menu_BlackRectangle(origin.x + (161<<16), origin.y + (34<<16), 132<<16, 96<<16, 1);
 
         // small box below image
-        Menu_BlackRectangle(origin.x + (22<<16), origin.y + (113<<16), 123<<16, 16<<16, 1);
+        Menu_BlackRectangle(origin.x + (22<<16), origin.y + (114<<16), 123<<16, 16<<16, 1);
 
         // description box
         Menu_BlackRectangle(origin.x + (22<<16), origin.y + (132<<16), 271<<16, ((FURY) ? 68<<16 : 60<<16), 1);
@@ -4393,7 +4393,7 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
         if (!addonPtr)
         {
             int const notify_xpos = origin.x + ((FURY) ? (38<<16) : (28<<16));
-            int const notify_ypos = origin.y + ((FURY) ? (118<<16) : (119<<16));
+            int const notify_ypos = origin.y + ((FURY) ? (119<<16) : (120<<16));
             int const notify_zoom = (FURY) ? (22*1024) : (38*1024);
 
             // show large glowing notification in place of version/identity strings
@@ -4418,7 +4418,7 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
             }
 
             int const vident_xpos = origin.x + (26<<16);
-            int const vident_ypos = origin.y + (116<<16);
+            int const vident_ypos = origin.y + (117<<16);
             int const vident_zoom = (FURY) ? (15*1024) : (50*1024);
 
             // identity
@@ -4502,13 +4502,13 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
         else if (g_num_active_mdeps > 0)
             Bsprintf(tempbuf, "^%dWARNING: There are missing dependencies!\nLaunch anyways?", MENUTEXTPAL_RED);
         else if (!g_addon_compatrendmode)
-            Bsprintf(tempbuf, "^%dWARNING: Incompatible renderer modes required!\nLaunch anyways?", MENUTEXTPAL_RED);
+            Bsprintf(tempbuf, "^%dWARNING: Incompatible rendermodes selected!\nLaunch anyways?", MENUTEXTPAL_RED);
         else if ((g_addon_compatrendmode & ADDON_SUPPORTED_RENDMODES) == 0)
-            Bsprintf(tempbuf, "^%dWARNING: Content requires unsupported rendmode!\nLaunch anyways?", MENUTEXTPAL_RED);
+            Bsprintf(tempbuf, "^%dWARNING: Unsupported rendermode required!\nLaunch anyways?", MENUTEXTPAL_RED);
         else
             Bsprintf(tempbuf, "Load the selected content?\nThis will restart the current game.");
 
-        Menu_DrawVerifyPrompt(origin.x, origin.y, tempbuf, 2);
+        Menu_DrawVerifyPrompt(origin.x, origin.y, tempbuf, 3);
         break;
 
     case MENU_LOADVERIFY:
