@@ -124,7 +124,7 @@ typedef struct _searchpath
     struct _searchpath *next;
     char *path;
     size_t pathlen;		// to save repeated calls to strlen()
-    int32_t user;
+    int32_t user, priority;
 } searchpath_t;
 static searchpath_t *searchpathhead = NULL;
 static size_t maxsearchpathlen = 0;
@@ -144,7 +144,7 @@ char *listsearchpath(int32_t initp)
     return sp ? sp->path : NULL;
 }
 
-int32_t addsearchpath_user(const char *p, int32_t user)
+int32_t addsearchpath_userp(const char *p, int32_t user, int32_t priority)
 {
     struct Bstat st;
     char *s;
@@ -171,6 +171,7 @@ int32_t addsearchpath_user(const char *p, int32_t user)
     srch->next    = searchpathhead;
     srch->pathlen = Bstrlen(path)+1;
     srch->path    = (char *)Xmalloc(srch->pathlen + 1);
+    srch->priority = priority;
 
     Bstrcpy(srch->path, path);
     for (s=srch->path; *s; s++) { }
@@ -293,43 +294,37 @@ void removesearchpaths_withuser(int32_t usermask)
     maxsearchpathlen = newmaxpathlen;
 }
 
+static int32_t tryfindfile(const char *pathn, const char *ffn, char *pfn, char *tfn)
+{
+    strcpy(pfn, pathn);
+    strcat(pfn, ffn);
+    //initprintf("Trying %s\n", pfn);
+    if (buildvfs_exists(pfn))
+        return 0;
+
+#ifndef _WIN32
+    //Check with all lowercase
+    strcpy(pfn, pathn);
+    Bstrtolower(tfn);
+    strcat(pfn, tfn);
+    if (buildvfs_exists(pfn))
+        return 0;
+
+    //Check again with uppercase
+    strcpy(pfn, pathn);
+    Bstrupr(tfn);
+    strcat(pfn, tfn);
+    if (buildvfs_exists(pfn))
+        return 0;
+#else
+    UNREFERENCED_PARAMETER(tfn);
+#endif
+
+    return -1;
+}
+
 int32_t findfrompath(const char *fn, char **where)
 {
-    // pathsearchmode == 0: tests current dir and then the dirs of the path stack
-    // pathsearchmode == 1: tests fn without modification, then like for pathsearchmode == 0
-
-    if (pathsearchmode)
-    {
-        // test unmolested filename first
-        if (buildvfs_exists(fn))
-        {
-            *where = Xstrdup(fn);
-            return 0;
-        }
-#ifndef _WIN32
-        else
-        {
-            char *tfn = Bstrtolower(Xstrdup(fn));
-
-            if (buildvfs_exists(tfn))
-            {
-                *where = tfn;
-                return 0;
-            }
-
-            Bstrupr(tfn);
-
-            if (buildvfs_exists(tfn))
-            {
-                *where = tfn;
-                return 0;
-            }
-
-            Xfree(tfn);
-        }
-#endif
-    }
-
     char const *cpfn;
 
     for (cpfn = fn; toupperlookup[*cpfn] == '/'; cpfn++) { }
@@ -343,6 +338,59 @@ int32_t findfrompath(const char *fn, char **where)
 
     char *pfn = (char *)Xmalloc(allocsiz);
 
+    // check for searchpaths with high priority before anything else
+    // required to allow some searchpaths to be loaded before cwd contents
+    for (searchpath_t *sp = searchpathhead; sp; sp = sp->next)
+    {
+        if (!sp->priority) continue;
+
+        char *tfn = Xstrdup(ffn);
+        if (tryfindfile(sp->path, ffn, pfn, tfn) == 0)
+        {
+            *where = pfn;
+            Xfree(ffn); Xfree(tfn);
+            return 0;
+        }
+        Xfree(tfn);
+    }
+
+    // pathsearchmode == 0: tests current dir and then the dirs of the path stack
+    // pathsearchmode == 1: tests fn without modification, then like for pathsearchmode == 0
+
+    if (pathsearchmode)
+    {
+        // test unmolested filename
+        if (buildvfs_exists(fn))
+        {
+            *where = Xstrdup(fn);
+            return 0;
+        }
+#ifndef _WIN32
+        else
+        {
+            char *tfn = Bstrtolower(Xstrdup(fn));
+
+            if (buildvfs_exists(tfn))
+            {
+                *where = tfn;
+                Xfree(ffn); Xfree(pfn);
+                return 0;
+            }
+
+            Bstrupr(tfn);
+
+            if (buildvfs_exists(tfn))
+            {
+                *where = tfn;
+                Xfree(ffn); Xfree(pfn);
+                return 0;
+            }
+
+            Xfree(tfn);
+        }
+#endif
+    }
+
     strcpy(pfn, "./");
     strcat(pfn, ffn);
     if (buildvfs_exists(pfn))
@@ -354,44 +402,15 @@ int32_t findfrompath(const char *fn, char **where)
 
     for (searchpath_t *sp = searchpathhead; sp; sp = sp->next)
     {
+        if (sp->priority) continue;
+
         char *tfn = Xstrdup(ffn);
-
-        strcpy(pfn, sp->path);
-        strcat(pfn, ffn);
-        //initprintf("Trying %s\n", pfn);
-        if (buildvfs_exists(pfn))
+        if (tryfindfile(sp->path, ffn, pfn, tfn) == 0)
         {
             *where = pfn;
-            Xfree(ffn);
-            Xfree(tfn);
+            Xfree(ffn); Xfree(tfn);
             return 0;
         }
-
-#ifndef _WIN32
-        //Check with all lowercase
-        strcpy(pfn, sp->path);
-        Bstrtolower(tfn);
-        strcat(pfn, tfn);
-        if (buildvfs_exists(pfn))
-        {
-            *where = pfn;
-            Xfree(ffn);
-            Xfree(tfn);
-            return 0;
-        }
-
-        //Check again with uppercase
-        strcpy(pfn, sp->path);
-        Bstrupr(tfn);
-        strcat(pfn, tfn);
-        if (buildvfs_exists(pfn))
-        {
-            *where = pfn;
-            Xfree(ffn);
-            Xfree(tfn);
-            return 0;
-        }
-#endif
         Xfree(tfn);
     }
 

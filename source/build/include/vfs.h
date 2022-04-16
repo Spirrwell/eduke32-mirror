@@ -196,8 +196,9 @@ using buildvfs_kfd = PHYSFS_File *;
 
 extern int32_t pathsearchmode;	// 0 = gamefs mode (default), 1 = localfs mode (editor's mode)
 
-#define addsearchpath(a) addsearchpath_user(a, 0)
-static inline int32_t addsearchpath_user(const char *p, int32_t)
+#define addsearchpath_user(a, u) addsearchpath_userp(a, u, 0)
+#define addsearchpath(a) addsearchpath_userp(a, 0, 0)
+static inline int32_t addsearchpath_userp(const char *p, int32_t, int32_t)
 {
     return PHYSFS_mount(p, NULL, 1) == 0 ? -1 : 0;
 }
@@ -255,8 +256,9 @@ using buildvfs_kfd = int32_t;
 
 extern int32_t pathsearchmode;	// 0 = gamefs mode (default), 1 = localfs mode (editor's mode)
 char *listsearchpath(int32_t initp);
-int32_t     addsearchpath_user(const char *p, int32_t user);
-#define addsearchpath(a) addsearchpath_user(a, 0)
+int32_t     addsearchpath_userp(const char *p, int32_t user, int32_t priority);
+#define addsearchpath_user(p, u) addsearchpath_userp(p, u, 0)
+#define addsearchpath(a) addsearchpath_userp(a, 0, 0)
 int32_t     removesearchpath(const char *p);
 void     removesearchpaths_withuser(int32_t usermask);
 int32_t		findfrompath(const char *fn, char **where);

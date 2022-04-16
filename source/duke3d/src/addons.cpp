@@ -661,7 +661,7 @@ static int32_t Addon_PrepareUserAddon(const useraddon_t* addonPtr)
     {
         case ADDONLT_FOLDER:
         case ADDONLT_WORKSHOP:
-            if (addsearchpath_user(addonPtr->data_path, SEARCHPATH_REBOOT))
+            if (addsearchpath_userp(addonPtr->data_path, SEARCHPATH_REBOOT, 1))
             {
                 LOG_F(ERROR, "Fatal: Failed to add search path '%s' of addon: %s", addonPtr->data_path, addonPtr->internalId);
                 return -1;
