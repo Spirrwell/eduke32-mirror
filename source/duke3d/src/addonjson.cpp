@@ -1328,8 +1328,10 @@ void Addon_ReadJsonDescriptors(void)
     {
         fnlist_t fnlist = FNLIST_INITIALIZER;
         fnlist_clearnames(&fnlist);
-        AddonJson_ReadLocalPackages(ctx, &fnlist, addonpathbuf);
         AddonJson_ReadLocalSubfolders(ctx, &fnlist, addonpathbuf);
+#ifndef EDUKE32_RETAIL_MENU
+        AddonJson_ReadLocalPackages(ctx, &fnlist, addonpathbuf);
+#endif
     }
 
     // workshop items are outside the local directory
