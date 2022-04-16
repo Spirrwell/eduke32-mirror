@@ -6378,6 +6378,7 @@ static void G_SoftReboot(void)
         DO_FREE_AND_NULL(apStrings[i]);
         DO_FREE_AND_NULL(apXStrings[i]);
     }
+    g_numXStrings = 0;
     DO_FREE_AND_NULL(g_screentextbuf);
 
     // Reset all player struct entries
