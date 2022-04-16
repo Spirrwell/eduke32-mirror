@@ -6199,6 +6199,7 @@ static void G_RestoreStartupValues(void)
     g_noEnemies = 0;
 }
 
+#if 0
 static void G_EngineUnInit_Soft(void)
 {
     // Copy pasted from engineUnInit() with alterations
@@ -6275,6 +6276,7 @@ static void G_EngineUnInit_Soft(void)
     // don't uninit the SDL system
     //uninitsystem();
 }
+#endif
 
 static void G_SoftReboot(void)
 {
@@ -6283,7 +6285,7 @@ static void G_SoftReboot(void)
     CONFIG_WriteSetup(0);
 
     // uninitialize engine structs and arrays -- will be restored afterwards
-    G_EngineUnInit_Soft();
+    // G_EngineUnInit_Soft();
 
     // Reset some global variables and restore backed up startup values
     G_RestoreStartupValues();
@@ -6435,8 +6437,8 @@ static void G_SoftReboot(void)
     vmoffset = NULL;
 
     // preinit engine
-    if (enginePreInit())
-        G_FatalEngineInitError();
+    //if (enginePreInit())
+    //    G_FatalEngineInitError();
 
     // this disables several potential startup parameters that should not be active on a soft reboot
     CommandName = NULL;
@@ -6674,8 +6676,9 @@ static void G_Startup(void)
     if ((g_bootState & BOOTSTATE_ADDONS) && g_errorCnt)
         return;
 
-    if (engineInit())
-        G_FatalEngineInitError();
+    if (g_bootState & BOOTSTATE_INITIAL)
+        if (engineInit())
+            G_FatalEngineInitError();
 
     G_InitDynamicNames();
 
@@ -7321,7 +7324,8 @@ SOFT_REBOOT:
     if ((g_bootState & BOOTSTATE_ADDONS)  && g_errorCnt)
     {
         LOG_F(ERROR, "Failed to launch selected addons, resetting to previous values...");
-        g_bootState = BOOTSTATE_REBOOT;
+        g_bootState &= ~BOOTSTATE_ADDONS;
+        g_bootState |= BOOTSTATE_REBOOT;
         g_addon_failedboot = true;
         goto SOFT_REBOOT;
     }
@@ -7358,17 +7362,9 @@ SOFT_REBOOT:
 
     cacheAllSounds();
 
-    if (enginePostInit())
-    {
-        if (g_bootState & BOOTSTATE_ADDONS)
-        {
-            LOG_F(ERROR, "Fatal engine error when attempting to launch addons, resetting to previous values...");
-            g_bootState = BOOTSTATE_REBOOT;
-            g_addon_failedboot = true;
-            goto SOFT_REBOOT;
-        }
-        G_FatalEngineInitError();
-    }
+    if (g_bootState & BOOTSTATE_INITIAL)
+        if (enginePostInit())
+            G_FatalEngineInitError();
 
     G_PostLoadPalette();
 
