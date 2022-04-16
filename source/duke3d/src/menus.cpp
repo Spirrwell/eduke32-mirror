@@ -2286,6 +2286,7 @@ static int32_t Menu_Addon_EntryLinkActivate(int32_t const entryIndex)
         // change the selected addon state
         addonPtr->setSelected(!addonPtr->isSelected());
 
+#if 0
         // activate dependencies
         if (addonPtr->isSelected())
         {
@@ -2324,6 +2325,7 @@ static int32_t Menu_Addon_EntryLinkActivate(int32_t const entryIndex)
                 }
             }
         }
+#endif
 
         if (!(addonPtr->content_type & ADDONTYPE_GRPINFO))
             CONFIG_SetAddonActivationStatus(addonPtr->internalId, addonPtr->isSelected());
@@ -5062,14 +5064,17 @@ static void Menu_EntryFocus(/*MenuEntry_t *entry*/)
             // reset description scroll position on each selection
             m_addondesc_scrollpos = 0;
 
-            useraddon_t* addonPtr = EL2ADDONS ? EL2ADDONS[M_ADDONS.currentEntry] : nullptr;
-            Addon_UpdateMenuEntryName(addonPtr, 0);
+            if (EL2ADDONS)
+            {
+                // update menu contents using given addon
+                Menu_Addon_RefreshTextBuffers(EL2ADDONS[M_ADDONS.currentEntry]);
 
-            // update menu contents using given addon
-            Menu_Addon_RefreshTextBuffers(addonPtr);
+                // load preview tile or invalidate tile if not found
+                Addon_LoadPreviewTile(EL2ADDONS[M_ADDONS.currentEntry]);
 
-            // load preview tile or invalidate tile if not found
-            Addon_LoadPreviewTile(addonPtr);
+                for (int i = 0; i < M_ADDONS.numEntries; i++)
+                    Addon_UpdateMenuEntryName(EL2ADDONS[i], 0);
+            }
         }
         break;
     default:
