@@ -6361,10 +6361,6 @@ static void G_SoftReboot(void)
     for (int i = 0; i < 11; ++i)
         rts_lumplockbyte[i] = CACHE1D_UNLOCKED;
 
-    // free dynamic mapping hash tables
-    inthash_free(&h_dsound);
-    inthash_free(&h_dynamictilemap);
-
     // free and null all the mapinfo storage
     for (int i=(MAXLEVELS*(MAXVOLUMES+1))-1; i>=0; i--)
     {
@@ -6398,12 +6394,17 @@ static void G_SoftReboot(void)
     scriptfile_clearsymbols();
 
     // clear all CON VM globals
+    C_ResetCompilerVars();
     g_labelCnt = 0;
     DO_FREE_AND_NULL(label);
     DO_FREE_AND_NULL(labelcode);
     DO_FREE_AND_NULL(labeltype);
     DO_FREE_AND_NULL(apScript);
     DO_FREE_AND_NULL(bitptr);
+
+    // free dynamic mapping hash tables
+    inthash_free(&h_dsound);
+    inthash_free(&h_dynamictilemap);
 
     // free gamevars and arrays
     Gv_Clear();

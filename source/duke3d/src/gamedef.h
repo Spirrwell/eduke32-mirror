@@ -203,6 +203,7 @@ void C_UndefineVolume(int32_t vol);
 void C_UndefineSkill(int32_t skill);
 void C_UndefineLevel(int32_t vol, int32_t lev);
 void C_ReportError(int error);
+void C_ResetCompilerVars();
 void C_Compile(const char *filenam);
 
 extern int32_t g_tw;

@@ -63,8 +63,8 @@ static char g_szCurrentBlockName[64] = "(none)";
 static char g_szLastBlockName[64] = "NULL";
 
 static bool g_checkingCase;
-static bool g_dynamicSoundMapping;
-static bool g_dynamicTileMapping;
+static bool g_dynamicSoundMapping = 0;
+static bool g_dynamicTileMapping = 0;
 static bool g_labelsOnly;
 static bool g_processingState;
 static bool g_skipBranch;
@@ -6495,6 +6495,51 @@ static int C_GetLabelIndex(int32_t val, int type)
             return i;
 
     return -1;
+}
+
+void C_ResetCompilerVars(void)
+{
+    // Reset compilation variables to default -- needed for Soft Reboot
+    // TODO: Go over all variables here and decide which need to be reset
+    /*
+    g_aimAngleVarID;
+    g_angRangeVarID;
+    g_hitagVarID;
+    g_lotagVarID;
+    g_returnVarID;
+    g_textureVarID;
+    g_thisActorVarID;
+    g_weaponVarID;
+    g_worksLikeVarID;
+    g_zRangeVarID;
+    g_lineNumber;
+    g_numXStrings;
+    g_scriptVersion;
+    g_totalLines;
+    g_scriptcrc;
+    otherp;
+    bitptr;
+    */
+    g_checkingCase = false;
+    g_dynamicSoundMapping = 0;
+    g_dynamicTileMapping = 0;
+    g_labelsOnly = 0;
+    g_processingState = 0;
+    g_skipBranch = false;
+    g_switchCountPhase = false;
+
+    g_checkingIfElse = 0;
+    g_checkingSwitch = 0;
+    g_lastKeyword = -1;
+    g_numBraces = 0;
+    g_numCases = 0;
+    /*
+    static intptr_t apScriptGameEventEnd[MAXEVENTS];
+    static intptr_t g_scriptActorOffset;
+    static intptr_t g_scriptEventBreakOffset;
+    static intptr_t g_scriptEventChainOffset;
+    static intptr_t g_scriptEventOffset;
+    */
 }
 
 void C_Compile(const char *fileName)
