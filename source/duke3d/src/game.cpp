@@ -6402,6 +6402,11 @@ static void G_SoftReboot(void)
     DO_FREE_AND_NULL(apScript);
     DO_FREE_AND_NULL(bitptr);
 
+    // reset all voxels
+    for (int i = 0; i < MAXUSERTILES; i++)
+        vox_undefine(i);
+    nextvoxid = 0;
+
     // free dynamic mapping hash tables
     inthash_free(&h_dsound);
     inthash_free(&h_dynamictilemap);
