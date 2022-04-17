@@ -664,6 +664,7 @@ static int32_t Addon_PrepareUserAddon(const useraddon_t* addonPtr)
             if (addsearchpath_userp(addonPtr->data_path, SEARCHPATH_REBOOT, 1))
             {
                 LOG_F(ERROR, "Fatal: Failed to add search path '%s' of addon: %s", addonPtr->data_path, addonPtr->internalId);
+                g_addon_failedboot = true;
                 return -1;
             }
             break;
@@ -673,12 +674,14 @@ static int32_t Addon_PrepareUserAddon(const useraddon_t* addonPtr)
             if ((initgroupfile(addonPtr->data_path)) == -1)
             {
                 LOG_F(ERROR, "Fatal: Failed to open group file '%s' of addon: %s", addonPtr->data_path, addonPtr->internalId);
+                g_addon_failedboot = true;
                 return -1;
             }
             break;
         case ADDONLT_GRPINFO:
         case ADDONLT_INVALID:
             LOG_F(ERROR, "Fatal: Tried to load invalid addon: '%s'", addonPtr->internalId);
+            g_addon_failedboot = true;
             return -1;
     }
 
@@ -696,6 +699,7 @@ static int32_t Addon_PrepareUserAddon(const useraddon_t* addonPtr)
         if ((initgroupfile(addonPtr->grp_datapaths[i])) == -1)
         {
             LOG_F(ERROR, "Fatal: Failed to open additional package file '%s' of addon: %s", addonPtr->grp_datapaths[i], addonPtr->internalId);
+            g_addon_failedboot = true;
             return -1;
         }
     }
