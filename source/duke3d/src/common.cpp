@@ -241,7 +241,6 @@ static char g_rootDir[BMAX_PATH];
 
 int g_useCwd;
 static void G_LoadAddon(void);
-int32_t g_groupFileHandle;
 
 static struct strllist *CommandPaths, *CommandGrps;
 
@@ -552,7 +551,6 @@ void G_LoadGroups(int32_t autoload)
             }
             else
             {
-                g_groupFileHandle = j;
                 LOG_F(INFO, "Loaded %s", cphead->str);
                 if (autoload)
                     G_DoAutoload(cphead->str);

@@ -6067,37 +6067,32 @@ static void G_Cleanup(void)
 ===================
 =
 = Soft Reboot (restore to state post-setup window)
-= // TODO: Needs to be fixed and completed.
+=
 ===================
 */
+
+static void G_FatalEngineInitError(void);
 
 // base grp is set to the first parent grp that doesn't have GAMEFLAG_ADDON set
 static const grpfile_t * BACKUP_baseGrp;
 
-static user_defs BACKUP_ud = {};
-
-static int BACKUP_g_noLogo = 0;
-static int BACKUP_g_useCwd = 0;
-static int BACKUP_g_addonNum = 0;
-static int BACKUP_g_gameType = 0;
-static int BACKUP_g_noAutoLoad = 0;
-static int BACKUP_g_rotatespriteNoWidescreen = 0;
-static int BACKUP_MAXCACHE1DSIZE = 0;
-static int BACKUP_g_forceWeaponChoice = 0;
-
+// cfg and GRP name
 static char BACKUP_g_setupFileName[BMAX_PATH];
-static char BACKUP_g_modDir[BMAX_PATH];
 static char BACKUP_g_grpName[BMAX_PATH];
+
+// main script files
 static char BACKUP_g_scriptName[BMAX_PATH];
 static char BACKUP_g_defName[BMAX_PATH];
 static char BACKUP_g_rtsName[BMAX_PATH];
 
+// modules
 GrowArray<char *> BACKUP_g_scriptModules;
 GrowArray<char *> BACKUP_g_defModules;
+GrowArray<char *> BACKUP_g_clipMapFiles;
 
+// free the script module strings
 static void G_FreeBackupValues(void)
 {
-    //TODO: Needs to be fixed and completed.
     for (char * m : BACKUP_g_scriptModules) Xfree(m);
     BACKUP_g_scriptModules.clear();
 
@@ -6107,28 +6102,15 @@ static void G_FreeBackupValues(void)
 
 static void G_BackupStartupValues(void)
 {
-    // TODO: Needs to be fixed and completed.
-    // CommandGrps and CommandPaths do not need to be saved
     G_FreeBackupValues();
 
+    // this saves the base, non-addon selected GRP file
     const grpfile_t *parentgrp = g_selectedGrp;
     for (; parentgrp && (parentgrp->type->game & GAMEFLAG_ADDON); parentgrp = FindGroup(parentgrp->type->dependency));
     BACKUP_baseGrp = parentgrp ? parentgrp : g_selectedGrp;
 
-    BACKUP_ud = ud;
-
-    BACKUP_g_noLogo = g_noLogo;
-    BACKUP_g_useCwd = g_useCwd;
-    BACKUP_g_addonNum = g_addonNum;
-    BACKUP_g_gameType = g_gameType;
-    BACKUP_g_noAutoLoad = g_noAutoLoad;
-    BACKUP_g_rotatespriteNoWidescreen = g_rotatespriteNoWidescreen;
-    BACKUP_g_forceWeaponChoice = g_forceWeaponChoice;
-
-    BACKUP_MAXCACHE1DSIZE = MAXCACHE1DSIZE;
-
+    // setup CFG may be altered by CON scripts
     Bstrncpy(BACKUP_g_setupFileName, g_setupFileName, BMAX_PATH);
-    Bstrncpy(BACKUP_g_modDir, g_modDir, BMAX_PATH);
 
     BACKUP_g_grpName[0] = '\0';
     if (g_grpNamePtr) Bstrncpy(BACKUP_g_grpName, g_grpNamePtr, BMAX_PATH);
@@ -6147,40 +6129,34 @@ static void G_BackupStartupValues(void)
 
     for (char * m : g_defModules)
         BACKUP_g_defModules.append(Xstrdup(m));
+
+#ifdef HAVE_CLIPSHAPE_FEATURE
+    for (char * m : g_clipMapFiles)
+        BACKUP_g_clipMapFiles.append(Xstrdup(m));
+#endif
 }
 
 static void G_RestoreStartupValues(void)
 {
-    // TODO: Needs to be fixed and completed.
+    G_ResetGlobalVars();
+
     // CommandGrps and CommandPaths do not need to be restored
     g_selectedGrp = BACKUP_baseGrp;
 
-    ud = BACKUP_ud;
-
-    g_noLogo = BACKUP_g_noLogo;
-    g_useCwd = BACKUP_g_useCwd;
-    g_addonNum = BACKUP_g_addonNum;
-    g_gameType = BACKUP_g_gameType;
-    g_noAutoLoad = BACKUP_g_noAutoLoad;
-    g_rotatespriteNoWidescreen = BACKUP_g_rotatespriteNoWidescreen;
-    g_forceWeaponChoice = BACKUP_g_forceWeaponChoice;
-
-    MAXCACHE1DSIZE = BACKUP_MAXCACHE1DSIZE;
-
-    Bstrcpy(g_modDir, BACKUP_g_modDir);
+    // setup CFG may be altered by CON scripts
     Bstrcpy(g_setupFileName, BACKUP_g_setupFileName);
 
-    // restore main GRP, CON, DEF and RTS files
-    if (g_grpNamePtr) DO_FREE_AND_NULL(g_grpNamePtr);
+    // restore main GRP, CON, DEF and RTS file to startup values
+    DO_FREE_AND_NULL(g_grpNamePtr);
     if (BACKUP_g_grpName[0]) g_grpNamePtr = dup_filename(BACKUP_g_grpName);
 
-    if (g_scriptNamePtr) DO_FREE_AND_NULL(g_scriptNamePtr);
+    DO_FREE_AND_NULL(g_scriptNamePtr);
     if (BACKUP_g_scriptName[0]) g_scriptNamePtr = dup_filename(BACKUP_g_scriptName);
 
-    if (g_defNamePtr) DO_FREE_AND_NULL(g_defNamePtr);
+    DO_FREE_AND_NULL(g_defNamePtr);
     if (BACKUP_g_defName[0]) g_defNamePtr = dup_filename(BACKUP_g_defName);
 
-    if (g_rtsNamePtr) DO_FREE_AND_NULL(g_rtsNamePtr);
+    DO_FREE_AND_NULL(g_rtsNamePtr);
     if (BACKUP_g_rtsName[0]) g_rtsNamePtr = dup_filename(BACKUP_g_rtsName);
 
     // restore con modules
@@ -6194,86 +6170,162 @@ static void G_RestoreStartupValues(void)
     g_defModules.clear();
     for (char * m : BACKUP_g_defModules)
         g_defModules.append(Xstrdup(m));
+
+    // restore clipmaps
+    for (char * m : g_clipMapFiles) Xfree(m);
+    g_clipMapFiles.clear();
+    for (char * m : BACKUP_g_clipMapFiles)
+        g_clipMapFiles.append(Xstrdup(m));
+
+    ud = {};
+    duke3d_globalflags = 0;
+    g_maxDefinedSkill = 4;
+    g_musicIndex = 0;
+    g_loadFromGroupOnly = 0;
+    pus = pub = 0;
+    localInput = {};
+
+    g_damageCameras = 0;
+    g_freezerSelfDamage = 0;
+    g_impactDamage = 0;
+    g_maxPlayerHealth = 0;
+    g_startArmorAmount = 0;
+    g_tripbombLaserMode = 0;
+    g_noEnemies = 0;
+}
+
+static void G_EngineUnInit_Soft(void)
+{
+    // Copy pasted from engineUnInit() with alterations
+    // most of this should be reinitialized by the startup process
+    // TODO: DB64 - Need to figure out whether it is necessary to uninit engine at all
+
+    // TODO: DB64 - review -- Probably don't need to shut down Steam API on soft reboot
+    //communityapiShutdown();
+
+    // TODO: DB64 - Check which parts of this are required
+#ifdef USE_OPENGL
+    if (qsetmode)
+    {
+        polymost_glreset();
+        freeallmodels();
+# ifdef POLYMER
+        polymer_uninit();
+# endif
+    }
+    hicinit();
+#endif
+
+    // TODO: DB64 - review
+    // reset art and video mode
+    videoResetMode();
+    Buninitart();
+
+    // TODO: DB64 - check if this reset is necessary
+    resetdistrecipcache();
+
+    // TODO: DB64 - reset the pal lookups -- bugs occurred with this previously, review
+    paletteloaded = 0;
+    for (bssize_t i=0; i<MAXPALOOKUPS; i++)
+        if (i==0 || palookup[i] != palookup[0])
+        {
+            // Take care of handling aliased ^^^ cases!
+            Xaligned_free(palookup[i]);
+        }
+    Bmemset(palookup, 0, sizeof(palookup));
+
+    // uninit the blend table - TODO: DB64 - Review
+    for (bssize_t i=0; i<MAXBLENDTABS; i++)
+        Xfree(blendtable[i]);
+    Bmemset(blendtable, 0, sizeof(blendtable));
+
+    // uninit the basepal table
+    for (bssize_t i=1; i<MAXBASEPALS; i++)
+        Xfree(basepaltable[i]);
+    Bmemset(basepaltable, 0, sizeof(basepaltable));
+    basepaltable[0] = palette;
+
+    // clear kpz buffer
+    DO_FREE_AND_NULL(kpzbuf);
+    kpzbufsiz = 0;
+
+    // clear maphacks
+    for (bssize_t i = 0; i < num_usermaphacks; i++)
+    {
+        Xfree(usermaphacks[i].mhkfile);
+        Xfree(usermaphacks[i].title);
+    }
+    DO_FREE_AND_NULL(usermaphacks);
+    num_usermaphacks = 0;
+
+    // clear the skies
+    DO_FREE_AND_NULL(multipsky);
+    DO_FREE_AND_NULL(multipskytile);
+    pskynummultis = 0;
+
+    // already handled elsewhere
+    // DO_FREE_AND_NULL(g_defNamePtr);
+
+    // don't uninit the SDL system
+    //uninitsystem();
 }
 
 static void G_SoftReboot(void)
 {
-    // TODO: Needs to be fixed and completed.
-    int32_t i;
-    // Note: each string in this is freed and cleared, startup data is gone
-    // This means: necessary to backup initial startup con, def, rts, grp
-    // main pointers, if null, will load defaults
-    // g_scriptNamePtr, g_defNamePtr, g_rtsNamePtr
-    // g_scriptModules contains the module cons
-    // g_defModule is cleared and freed
-    // g_clipMapFiles exists
+    // save the current user settings
+    CONFIG_WriteSetup(0);
 
-    // reset caches
+    // clear all loaded paths, zips and groupfiles
+    removesearchpaths_withuser(SEARCHPATH_REBOOT | SEARCHPATH_REMOVE | SEARCHPATH_NAM | SEARCHPATH_WW2GI | SEARCHPATH_FURY);
+    uninitkzstack();
+    uninitgroupfile();
+    Bfflush(NULL);
 
+    // uninitialize engine structs and arrays -- will be restored afterwards
+    G_EngineUnInit_Soft();
+
+    if (enginePreInit())
+        G_FatalEngineInitError();
+
+    // Reset some global variables and restore backed up startup values
+    G_RestoreStartupValues();
+
+    // restore user settings that may have been erased in erasing of userdef struct
+    CONFIG_ReadSetup();
+    CONFIG_ReadSettings();
+
+    // reset tile and sound cache
     if (g_cache.getIndex())
         g_cache.reset();
 
-    for (i = 0; i < MAXTILES; i++)
+    // unlock all tile caches and invalidate each index
+    for (int i = 0; i < MAXTILES; i++)
     {
         waloff[i] = 0;
         walock[i] = CACHE1D_UNLOCKED;
         tileInvalidate(i, -1, -1);
     }
-    memset(faketile, 0, ARRAY_SIZE(faketile));
-    DO_FREE_AND_NULL(g_screentextbuf);
-    // tilefontList
-    // TODO: tilefilenum[i] = tilefile; reset
-    // TODO: tilefileoffs[i] = offscount; reset
 
-    CONFIG_WriteSetup(1);
-    g_maxDefinedSkill = 4;
-    G_RestoreStartupValues();
-    CONFIG_ReadSetup();
+    // zero out some arrays
+    Bmemset(faketile, 0, sizeof(faketile));
+    for (int i = 0; i < MAXTILES; i++) g_tile[i] = {};
+    for (int i = 0; i < MAXANIMWALLS; i++) animwall[i] = {};
+    for (int i = 0; i < MAXSPRITES; i++) SpriteProjectile[i] = {};
 
+    // free anim memory
+    hash_loop(&h_dukeanim, G_FreeHashAnim);
+    hash_free(&h_dukeanim);
+
+    // shut down the sound system, will be rebooted afterwards
     S_SoundShutdown();
     if (MUSIC_WarmedUp())
         S_MusicShutdown();
-    // if (g_noSound) ud.config.SoundToggle = 0;
-    // if (g_noMusic) ud.config.MusicToggle = 0;
-
-    //   CONTROL_Shutdown();
-    //    KB_Shutdown();
-
-    // reset szPlayerName[l];
-    // reset g_gametypeFlags
-
-    for (i=(MAXLEVELS*(MAXVOLUMES+1))-1; i>=0; i--) // +1 volume for "intro", "briefing" music
-    {
-        DO_FREE_AND_NULL(g_mapInfo[i].name);
-        DO_FREE_AND_NULL(g_mapInfo[i].filename);
-        DO_FREE_AND_NULL(g_mapInfo[i].musicfn);
-
-        G_FreeMapState(i);
-        g_mapInfo[i] = {};
-    }
-
-    for (i=MAXQUOTES-1; i>=0; i--)
-    {
-        DO_FREE_AND_NULL(apStrings[i]);
-        DO_FREE_AND_NULL(apXStrings[i]);
-    }
-
-    for (i=MAXPLAYERS-1; i>=0; i--)
-    {
-        if (g_player[i].ps)
-            DO_FREE_AND_NULL(g_player[i].ps);
-    }
-    // this needs to happen because G_GameExit() accesses g_player[0]
-    G_MaybeAllocPlayer(0);
-
     S_ClearSoundLocks();
-    for (i = 0; i < 11; ++i)
-        rts_lumplockbyte[i] = CACHE1D_UNLOCKED;
 
-
+    // free all sounds
     if (g_sounds)
     {
-        for (i = 0; i <= g_highestSoundIdx; i++)
+        for (int i = 0; i <= g_highestSoundIdx; i++)
         {
             if (g_sounds[i] != &nullsound)
             {
@@ -6287,36 +6339,87 @@ static void G_SoftReboot(void)
             }
         }
     }
-    // DEF
-    // scriptfile_clearsymbols();
-    // MAXCACHE1DSIZE = (96*1024*1024);
-    duke3d_globalflags = 0;
-    CommandName = NULL;
-    CommandMap = NULL;
 
-    // note: by setting boardfilename, it's possible to directly start in a map
-    boardfilename[0] = '\0';
+    // also free the remote ridicule sounds
+    for (int i = 0; i < 11; ++i)
+        rts_lumplockbyte[i] = CACHE1D_UNLOCKED;
 
+    // free dynamic mapping hash tables
+    inthash_free(&h_dsound);
+    inthash_free(&h_dynamictilemap);
+
+    // free and null all the mapinfo storage
+    for (int i=(MAXLEVELS*(MAXVOLUMES+1))-1; i>=0; i--)
+    {
+        DO_FREE_AND_NULL(g_mapInfo[i].name);
+        DO_FREE_AND_NULL(g_mapInfo[i].filename);
+        DO_FREE_AND_NULL(g_mapInfo[i].musicfn);
+
+        G_FreeMapState(i);
+        g_mapInfo[i] = {};
+    }
+
+    // free the quotes and redefine quotes
+    for (int i=MAXQUOTES-1; i>=0; i--)
+    {
+        DO_FREE_AND_NULL(apStrings[i]);
+        DO_FREE_AND_NULL(apXStrings[i]);
+    }
+    DO_FREE_AND_NULL(g_screentextbuf);
+
+    // Reset all player struct entries
+    for (int i=MAXPLAYERS-1; i>=0; i--)
+    {
+        DO_FREE_AND_NULL(g_player[i].ps);
+        g_player[i] = {};
+    }
+
+    // afterwards, reallocate the first player because G_GameExit() accesses g_player[0]
+    G_MaybeAllocPlayer(0);
+
+    // clear all DEF symbols
+    scriptfile_clearsymbols();
+
+    // clear all CON VM globals
+    g_labelCnt = 0;
     DO_FREE_AND_NULL(label);
     DO_FREE_AND_NULL(labelcode);
     DO_FREE_AND_NULL(labeltype);
-    g_labelCnt = 0;
-
     DO_FREE_AND_NULL(apScript);
     DO_FREE_AND_NULL(bitptr);
 
-    for (i = 0; i < MAXMENUGAMEPLAYENTRIES; i++)
+    // free gamevars and arrays
+    Gv_Clear();
+    Bmemset(aGameVars, 0, ARRAY_SIZE(aGameVars) * sizeof(gamevar_t));
+    Bmemset(aGameArrays, 0, ARRAY_SIZE(aGameArrays) * sizeof(gamearray_t));
+
+    // free gamevar, array and label hashtables
+    hash_free(&h_gamevars);
+    hash_free(&h_arrays);
+    hash_free(&h_labels);
+
+    // clear the custom keybind order entries
+    Bmemset(keybind_order_custom, -1, sizeof(keybind_order_custom));
+
+    // reinitialize the gamefuncs
+    hash_init(&h_gamefuncs);
+    for (bssize_t i=NUMGAMEFUNCTIONS-1; i>=0; i--)
+    {
+        if (gamefunctions[i][0] == '\0')
+            continue;
+
+        hash_add(&h_gamefuncs,gamefunctions[i],i,0);
+    }
+
+    // clear and reset the newgamechoices menu
+    for (int i = 0; i < MAXMENUGAMEPLAYENTRIES; i++)
     {
         if (g_MenuGameplayEntries[i].subentries)
             newgamechoices_recursive_free(&g_MenuGameplayEntries[i]);
         g_MenuGameplayEntries[i] = {};
     }
-    Bmemset(keybind_order_custom, 0, ARRAY_SIZE(keybind_order_custom));
 
-    // "vmoffset"
-    // auto newofs = (struct vmofs*)Xcalloc(1, sizeof(struct vmofs));
-    // needs to be freed and reset
-    // TODO: free g_vm_data
+    // free the vmoffset data
     auto ofs = vmoffset;
     while (ofs)
     {
@@ -6327,103 +6430,14 @@ static void G_SoftReboot(void)
     }
     vmoffset = NULL;
 
-    Gv_Clear();
-    Bmemset(aGameVars, 0, ARRAY_SIZE(aGameVars) * sizeof(gamevar_t));
-    Bmemset(aGameArrays, 0, ARRAY_SIZE(aGameArrays) * sizeof(gamearray_t));
-
-/*    for (i = 0; i < MAXPALOOKUPS; i++)
-        if (palookup[i])
-            DO_FREE_AND_NULL(palookup[i]);
-    Bmemset(g_noFloorPal, 0, ARRAY_SIZE(g_noFloorPal));
-*/
-    // remapbuf needs to be reset
-
-    /* TODO:
-    // reset the following
-    hash_free(&h_keywords);
-    hash_free(&h_iter);
-    hash_free(&h_varvar);
-    hash_free(&h_globalvar);
-    hash_free(&h_playervar);
-    hash_free(&h_actorvar);
-
-    hash_free(&h_actor);
-    hash_free(&h_input);
-    hash_free(&h_paldata);
-    hash_free(&h_player);
-    hash_free(&h_projectile);
-    hash_free(&h_sector);
-    hash_free(&h_tiledata);
-    hash_free(&h_tsprite);
-    hash_free(&h_userdef);
-    hash_free(&h_wall);
-    */
-
-    // may be necessary to reset most variables in global.h
-
-    hash_free(&h_gamevars);
-    hash_free(&h_arrays);
-    hash_free(&h_labels);
-    hash_init(&h_gamefuncs);
-    for (bssize_t i=NUMGAMEFUNCTIONS-1; i>=0; i--)
-    {
-        if (gamefunctions[i][0] == '\0')
-            continue;
-
-        hash_add(&h_gamefuncs,gamefunctions[i],i,0);
-    }
-
-    hash_loop(&h_dukeanim, G_FreeHashAnim);
-    hash_free(&h_dukeanim);
-    inthash_free(&h_dsound);
-    inthash_free(&h_dynamictilemap);
-
-    // g_blimpSpawnItems, WeaponPickupSprites
-    // g_dynTileList; //TODO: Check if need to reset this
-    // g_dynSoundList; //TODO: Check if need to reset this
-
-    /* G_LoadGroups and G_CleanupSearchPaths */
-    // g_noAutoLoad = 0;
-    // g_modDir[0] = '\0';
-    // CommandMap, CommandName, CommandGrps, CommandPaths
-    // g_groupFileHandle (never used anywhere)
-    // pathsearchmode = 1; // full access
-    // pathsearchmode = 0; // local only
-    removesearchpaths_withuser(SEARCHPATH_REBOOT | SEARCHPATH_REMOVE | SEARCHPATH_NAM | SEARCHPATH_WW2GI | SEARCHPATH_FURY);
-    uninitkzstack();
-    uninitgroupfile();
-
-    // to reset:
-    // g_rootDir, g_modDir, cwd
-
-    //DO_FREE_AND_NULL(g_grpNamePtr);
-    //DO_FREE_AND_NULL(g_scriptNamePtr);
-    //DO_FREE_AND_NULL(g_rtsNamePtr);
-
-    // TODO: loaddefinitionsfile */
-    // TODO: engineInit
-    // TODO: enginepostinit */
-    // Need to run engineUnInit() iff engineInit() was run (problem: Compile errors)
-    // engineUnInit();
-
-    // TODO: C_ParseCommand
-    // TODO: CONTROL_Startup -- maybe need to Uninit CONTROL
-    // TODO: CONFIG_SetupMouse
-    // TODO: CONFIG_SetupJoystick
-    // TODO: CONFIG_ReadSettings()
-    // TODO: CONFIG_SetDefaultKeys
-    // TODO: Menu_Init();
-    // TODO: ReadSaveGameHeaders();
-
-    // don't reset OSD because there's a static local var initDone set to 1
-    // Maybe need to skip the OSD command setup on Soft Reboot???
-    // OSD_Cleanup();
-    // TODO: OSD_Exec(autoexec.cfg) -- check console commands
-    Bfflush(NULL);
-
-    ud.warp_on = 0;    // no map warping on soft reboot
-    g_scriptDebug = 0; // no script debugging on soft reboot
-    ud.m_recstat = 0;  // do not record demos on soft reboot
+    // this disables several potential startup parameters that should not be active on a soft reboot
+    CommandName = NULL;
+    CommandMap = NULL;
+    boardfilename[0] = '\0';
+    ud.warp_on = 0;
+    g_scriptDebug = 0;
+    ud.m_recstat = 0;
+    g_addonNum = 0;
 
     // disable several multiplayer-specific stuff on soft reboot
     g_netServer = g_netClient = NULL;
@@ -6437,6 +6451,21 @@ static void G_SoftReboot(void)
     ud.m_respawn_monsters = ud.respawn_monsters = 0;
     ud.m_respawn_items = ud.respawn_items = 0;
     ud.m_respawn_inventory = ud.respawn_inventory = 0;
+
+    // TODO: DB64 - we absolutely need a Menu_UnInit() function which resets the menu back to default
+    // Menu_Init();
+
+    // TODO: DB64 - Have not analyzed these functions in detail:
+    // loaddefinitionsfile
+    // engineInit
+    // enginepostinit
+    // C_ParseCommand
+    // CONTROL_Startup -- maybe need to Uninit CONTROL
+    // CONFIG_SetupMouse
+    // CONFIG_SetupJoystick
+    // CONFIG_ReadSettings()
+    // CONFIG_SetDefaultKeys
+    // ReadSaveGameHeaders();
 }
 
 /*
@@ -6458,6 +6487,7 @@ void G_Shutdown(void)
     G_Cleanup();
     FreeGroups();
     OSD_Cleanup();
+    uninitkzstack();
     uninitgroupfile();
     Bfflush(NULL);
 }
@@ -7182,9 +7212,19 @@ int app_main(int argc, char const* const* argv)
         g_bootState |= BOOTSTATE_ADDONS;
 
 SOFT_REBOOT:
+
+    // soft reboot triggered
+    // DB64: This is incomplete right now and probably still riddled with bugs. Will require lots of work to get into a stable state.
     if (g_bootState & BOOTSTATE_REBOOT)
     {
         G_SoftReboot();
+
+        // osd console cleanup and reinitialization
+        // TODO: DB64 - crashes the game if done -- probably not necessary anyways
+        // OSD_Cleanup();
+        // OSD_SetCallbacks(callbacks);
+
+        // briefly restore the startup search paths
         if (!g_useCwd)
             G_AddSearchPaths();
     }
@@ -7394,6 +7434,7 @@ SOFT_REBOOT:
 
     CONFIG_ReadSettings();
 
+    // DB64: Soft Reboot -- unsure if this should be executed again, or if it should only occur on initial launch
     OSD_Exec("autoexec.cfg");
 
     CONFIG_SetDefaultKeys(keydefaults, true);

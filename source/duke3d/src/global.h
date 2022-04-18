@@ -53,6 +53,8 @@ G_EXTERN int32_t bakipos[MAXINTERPOLATIONS];
 extern "C" {
 #endif
 
+extern void G_ResetGlobalVars(void);
+
 G_EXTERN int32_t duke3d_globalflags;
 
 // KEEPINSYNC astub.c (used values only)
@@ -216,7 +218,6 @@ extern int32_t g_volumeFlags[MAXVOLUMES];
 
 extern const char *s_buildDate;
 
-extern const char* g_internalFuncNameTokens[];
 #endif
 
 enum
