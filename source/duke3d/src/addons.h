@@ -32,73 +32,140 @@ extern "C" {
 #endif
 
 #define MAXLEN_ADDONTITLE 32
-#define MAXLEN_ADDONAUTHOR 24
-#define MAXLEN_ADDONVERSION 24
+#define MAXLEN_ADDONAUTHOR 32
+#define MAXLEN_ADDONVERSION 16
+#define MAXLEN_ADDONDATE 32
 #define MAXLEN_ADDONDESC 8192
 
-struct addonbrief_t
+#define PREVIEWTILEX 320
+#define PREVIEWTILEY 200
+
+enum addontype_t
 {
-    addonbrief_t()
+    ATYPE_INVALID = -1,
+    ATYPE_MAIN = 0,
+    ATYPE_MODULE = 1,
+};
+
+// internal struct
+struct addonjson_t
+{
+    addonjson_t()
     {
         reset();
     }
-    addonbrief_t(char const *n)
-    {
-        strncpy(name, n, MAXSAVEGAMENAME);
-        path[0] = '\0';
-    }
 
-    char name[MAXSAVEGAMENAMESTRUCT];
-    char path[BMAX_PATH];
-    uint8_t isExt = 0;
+    // data path
+    char dataPath[BMAX_PATH];
+
+    // preview image
+    char imagePath[BMAX_PATH];
+    char imageBuffer[PREVIEWTILEX * PREVIEWTILEY];
+    bool invalidImage;
+
+    // type and dependency
+    addontype_t addonType;
+    uint32_t dependencyCRC;
+
+    // visual descriptors
+    char title[MAXLEN_ADDONTITLE];
+    char author[MAXLEN_ADDONAUTHOR];
+    char version[MAXLEN_ADDONVERSION];
+    char description[MAXLEN_ADDONDESC];
+    int32_t desclinecount;
+
+    // main script paths
+    char scriptNamePath[BMAX_PATH];
+    char defNamePath[BMAX_PATH];
+    char rtsNamePath[BMAX_PATH];
+
+    // modules
+    int32_t numCONModules;
+    char** scriptModules;
+
+    int32_t numDEFModules;
+    char** defModules;
 
     void reset()
     {
-        name[0] = '\0';
-        path[0] = '\0';
-        isExt = 0;
+        addonType = ATYPE_INVALID;
+        dataPath[0] = '\0';
+
+        imagePath[0] = '\0';
+        imageBuffer[0] = '\0';
+        invalidImage = false;
+
+        title[0] = '\0';
+        author[0] = '\0';
+        version[0] = '\0';
+        description[0] = '\0';
+        desclinecount = 0;
+
+        scriptNamePath[0] = '\0';
+        defNamePath[0] = '\0';
+        rtsNamePath[0] = '\0';
+
+        if (!scriptModules)
+        {
+            for (int i = 0; i < numCONModules; i++)
+            {
+                Xfree(scriptModules[i]);
+            }
+            Xfree(scriptModules);
+        }
+        scriptModules = nullptr;
+        numCONModules = 0;
+
+        if (!defModules)
+        {
+            for (int i = 0; i < numDEFModules; i++)
+            {
+                Xfree(defModules[i]);
+            }
+            Xfree(defModules);
+        }
+        defModules = nullptr;
+        numDEFModules = 0;
     }
+
     bool isValid() const
     {
-        return path[0] != '\0';
+        return addonType != ATYPE_INVALID;
     }
+};
+
+enum aloadtype_t
+{
+    LT_INVALID = -1,
+    LT_FOLDER = 0,
+    LT_GRP = 1,
+    LT_ZIP = 2,
 };
 
 struct menuaddon_t
 {
-    savebrief_t brief;
+    aloadtype_t loadType;
+    int32_t loadOrderIndex;
+    addonjson_t jsonDat;
 
-    union
+    bool isValid()
     {
-        struct
-        {
-            int isAutoSave     : 1;
-            int isOldScriptVer : 1;
-            int isOldVer       : 1;
-            int isUnreadable   : 1;
-        };
-        uint8_t flags;
-    };
+        return jsonDat.isValid();
+    }
 
     void clear()
     {
-        brief.reset();
-        flags = 0;
+        loadType = LT_INVALID;
+        loadOrderIndex = -1;
+        jsonDat.reset();
     }
 };
 
 extern menuaddon_t * g_menuaddons;
 extern uint16_t g_nummenuaddons;
 
-extern char m_addondescbuf[MAXLEN_ADDONDESC];
-extern char m_addontitlebuf[MAXLEN_ADDONTITLE];
-extern char m_addonauthorbuf[MAXLEN_ADDONAUTHOR];
-extern char m_addonversionbuf[MAXLEN_ADDONVERSION];
-
-extern int32_t m_addondesc_lbcount;
-extern int32_t m_addondesc_shift;
-
-void addontextwrap(const char *desc, int32_t lblen);
+void ReadAddonPackageDescriptors(void);
+int32_t G_LoadAddonPreviewImage(addonjson_t* mjsonStore);
 
 #ifdef __cplusplus
 }

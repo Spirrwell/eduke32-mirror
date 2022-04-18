@@ -57,6 +57,12 @@ void clearScriptNamePtr(void)
     // g_scriptNamePtr assumed to be assigned to right after
 }
 
+void clearRTSNamePtr(void)
+{
+    Xfree(g_rtsNamePtr);
+    // g_rtsNamePtr assumed to be assigned to right after
+}
+
 const char *G_DefaultGrpFile(void)
 {
 #ifndef EDUKE32_STANDALONE
