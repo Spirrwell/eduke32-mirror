@@ -59,7 +59,6 @@ struct addonjson_t
     char dataPath[BMAX_PATH];
 
     // preview image
-    char imagePath[BMAX_PATH];
     char imageBuffer[PREVIEWTILEX * PREVIEWTILEY];
     bool invalidImage;
 
@@ -91,7 +90,6 @@ struct addonjson_t
         addonType = ATYPE_INVALID;
         dataPath[0] = '\0';
 
-        imagePath[0] = '\0';
         imageBuffer[0] = '\0';
         invalidImage = false;
 
@@ -137,9 +135,10 @@ struct addonjson_t
 enum aloadtype_t
 {
     LT_INVALID = -1,
-    LT_FOLDER = 0,
-    LT_GRP = 1,
-    LT_ZIP = 2,
+    LT_FOLDER = 0, // Local Subfolder, Workshop Folder
+    LT_ZIP = 1, // ZIP, PK3, PK4, GRP as ZIP etc.
+    LT_GRP = 2, // Ken GRP
+    LT_SSI = 3, // Sunstorm
 };
 
 struct menuaddon_t
@@ -150,7 +149,7 @@ struct menuaddon_t
 
     bool isValid()
     {
-        return jsonDat.isValid();
+        return loadType != LT_INVALID && jsonDat.isValid();
     }
 
     void clear()
@@ -164,8 +163,9 @@ struct menuaddon_t
 extern menuaddon_t * g_menuaddons;
 extern uint16_t g_nummenuaddons;
 
-void ReadAddonPackageDescriptors(void);
-int32_t G_LoadAddonPreviewImage(addonjson_t* mjsonStore);
+int32_t ReadAddonPackageDescriptors(void);
+int32_t LoadAddonPreviewImage(addonjson_t* mjsonStore);
+int32_t StartSelectedAddons(void);
 
 #ifdef __cplusplus
 }

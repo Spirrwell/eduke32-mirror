@@ -3186,7 +3186,7 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
         }
 
         // no addons, display N/A, stop here
-        if (M_ADDONS.currentEntry < ADDONLIST_OFFSET || M_ADDONS.currentEntry >= (int32_t)g_nummenuaddons)
+        if (M_ADDONS.currentEntry < ADDONLIST_OFFSET)
         {
             mminitext(origin.x + (30<<16), origin.y + (119<<16), "Select addons to enable.", MF_Minifont.pal_deselected_right);
             break;
@@ -3856,11 +3856,8 @@ static void Menu_EntryFocus(/*MenuEntry_t *entry*/)
         if (M_ADDONS.currentEntry >= ADDONLIST_OFFSET)
         {
             addonjson_t & jsondat = g_menuaddons[M_ADDONS.currentEntry - ADDONLIST_OFFSET].jsonDat;
-            if (!jsondat.invalidImage && jsondat.isValid() && jsondat.imagePath[0] != '\0')
-            {
-                G_LoadAddonPreviewImage(&jsondat);
+            if (jsondat.isValid() && (LoadAddonPreviewImage(&jsondat) == 0))
                 break;
-            }
         }
 
         // addon image not loaded
@@ -4080,7 +4077,10 @@ static void Menu_EntryLinkActivate(MenuEntry_t *entry)
 
     case MENU_ADDONS:
     {
-        const int32_t addonIndex = M_CHEATS.currentEntry - ADDONLIST_OFFSET;
+        if (M_ADDONS.currentEntry >= ADDONLIST_OFFSET)
+        {
+            const int32_t addonIndex = M_ADDONS.currentEntry - ADDONLIST_OFFSET;
+        }
         break;
     }
 
@@ -4718,8 +4718,8 @@ static void Menu_Verify(int32_t input)
     case MENU_ADDONSVERIFY:
         if (input)
         {
-            // stub
-            OSD_Printf("Addon loaded.");
+            LOG_F(INFO, "Addons loaded.");
+            StartSelectedAddons();
         }
         break;
     case MENU_COLCORRRESETVERIFY:
