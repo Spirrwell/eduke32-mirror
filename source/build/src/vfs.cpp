@@ -652,6 +652,18 @@ int initgroupfile(const char *filename)
     return -1;
 }
 
+void popgroupfile(void)
+{
+    // assumes all files from GRP are closed
+    int32_t i = --numgroupfiles;
+    DO_FREE_AND_NULL(gfilelist[i]);
+    DO_FREE_AND_NULL(gfileoffs[i]);
+    DO_FREE_AND_NULL(groupname[i]);
+
+    Bclose(groupfil[i]);
+    groupfil[i] = -1;
+}
+
 void uninitgroupfile(void)
 {
     int32_t i;

@@ -264,7 +264,8 @@ buildvfs_FILE fopenfrompath(const char *fn, const char *mode);
 extern char g_modDir[BMAX_PATH];
 extern int32_t numgroupfiles;
 int initgroupfile(const char *filename);
-void	uninitgroupfile(void);
+void uninitgroupfile(void);
+void popgroupfile(void);
 buildvfs_kfd	kopen4load(const char *filename, char searchfirst);	// searchfirst: 0 = anywhere, 1 = first group, 2 = any group
 buildvfs_kfd	kopen4loadfrommod(const char* filename, char searchfirst);
 int32_t	kread(buildvfs_kfd handle, void *buffer, int32_t leng);
