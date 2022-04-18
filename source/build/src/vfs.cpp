@@ -668,6 +668,13 @@ int initgroupfile(const char *filename)
     return -1;
 }
 
+void popgroupfromkzstack(void)
+{
+#ifdef WITHKPLIB
+    kzpopstack();
+#endif
+}
+
 // only use with GRP and SSI, not ZIP files!
 void popgroupfile(void)
 {
