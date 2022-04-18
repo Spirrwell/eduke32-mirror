@@ -20,14 +20,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 //-------------------------------------------------------------------------
 
+#ifdef ADDONS_MENU
+
 #include "duke3d.h"
 #include "addons.h"
-
 // This file contains addon handling outside loading from json/grpinfo descriptors
 
 // hack: this hashtable is (ab)used as a hash set
 static hashtable_t h_addontemp = { MAXUSERADDONS, NULL };
-
 // Cache for preview image data pointers, identified the addon path.
 // Palette conversion is slow, hence we want to precache and store these images for later display
 static hashtable_t h_addonpreviews = { MAXUSERADDONS, NULL };
@@ -811,3 +811,5 @@ int32_t Addon_UpdateMenuEntryName(useraddon_t* addonPtr, const int startidx)
     Bstrncat(addonPtr->menuentryname, &addonPtr->title[startidx], ADDON_VISENTRYNAME - n);
     return 0;
 }
+
+#endif

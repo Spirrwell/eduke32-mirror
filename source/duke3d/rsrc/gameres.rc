@@ -37,7 +37,9 @@ BEGIN
     CONTROL "",               IDCGAMEDIR, "COMBOBOX", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_TABSTOP, 10, 99, 226, 156
     CONTROL "&Enable ""autoload"" folder", IDCAUTOLOAD, "BUTTON", BS_AUTOCHECKBOX | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 5, 116, 100, 8
     CONTROL "&Always show this window at startup", IDCALWAYSSHOW, "BUTTON", BS_AUTOCHECKBOX | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 118, 116, 140, 8
+#if defined ADDONS_MENU && ADDONS_MENU != 0
     CONTROL "&Launch previously selected user-addons on startup", IDCUSERADDONS, "BUTTON", BS_AUTOCHECKBOX | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 5, 129, 180, 8
+#endif
 END
 
 #define VER        2,0,0,4

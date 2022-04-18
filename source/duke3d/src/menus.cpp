@@ -37,7 +37,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "music.h"
 #include "sbar.h"
 #include "joystick.h"
+
+#ifdef ADDONS_MENU
 #include "addons.h"
+#endif
 
 #ifndef __ANDROID__
 droidinput_t droidinput;
@@ -238,12 +241,14 @@ MenuFont_t MF_Redfont = MF_Redfont_Default;
 MenuFont_t MF_Bluefont = MF_Bluefont_Default;
 MenuFont_t MF_Minifont = MF_Minifont_Default;
 
+#ifdef ADDONS_MENU
 // hack: runtime copies of Minifont for the addon menu entry list
 // these exist mainly to change the palette and size
 MenuFont_t MF_Minifont_Addon_Entry = {};
 MenuFont_t MF_Minifont_Addon_Active = {};
 MenuFont_t MF_Minifont_Addon_Warning = {};
 MenuFont_t MF_Minifont_Addon_Label = {};
+#endif
 
 static MenuMenuFormat_t MMF_Top_Main =             { {  MENU_MARGIN_CENTER<<16, 55<<16, }, -(170<<16) };
 static MenuMenuFormat_t MMF_Top_Episode =          { {  MENU_MARGIN_CENTER<<16, 48<<16, }, -(190<<16) };
@@ -269,7 +274,9 @@ static MenuMenuFormat_t MMF_LoadSave =             { {                 200<<16, 
 static MenuMenuFormat_t MMF_NetSetup =             { {                  36<<16, 38<<16, },    190<<16 };
 static MenuMenuFormat_t MMF_FileSelectLeft =       { {                  40<<16, 45<<16, },    162<<16 };
 static MenuMenuFormat_t MMF_FileSelectRight =      { {                 164<<16, 45<<16, },    162<<16 };
+#ifdef ADDONS_MENU
 static MenuMenuFormat_t MMF_Addons =               { {                 164<<16, 39<<16, },    124<<16 };
+#endif
 
 static MenuEntryFormat_t MEF_Null =             {     0,      0,          0 };
 static MenuEntryFormat_t MEF_MainMenu =         { 4<<16,      0,          0 };
@@ -294,7 +301,9 @@ static MenuEntryFormat_t MEF_BigSliders =       { 2<<16,      0, -(260<<16) };
 static MenuEntryFormat_t MEF_LoadSave =         { 2<<16,     -1,     78<<16 };
 static MenuEntryFormat_t MEF_NetSetup =         { 4<<16,      0,    112<<16 };
 static MenuEntryFormat_t MEF_NetSetup_Confirm = { 4<<16, 16<<16,    112<<16 };
+#ifdef ADDONS_MENU
 static MenuEntryFormat_t MEF_Addons =           { 3<<16,      0,     78<<16 };
+#endif
 
 // common menu option sets
 #define MAKE_MENUOPTIONSET(optionNames, optionValues, features) { optionNames, optionValues, &MMF_FuncList, &MEF_FuncList, &MF_Minifont, ARRAY_SIZE(optionNames), -1, 0, features }
@@ -318,10 +327,6 @@ static MenuOptionSet_t MEOS_Gamefuncs = MAKE_MENUOPTIONSET( MEOSN_Gamefuncs, MEO
 
 int32_t cvar_kbo_type = 1;
 int32_t cvar_kbconfirm = 1;
-int32_t cvar_addonmenu_strict = 1;
-
-// true if we should switch to skill menu and prepare map start
-static bool m_addons_launchmap = false;
 
 static int g_lookAxis = -1;
 static int g_turnAxis = -1;
@@ -373,8 +378,11 @@ static char const s_LoadGame[] = "Load Game";
 static char const s_Continue[] = "Continue";
 static char const s_Options[] = "Options";
 static char const s_Credits[] = "Credits";
+
+#ifdef ADDONS_MENU
 static char const s_Addons[] = "Addons";
 static char const s_UserContent[] = "User Content";
+#endif
 
 static char const s_Monsters[] = "Monsters";
 static char const s_DukeTalk[] = "Duke talk:";
@@ -387,7 +395,9 @@ MAKE_MENU_TOP_ENTRYLINK( s_NewGame, MEF_MainMenu, MAIN_NEWGAME_INGAME, MENU_NEWV
 static MenuLink_t MEO_MAIN_NEWGAME_NETWORK = { MENU_NETWORK, MA_Advance, };
 MAKE_MENU_TOP_ENTRYLINK( s_SaveGame, MEF_MainMenu, MAIN_SAVEGAME, MENU_SAVE );
 MAKE_MENU_TOP_ENTRYLINK( s_LoadGame, MEF_MainMenu, MAIN_LOADGAME, MENU_LOAD );
+#ifdef ADDONS_MENU
 MAKE_MENU_TOP_ENTRYLINK( s_Addons, MEF_MainMenu, MAIN_ADDONS, MENU_ADDONS );
+#endif
 MAKE_MENU_TOP_ENTRYLINK( s_Options, MEF_MainMenu, MAIN_OPTIONS, MENU_OPTIONS );
 #ifdef EDUKE32_STANDALONE
 MAKE_MENU_TOP_ENTRYLINK( "Read me!", MEF_MainMenu, MAIN_HELP, MENU_STORY );
@@ -407,7 +417,9 @@ static MenuEntry_t *MEL_MAIN[] = {
     &ME_MAIN_NEWGAME,
     &ME_MAIN_LOADGAME,
     &ME_MAIN_OPTIONS,
+#ifdef ADDONS_MENU
     &ME_MAIN_ADDONS,
+#endif
     &ME_MAIN_HELP,
 #ifndef EDUKE32_RETAIL_MENU
     &ME_MAIN_CREDITS,
@@ -1252,8 +1264,11 @@ static MenuEntry_t ME_SAVE_NEW = MAKE_MENUENTRY( s_NewSaveGame, &MF_Minifont, &M
 static MenuEntry_t *ME_SAVE;
 static MenuEntry_t **MEL_SAVE;
 
+#ifdef ADDONS_MENU
 // -------------------------------------------
 // Addon Menu - Definitions and Variables
+
+int32_t cvar_addonmenu_strict = 1;
 
 // total addon count combined
 #define NUM_TOTAL_ADDONS (g_addoncount_grpinfo + g_addoncount_tcs + g_addoncount_mods)
@@ -1313,6 +1328,9 @@ static vec2_t m_addondesc_xysize = {0, 0};
 static int64_t m_addontitle_hscroll_lastticks = 0;
 static int32_t m_addontitle_hscroll = 0;
 
+// true if we should switch to skill menu and prepare map start
+static bool m_addons_launchmap = false;
+
 // various strings
 static const char m_addontext_deactivate[] = "Unload Addons and Restart";
 static const char m_addontext_launch[] = "Confirm Selection and Restart";
@@ -1333,6 +1351,7 @@ static MenuEntry_t ME_ADDONS_ITEM = MAKE_MENUENTRY( NULL, &MF_Minifont_Addon_Ent
 static MenuEntry_t ME_ADDONS_LABEL = MAKE_MENUENTRY( NULL, &MF_Minifont_Addon_Label, &MEF_Addons, &MEO_ADDONS_NULL, Dummy );
 
 // -------------------------------------------
+#endif
 
 #ifdef __linux__
 static int32_t alsadevice;
@@ -1647,7 +1666,9 @@ static MenuMenu_t M_MACROS = MAKE_MENUMENU( "Multiplayer Macros", &MMF_Macros, M
 static MenuMenu_t M_NETHOST = MAKE_MENUMENU( "Host Network Game", &MMF_SmallOptionsNarrow, MEL_NETHOST );
 static MenuMenu_t M_NETOPTIONS = MAKE_MENUMENU( "Net Game Options", &MMF_NetSetup, MEL_NETOPTIONS );
 static MenuMenu_t M_NETJOIN = MAKE_MENUMENU( "Join Network Game", &MMF_SmallOptionsNarrow, MEL_NETJOIN );
+#ifdef ADDONS_MENU
 static MenuMenu_t M_ADDONS = MAKE_MENUMENU_CUSTOMSIZE( s_Addons, &MMF_Addons, MEL_ADDONS );
+#endif
 
 #ifdef EDUKE32_RETAIL_MENU
 static MenuPanel_t M_STORY = { NoTitle, MENU_STORY, MA_Return, MENU_STORY, MA_Advance, };
@@ -1682,7 +1703,9 @@ static MenuVerify_t M_KEYSRESETVERIFY = { CURSOR_CENTER_2LINE, MENU_KEYBOARDSETU
 static MenuVerify_t M_KEYSCLASSICVERIFY = { CURSOR_CENTER_2LINE, MENU_KEYBOARDSETUP, MA_None, };
 static MenuVerify_t M_JOYSTANDARDVERIFY = { CURSOR_CENTER_2LINE, MENU_JOYSTICKSETUP, MA_None, };
 static MenuVerify_t M_KEYOVERRIDEVERIFY = { CURSOR_BOTTOMRIGHT, MENU_KEYBOARDKEYS, MA_None, };
+#ifdef ADDONS_MENU
 static MenuVerify_t M_ADDONSVERIFY = { CURSOR_CENTER_3LINE, MENU_ADDONS, MA_None, };
+#endif
 
 static MenuMessage_t M_NETWAITMASTER = { CURSOR_BOTTOMRIGHT, MENU_NULL, MA_None, };
 static MenuMessage_t M_NETWAITVOTES = { CURSOR_BOTTOMRIGHT, MENU_NULL, MA_None, };
@@ -1785,8 +1808,10 @@ static Menu_t Menus[] = {
     { &M_KEYSCLASSICVERIFY, MENU_KEYSCLASSICVERIFY, MENU_KEYBOARDSETUP, MA_None, Verify },
     { &M_JOYSTANDARDVERIFY, MENU_JOYDEFAULTVERIFY, MENU_JOYSTICKSETUP, MA_None, Verify },
     { &M_KEYOVERRIDEVERIFY, MENU_KEYOVERRIDEVERIFY, MENU_KEYBOARDKEYS, MA_None, Verify },
+#ifdef ADDONS_MENU
     { &M_ADDONS, MENU_ADDONS, MENU_MAIN, MA_Return, List },
     { &M_ADDONSVERIFY, MENU_ADDONSVERIFY, MENU_ADDONS, MA_None, Verify },
+#endif
     { &M_ADULTPASSWORD, MENU_ADULTPASSWORD, MENU_GAMESETUP, MA_None, TextForm },
     { &M_RESETPLAYER, MENU_RESETPLAYER, MENU_CLOSE, MA_None, Verify },
     { &M_BUYDUKE, MENU_BUYDUKE, MENU_EPISODE, MA_Return, Message },
@@ -2088,7 +2113,7 @@ static void Menu_SetKeyboardScanCode(MenuCustom2Col_t* columnEntry, const int32_
                     ud.config.KeyboardKeys[columnEntry->linkIndex][1], key[1]);
 }
 
-
+#ifdef ADDONS_MENU
 // -------------------------------------------
 // Addon Menu - Functions
 
@@ -2965,6 +2990,8 @@ static void Menu_PopulateAddonsMenu(void)
 
 // -------------------------------------------
 
+#endif
+
 /*
 This function prepares data after ART and CON have been processed.
 It also initializes some data in loops rather than statically at compile time.
@@ -3360,6 +3387,8 @@ void Menu_Init(void)
 #ifndef EDUKE32_RETAIL_MENU
     MenuEntry_HideOnCondition(&ME_MAIN_CREDITS, G_GetLogoFlags() & LOGO_NOCREDITS);
 #endif
+
+#ifdef ADDONS_MENU
     MenuEntry_HideOnCondition(&ME_MAIN_ADDONS, G_GetLogoFlags() & LOGO_NOADDONS);
 
     // Duplicate the minifont for addon menu
@@ -3383,6 +3412,7 @@ void Menu_Init(void)
 
     MF_Minifont_Addon_Label.pal_selected = MENUTEXTPAL_GRAY;
     MF_Minifont_Addon_Label.pal_deselected = MENUTEXTPAL_GRAY;
+#endif
 }
 
 // -------------------------------------------
@@ -3394,9 +3424,6 @@ void Menu_UnInit(void)
 {
     int32_t i, j, k;
 
-    // clear the addon description text buffer
-    DO_FREE_AND_NULL(m_addonbodytext);
-
     // undo menu layout changes if was FURY
     MMF_Top_Skill.pos.x = (MENU_MARGIN_CENTER<<16);
     ME_SKILL_TEMPLATE.format = &MEF_CenterMenu;
@@ -3405,10 +3432,6 @@ void Menu_UnInit(void)
     MF_Redfont = MF_Redfont_Default;
     MF_Bluefont = MF_Bluefont_Default;
     MF_Minifont = MF_Minifont_Default;
-    MF_Minifont_Addon_Entry = {};
-    MF_Minifont_Addon_Label = {};
-    MF_Minifont_Addon_Active = {};
-    MF_Minifont_Addon_Warning = {};
 
     // reset gamefuncs and keys
     Bmemset(keybind_order_custom, 0, sizeof(keybind_order_custom));
@@ -3560,7 +3583,15 @@ void Menu_UnInit(void)
 #ifndef EDUKE32_RETAIL_MENU
     ME_MAIN_CREDITS.flags &= ~MEF_Hidden;
 #endif
+
+#ifdef ADDONS_MENU
+    DO_FREE_AND_NULL(m_addonbodytext);
+    MF_Minifont_Addon_Entry = {};
+    MF_Minifont_Addon_Label = {};
+    MF_Minifont_Addon_Active = {};
+    MF_Minifont_Addon_Warning = {};
     ME_MAIN_ADDONS.flags &= ~MEF_Hidden;
+#endif
 }
 
 static void Menu_Run(Menu_t *cm, vec2_t origin);
@@ -3720,7 +3751,9 @@ static void Menu_Pre(MenuID_t cm)
             ME_MAIN_NEWGAME.entry = &MEO_MAIN_NEWGAME;
             ME_MAIN_NEWGAME_INGAME.entry = &MEO_MAIN_NEWGAME_INGAME;
         }
+#ifdef ADDONS_MENU
         MenuEntry_DisableOnCondition(&ME_MAIN_ADDONS, g_Shareware);
+#endif
         break;
 
     case MENU_GAMESETUP:
@@ -4041,7 +4074,9 @@ static void Menu_PreDrawBackground(MenuID_t cm, const vec2_t origin)
 
     case MENU_LOAD:
     case MENU_SAVE:
+#ifdef ADDONS_MENU
     case MENU_ADDONS:
+#endif
         if (FURY)
             break;
         fallthrough__;
@@ -4134,6 +4169,7 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
                 rotatesprite_fs(origin.x + ((MENU_MARGIN_CENTER+100)<<16), origin.y + (36<<16), 65536L,0,PLUTOPAKSPRITE+2,MENU_GLOWSHADE,0,2+8);
         }
 
+#ifdef ADDONS_MENU
         if (g_addon_failedboot)
         {
             if (FURY)
@@ -4157,6 +4193,7 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
                                 0, 0, xdim-1, ydim-1);
             }
         }
+#endif
         break;
 
     case MENU_PLAYER:
@@ -4350,6 +4387,7 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
         break;
     }
 
+#ifdef ADDONS_MENU
     case MENU_ADDONS:
     {
         // list background
@@ -4459,6 +4497,7 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
         }
         break;
     }
+#endif
 #ifdef EDUKE32_ANDROID_MENU
     case MENU_SKILL:
     {
@@ -4495,6 +4534,7 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
 
         break;
 
+#ifdef ADDONS_MENU
     case MENU_ADDONSVERIFY:
         videoFadeToBlack(1);
         if (g_num_selected_addons == 0)
@@ -4512,6 +4552,7 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
 
         Menu_DrawVerifyPrompt(origin.x, origin.y, tempbuf, 3);
         break;
+#endif
 
     case MENU_LOADVERIFY:
     {
@@ -5057,6 +5098,8 @@ static void Menu_EntryFocus(/*MenuEntry_t *entry*/)
                 G_LoadSaveHeaderNew(sv.path, &savehead);
         }
         break;
+
+#ifdef ADDONS_MENU
     case MENU_ADDONS:
         {
             Menu_Addon_ResetHorizontalScroll();
@@ -5077,6 +5120,7 @@ static void Menu_EntryFocus(/*MenuEntry_t *entry*/)
             }
         }
         break;
+#endif
     default:
         break;
     }
@@ -5286,9 +5330,11 @@ static void Menu_EntryLinkActivate(MenuEntry_t *entry)
         break;
     }
 
+#ifdef ADDONS_MENU
     case MENU_ADDONS:
         Menu_Addon_EntryLinkActivate(M_ADDONS.currentEntry);
         break;
+#endif
 
     default:
         break;
@@ -5921,6 +5967,7 @@ static void Menu_Verify(int32_t input)
         }
         break;
 
+#ifdef ADDONS_MENU
     case MENU_ADDONSVERIFY:
         if (input)
         {
@@ -5936,6 +5983,8 @@ static void Menu_Verify(int32_t input)
             m_addons_launchmap = (mapfile || (ln > -1 && vn > -1));
         }
         break;
+#endif
+
     case MENU_COLCORRRESETVERIFY:
         if (input)
         {
@@ -6456,7 +6505,9 @@ static void Menu_AboutToStartDisplaying(Menu_t * m)
         if (FURY)
         {
             ME_MAIN_LOADGAME.name = s_Continue;
+#ifdef ADDONS_MENU
             ME_MAIN_ADDONS.name = s_UserContent;
+#endif
         }
         break;
 
@@ -6524,6 +6575,7 @@ static void Menu_AboutToStartDisplaying(Menu_t * m)
         }
         break;
 
+#ifdef ADDONS_MENU
     case MENU_ADDONS:
         if (g_previousMenu == MENU_ADDONSVERIFY)
             break;
@@ -6533,6 +6585,7 @@ static void Menu_AboutToStartDisplaying(Menu_t * m)
 
         Menu_PopulateAddonsMenu();
         break;
+#endif
 
     case MENU_JOYSTICKSETUP:
         ME_JOYSTICK_HORIZONTALAIMSENSITIVITY.flags |= MEF_Hidden;
@@ -6829,7 +6882,9 @@ static inline int32_t Menu_UpdateScreenOK(MenuID_t cm)
         case MENU_LOADDELVERIFY:
         case MENU_SAVEVERIFY:
         case MENU_SAVEDELVERIFY:
+#ifdef ADDONS_MENU
         case MENU_ADDONS:
+#endif
             return 0;
             break;
         default:
@@ -8010,7 +8065,9 @@ static void Menu_Recurse(MenuID_t cm, const vec2_t origin)
     case MENU_CHEATENTRY:
     case MENU_CHEAT_WARP:
     case MENU_CHEAT_SKILL:
+#ifdef ADDONS_MENU
     case MENU_ADDONSVERIFY:
+#endif
         Menu_Run(m_previousMenu, origin);
         break;
     default:
@@ -8291,7 +8348,7 @@ static void Menu_Run(Menu_t *cm, const vec2_t origin)
 #endif
 
     // display loading text on a black background when rebooting (frozen frame)
-    if (g_bootState & (BOOTSTATE_REBOOT | BOOTSTATE_ADDONS))
+    if (g_bootState & BOOTSTATE_REBOOT)
     {
         videoClearScreen(0);
         G_ScreenText(MF_Redfont.tilenum, origin.x + (105<<16), origin.y + (85<<16),
@@ -9281,10 +9338,12 @@ static void Menu_RunInput(Menu_t *cm)
                 {
                     I_MenuUpClear();
 
+#ifdef ADDONS_MENU
                     // if shift held, will move load order up in addons menu
                     if (g_currentMenu == MENU_ADDONS && (KB_KeyPressed(sc_LeftShift) || KB_KeyPressed(sc_RightShift)))
                         if (Menu_SwapAddonOrder(M_ADDONS.currentEntry, M_ADDONS.currentEntry - 1, 0, M_ADDONS.numEntries - 1))
                             break;
+#endif
 
                     S_PlaySound(KICK_HIT);
 
@@ -9294,10 +9353,12 @@ static void Menu_RunInput(Menu_t *cm)
                 {
                     I_MenuDownClear();
 
+#ifdef ADDONS_MENU
                     // if shift held, will move load order down in addons menu
                     if (g_currentMenu == MENU_ADDONS && (KB_KeyPressed(sc_LeftShift) || KB_KeyPressed(sc_RightShift)))
                         if (Menu_SwapAddonOrder(M_ADDONS.currentEntry, M_ADDONS.currentEntry + 1, 0, M_ADDONS.numEntries - 1))
                             break;
+#endif
 
                     S_PlaySound(KICK_HIT);
 
@@ -9311,9 +9372,11 @@ static void Menu_RunInput(Menu_t *cm)
                     KB_ClearKeyDown(sc_PgUp);
                     MOUSE_ClearButton(M_WHEELUP);
 
+#ifdef ADDONS_MENU
                     if (g_currentMenu == MENU_ADDONS)
                         Menu_Addon_ScrollDescriptionUp();
                     else
+#endif
                     {
                         menu->currentEntry -= 6;
 
@@ -9333,9 +9396,11 @@ static void Menu_RunInput(Menu_t *cm)
                     KB_ClearKeyDown(sc_PgDn);
                     MOUSE_ClearButton(M_WHEELDOWN);
 
+#ifdef ADDONS_MENU
                     if (g_currentMenu == MENU_ADDONS)
                         Menu_Addon_ScrollDescriptionDown();
                     else
+#endif
                     {
                         menu->currentEntry += 6;
 
@@ -9391,6 +9456,7 @@ static void Menu_RunInput(Menu_t *cm)
                     }
                 }
 
+#ifdef ADDONS_MENU
                 // controller inputs for the addons menu
                 if (g_currentMenu == MENU_ADDONS)
                 {
@@ -9427,6 +9493,7 @@ static void Menu_RunInput(Menu_t *cm)
                         Menu_Addon_ScrollDescriptionDown();
                     }
                 }
+#endif
 
                 if (currentry != NULL)
                     Menu_PreInput(currentry);
@@ -9573,6 +9640,7 @@ void M_DisplayMenus(void)
         return;
     }
 
+#ifdef ADDONS_MENU
     // DB64: this is pretty hacky, may need a better location to change the menu
     if (EDUKE32_PREDICT_FALSE(m_addons_launchmap))
     {
@@ -9602,6 +9670,7 @@ void M_DisplayMenus(void)
         Menu_Change(MENU_SKILL);
         m_addons_launchmap = false;
     }
+#endif
 
     if (!Menu_IsTextInput(m_currentMenu) && KB_KeyPressed(sc_Q))
         Menu_AnimateChange(MENU_QUIT, MA_Advance);

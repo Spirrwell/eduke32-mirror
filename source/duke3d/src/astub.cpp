@@ -9305,7 +9305,7 @@ static int32_t registerosdcommands(void)
 #ifdef DEBUGGINGAIDS
     OSD_RegisterFunction("disasm", "disasm [s|e] <state or event number>", osdcmd_disasm);
 #endif
-    
+
     static osdcvardata_t cvars_editor[] =
     {
         { "cameraheight", "adjust editor camera height", (void*)&kensplayerheight, CVAR_INT, 1, 255 },
@@ -9548,6 +9548,7 @@ static int32_t parsegroupfiles(scriptfile *script)
     return 0;
 }
 
+#ifdef ADDONS_MENU
 int loadgrpinfoaddons(void)
 {
     // stub
@@ -9559,6 +9560,7 @@ int loaduseraddons(void)
     // stub
     return 0;
 }
+#endif
 
 int loaddefinitions_game(const char *fn, int32_t preload)
 {

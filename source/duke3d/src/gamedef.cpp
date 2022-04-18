@@ -2536,7 +2536,7 @@ static bool C_ParseCommand(bool loop /*= false*/)
         if (EDUKE32_PREDICT_FALSE(g_errorCnt > 63 || (*textptr == '\0') || (*(textptr+1) == '\0')))
             return 1;
 
-        if (EDUKE32_PREDICT_FALSE((g_bootState & BOOTSTATE_ADDONS) && g_errorCnt > 0))
+        if (EDUKE32_PREDICT_FALSE((g_errorCnt > 0) && (g_bootState & BOOTSTATE_ADDONS)))
             return 1;
 
         if ((g_scriptPtr - apScript) > (g_scriptSize - 4096) && g_caseTablePtr == NULL)

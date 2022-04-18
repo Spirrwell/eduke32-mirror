@@ -20,6 +20,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 //-------------------------------------------------------------------------
 
+#ifdef ADDONS_MENU
+
 #include "duke3d.h"
 #include "addons.h"
 
@@ -321,3 +323,5 @@ void Addon_FreeGrpInfoAddons(void)
     DO_FREE_AND_NULL(g_useraddons_grpinfo);
     g_addoncount_grpinfo = 0;
 }
+
+#endif

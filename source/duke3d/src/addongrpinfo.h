@@ -23,6 +23,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #ifndef addongrpinfo_h_
 #define addongrpinfo_h_
 
+#ifdef ADDONS_MENU
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -38,4 +40,5 @@ void Addon_FreeGrpInfoAddons(void);
 }
 #endif
 
+#endif
 #endif

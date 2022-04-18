@@ -332,6 +332,7 @@ RETAIL_MENU ?= 0
 POLYMER ?= 1
 USE_OPENGL := 1
 SDL_STATIC ?= 0
+ADDONS_MENU ?= 1
 
 # Library toggles
 HAVE_GTK2 := 1
@@ -378,6 +379,7 @@ else ifeq ($(PLATFORM),WII)
     override NETCODE := 0
     override HAVE_GTK2 := 0
     override HAVE_FLAC := 0
+    override ADDONS_MENU := 0
     SDL_TARGET := 1
 else ifeq ($(PLATFORM),$(filter $(PLATFORM),DINGOO GCW))
     override USE_OPENGL := 0
@@ -821,6 +823,9 @@ ifneq (0,$(RETAIL_MENU))
 endif
 ifneq (0,$(STANDALONE))
     COMPILERFLAGS += -DEDUKE32_STANDALONE
+endif
+ifneq (0,$(ADDONS_MENU))
+    COMPILERFLAGS += -DADDONS_MENU
 endif
 ifneq (0,$(USE_OPENGL))
     COMPILERFLAGS += -DUSE_OPENGL

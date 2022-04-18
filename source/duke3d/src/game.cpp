@@ -43,7 +43,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "savegame.h"
 #include "sbar.h"
 #include "screens.h"
+
+#ifdef ADDONS_MENU
 #include "addons.h"
+#endif
 
 #ifdef __ANDROID__
 #include "android.h"
@@ -5882,6 +5885,7 @@ static int parsedefinitions_game(scriptfile *pScript, int firstPass)
     return 0;
 }
 
+#ifdef ADDONS_MENU
 int loadgrpinfoaddons(void)
 {
     // do not load on initial boot or if no addons supposed to be loaded
@@ -5919,6 +5923,7 @@ int loaduseraddons(void)
 
     return 0;
 }
+#endif
 
 int loaddefinitions_game(const char *fileName, int32_t firstPass)
 {
@@ -6055,10 +6060,12 @@ static void G_Cleanup(void)
     G_CleanupCommandPaths();
     G_CleanupCommandGrps();
 
+#ifdef ADDONS_MENU
     Addon_FreePreviewHashTable();
     Addon_FreeUserTCs();
     Addon_FreeUserMods();
     Addon_FreeGrpInfoAddons();
+#endif
 
     Duke_CommonCleanup();
 }
@@ -7207,9 +7214,11 @@ int app_main(int argc, char const* const* argv)
 
     G_ScanGroups();
 
+#ifdef ADDONS_MENU
     LOG_F(INFO, "Loading addon descriptors...");
     Addon_ReadJsonDescriptors();
     Addon_InitializeLoadOrders();
+#endif
 
 #ifdef STARTUP_SETUP_WINDOW
     if (!Bgetenv("SteamTenfoot") && (readSetup < 0 || (!g_noSetup && (ud.configversion != BYTEVERSION_EDUKE32 || ud.setup.forcesetup)) || g_commandSetup))
@@ -7223,10 +7232,12 @@ int app_main(int argc, char const* const* argv)
 #endif
 
     G_BackupStartupValues();
-
     g_bootState = BOOTSTATE_INITIAL;
+
+#ifdef ADDONS_MENU
     if (ud.setup.launchuseraddons)
         g_bootState |= BOOTSTATE_ADDONS;
+#endif
 
 SOFT_REBOOT:
 
@@ -7255,6 +7266,7 @@ SOFT_REBOOT:
     if (!g_useCwd)
         G_CleanupSearchPaths();
 
+#ifdef ADDONS_MENU
 #ifdef USE_OPENGL
     if (g_bootState & BOOTSTATE_ADDONS)
     {
@@ -7265,6 +7277,7 @@ SOFT_REBOOT:
             ud.setup.bpp = (newmode == REND_CLASSIC) ? 8 : 32;
         }
     }
+#endif
 #endif
 
     G_ResetCheats();
@@ -7328,6 +7341,7 @@ SOFT_REBOOT:
         G_MaybeAllocPlayer(i);
 
     G_Startup(); // a bunch of stuff including compiling cons
+#ifdef ADDONS_MENU
     if ((g_bootState & BOOTSTATE_ADDONS)  && g_errorCnt)
     {
         LOG_F(ERROR, "Failed to launch selected addons, resetting to previous values...");
@@ -7336,6 +7350,7 @@ SOFT_REBOOT:
         g_addon_failedboot = true;
         goto SOFT_REBOOT;
     }
+#endif
 
     g_player[0].playerquitflag = 1;
 
@@ -7451,11 +7466,13 @@ SOFT_REBOOT:
 
     system_getcvars();
 
+#ifdef ADDONS_MENU
     if (!g_previewsDisabled)
     {
         LOG_F(INFO, "Converting and caching addon preview images...");
         Addon_LoadPreviewImages();
     }
+#endif
 
     if (quitevent) app_exit(4);
 

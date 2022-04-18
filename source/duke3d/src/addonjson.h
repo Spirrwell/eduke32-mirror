@@ -23,6 +23,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #ifndef addonjson_h_
 #define addonjson_h_
 
+#ifdef ADDONS_MENU
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -39,4 +41,5 @@ void Addon_FreeUserMods(void);
 }
 #endif
 
+#endif
 #endif

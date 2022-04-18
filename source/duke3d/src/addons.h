@@ -23,6 +23,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #ifndef addons_h_
 #define addons_h_
 
+#ifdef ADDONS_MENU
+
 #include "addongrpinfo.h"
 #include "addonjson.h"
 
@@ -325,4 +327,5 @@ int32_t Addon_UpdateMenuEntryName(useraddon_t* addonPtr, const int startidx);
 }
 #endif
 
+#endif
 #endif

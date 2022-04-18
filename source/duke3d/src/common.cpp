@@ -12,7 +12,10 @@
 #include "palette.h"
 #include "texcache.h"
 #include "vfs.h"
+
+#ifdef ADDONS_MENU
 #include "addons.h"
+#endif
 
 #ifdef _WIN32
 # include "windows_inc.h"
@@ -464,7 +467,9 @@ void G_LoadGroups(int32_t autoload)
     if (g_addonNum)
         G_LoadAddon();
 
+#ifdef ADDONS_MENU
     loadgrpinfoaddons();
+#endif
 
     const char *grpfile;
     int32_t i;
@@ -507,8 +512,10 @@ void G_LoadGroups(int32_t autoload)
     if (g_modDir[0] != '/')
         G_LoadGroupsInDir(g_modDir);
 
+#ifdef ADDONS_MENU
     // prepare addons when g_gameType is known, but before parsing DEF files
     loaduseraddons();
+#endif
 
 #ifndef EDUKE32_STANDALONE
     if (g_defNamePtr == NULL)

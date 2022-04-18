@@ -172,7 +172,9 @@ static void PopulateForm(int32_t pgs)
     {
         Button_SetCheck(GetDlgItem(pages[TAB_CONFIG], IDCALWAYSSHOW), (settings.shared.forcesetup ? BST_CHECKED : BST_UNCHECKED));
         Button_SetCheck(GetDlgItem(pages[TAB_CONFIG], IDCAUTOLOAD), (!(settings.shared.noautoload) ? BST_CHECKED : BST_UNCHECKED));
+#ifdef ADDONS_MENU
         Button_SetCheck(GetDlgItem(pages[TAB_CONFIG], IDCUSERADDONS), (settings.shared.launchuseraddons ? BST_CHECKED : BST_UNCHECKED));
+#endif
 
         HWND hwnd = GetDlgItem(pages[TAB_CONFIG], IDCINPUT);
 
@@ -255,9 +257,11 @@ static INT_PTR CALLBACK ConfigPageProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, L
         case IDCAUTOLOAD:
             settings.shared.noautoload = (IsDlgButtonChecked(hwndDlg, IDCAUTOLOAD) != BST_CHECKED);
             return TRUE;
+#ifdef ADDONS_MENU
         case IDCUSERADDONS:
             settings.shared.launchuseraddons = (IsDlgButtonChecked(hwndDlg, IDCUSERADDONS) == BST_CHECKED);
             return TRUE;
+#endif
         case IDCINPUT:
             if (HIWORD(wParam) == CBN_SELCHANGE)
             {

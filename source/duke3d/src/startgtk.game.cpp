@@ -77,7 +77,9 @@ static struct
     GtkWidget *emptyhlayout;
     GtkWidget *autoloadcheck;
     GtkWidget *alwaysshowcheck;
+#ifdef ADDONS_MENU
     GtkWidget *useraddonscheck;
+#endif
     GtkWidget *configtab;
     GtkWidget *gamevlayout;
     GtkWidget *gamelabel;
@@ -205,11 +207,13 @@ static void on_alwaysshowcheck_toggled(GtkToggleButton *togglebutton, gpointer u
     settings.shared.forcesetup = gtk_toggle_button_get_active(togglebutton);
 }
 
+#ifdef ADDONS_MENU
 static void on_useraddonscheck_toggled(GtkToggleButton *togglebutton, gpointer user_data)
 {
     UNREFERENCED_PARAMETER(user_data);
     settings.shared.launchuseraddons = gtk_toggle_button_get_active(togglebutton);
 }
+#endif
 
 static void on_cancelbutton_clicked(GtkButton *button, gpointer user_data)
 {
@@ -431,7 +435,9 @@ static void PopulateForm(unsigned char pgs)
 #endif
         gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(stwidgets.autoloadcheck), !settings.shared.noautoload);
         gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(stwidgets.alwaysshowcheck), settings.shared.forcesetup);
+#ifdef ADDONS_MENU
         gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(stwidgets.useraddonscheck), settings.shared.launchuseraddons);
+#endif
     }
 
     if ((pgs == ALL) || (pgs == POPULATE_GAME))
@@ -609,9 +615,11 @@ static GtkWidget *create_window(void)
     stwidgets.alwaysshowcheck = gtk_check_button_new_with_mnemonic("_Always show this window at startup");
     gtk_table_attach(GTK_TABLE(stwidgets.configtlayout), stwidgets.alwaysshowcheck, 0,3, 5,6, GTK_FILL, (GtkAttachOptions)0, 2, 2);
 
+#ifdef ADDONS_MENU
     // Launch mods on startup checkbox
     stwidgets.useraddonscheck = gtk_check_button_new_with_mnemonic("_Launch previously selected user-addons on startup");
     gtk_table_attach(GTK_TABLE(stwidgets.configtlayout), stwidgets.useraddonscheck, 0,3, 6,7, GTK_FILL, (GtkAttachOptions)0, 2, 2);
+#endif
 
     // Configuration tab
     stwidgets.configtab = gtk_label_new("Configuration");
@@ -749,9 +757,11 @@ static GtkWidget *create_window(void)
     g_signal_connect((gpointer) stwidgets.alwaysshowcheck, "toggled",
                      G_CALLBACK(on_alwaysshowcheck_toggled),
                      NULL);
+#ifdef ADDONS_MENU
     g_signal_connect((gpointer) stwidgets.useraddonscheck, "toggled",
                      G_CALLBACK(on_useraddonscheck_toggled),
                      NULL);
+#endif
     g_signal_connect((gpointer) stwidgets.cancelbutton, "clicked",
                      G_CALLBACK(on_cancelbutton_clicked),
                      NULL);
