@@ -117,6 +117,14 @@ static struct {
 } distrecipcache[DISTRECIPCACHESIZE];
 static int32_t distrecipagecnt = 0;
 
+void resetdistrecipcache(void)
+{
+    distrecipagecnt = 0;
+    for (bssize_t i=0; i<DISTRECIPCACHESIZE; i++)
+        ALIGNED_FREE_AND_NULL(distrecipcache[i].distrecip);
+    Bmemset(distrecipcache, 0, sizeof(distrecipcache));
+}
+
 static int32_t *lookups = NULL;
 static int32_t beforedrawrooms = 1;
 
@@ -1789,7 +1797,7 @@ static void classicScanSector(int16_t startsectnum)
                     if (renderAddTsprite(i, sectnum))
                         break;
         }
-        
+
         bitmap_set(gotsector, sectnum);
 
         const int32_t onumbunches = numbunches;
@@ -1828,7 +1836,7 @@ static void classicScanSector(int16_t startsectnum)
                     int32_t tempint = temp;
                     if (
 #ifdef YAX_ENABLE
-                        yax_globallev == YAX_MAXDRAWS && 
+                        yax_globallev == YAX_MAXDRAWS &&
 #endif
                         ((uint64_t)tempint+262144) < 524288)  // BXY_MAX?
                         if (mulscale5(tempint,tempint) <= (x2-x1)*(x2-x1)+(y2-y1)*(y2-y1))
@@ -5308,7 +5316,7 @@ static void classicDrawVoxel(int32_t dasprx, int32_t daspry, int32_t dasprz, int
 
                         if (z1 < um) { yplc = yinc*(um-z1); z1 = um; }
                         else yplc = 0;
-                        
+
                         if (cstat & 8)
                             yinc = -yinc;
                         if (cstat & 8)
@@ -7777,7 +7785,7 @@ static void dorotatesprite(int32_t sx, int32_t sy, int32_t z, int16_t a, int16_t
         auto const   clock = timer120();
 
         sm0 = { goal, goal, picnum, (int16_t)(dastat & ~RS_TRANS_MASK), clock };
-        
+
         auto lerpWouldLookDerp = [&](void)
         {
             return !(dastat & RS_LERP) || !sm.clock || clock - sm.clock > 4
@@ -7787,7 +7795,7 @@ static void dorotatesprite(int32_t sx, int32_t sy, int32_t z, int16_t a, int16_t
 
         if (lerpWouldLookDerp())
             sm.lerp = sm.goal = sm0.goal;
-        else 
+        else
         {
             sm0.lerp = { sm.goal.x - mulscale16(65536-rotatespritesmoothratio, sm.goal.x - sm.lerp.x),
                          sm.goal.y - mulscale16(65536-rotatespritesmoothratio, sm.goal.y - sm.lerp.y),
@@ -9182,9 +9190,7 @@ void engineUnInit(void)
 
     Buninitart();
 
-    for (bssize_t i=0; i<DISTRECIPCACHESIZE; i++)
-        ALIGNED_FREE_AND_NULL(distrecipcache[i].distrecip);
-    Bmemset(distrecipcache, 0, sizeof(distrecipcache));
+    resetdistrecipcache();
 
     paletteloaded = 0;
 
@@ -9290,7 +9296,7 @@ void set_globalang(fix16_t const ang)
     fcosglobalang = fcosang;
     fsinglobalang = fsinang;
 #endif
-    
+
     cosglobalang = (int)fcosang;
     singlobalang = (int)fsinang;
 
@@ -9999,7 +10005,7 @@ killsprite:
                     glDepthMask(GL_TRUE);
 
                     glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-                    
+
                     for (bssize_t k = i; k > j; k--)
                     {
                         renderDrawSprite(k);
@@ -11014,7 +11020,7 @@ int32_t engineLoadBoard(const char *filename, char flags, vec3_t *dapos, int16_t
 
     ////////// Read sprites //////////
 
-    if (kread_and_test(fil,&numsprites,2)) goto error; 
+    if (kread_and_test(fil,&numsprites,2)) goto error;
     numsprites = B_LITTLE16(numsprites);
     if ((unsigned)numsprites >= MYMAXSPRITES()+1) goto error;
 
@@ -11148,7 +11154,7 @@ int32_t engineLoadBoardV5V6(const char *filename, char fromwhere, vec3_t *dapos,
         numsectors = 0;
         numwalls   = 0;
         kclose(fil);
-        return -1; 
+        return -1;
     }
 
     switch (mapversion)
@@ -11349,7 +11355,7 @@ int32_t engineLoadBoardV5V6(const char *filename, char fromwhere, vec3_t *dapos,
                 v6spr.lotag   = B_LITTLE16(v6spr.lotag);
                 v6spr.hitag   = B_LITTLE16(v6spr.hitag);
                 v6spr.extra   = B_LITTLE16(v6spr.extra);
-                
+
                 convertv6sprv7(&v6spr, &sprite[i]);
                 check_sprite(i);
             }
@@ -11792,7 +11798,7 @@ int32_t videoSetGameMode(char davidoption, int32_t daupscaledxdim, int32_t daups
     OSD_ResizeDisplay(xdim, ydim);
 
     videoAllocateBuffers();
-    
+
     //Force drawrooms to call dosetaspect & recalculate stuff
     oxyaspect = oxdimen = oviewingrange = -1;
 
@@ -12297,7 +12303,7 @@ fix16_t __fastcall getq16angledelta(fix16_t first, fix16_t second)
 
     if (klabs(fix16_sub(first, second)) < F16(1024))
         return fix16_sub(second, first);
-    else 
+    else
         return fix16_sub((second > F16(1024)) ? fix16_sub(second, F16(2048)) : second, (first > F16(1024)) ? fix16_sub(first, F16(2048)) : first);
 }
 
@@ -13251,7 +13257,7 @@ void updatesectorneighbor(int32_t const x, int32_t const y, int16_t * const sect
         int16_t nsecs;
         bfirst_search_init(updatesectorneighborlist, updatesectorneighbormap, &nsecs, MAXSECTORS, initialsectnum);
 
-        int32_t const initialDistance = getsectordist({x, y}, initialsectnum);        
+        int32_t const initialDistance = getsectordist({x, y}, initialsectnum);
 
         // initialDistance == 0 means the point passed to getsectordist was inside the passed sectnum
         if (initialDistance == 0)
@@ -13297,7 +13303,7 @@ restart:
 #endif
     uint32_t const correctedsectnum = (unsigned)*sectnum;
     if (correctedsectnum < (unsigned)numsectors)
-    {    
+    {
         int16_t nsecs;
         bfirst_search_init(updatesectorneighborlist, updatesectorneighbormap, &nsecs, MAXSECTORS, correctedsectnum);
 
@@ -14356,7 +14362,7 @@ void videoSet2dMode(int32_t daxdim, int32_t daydim)
 
     qsetmode = ((daxdim<<16)|(daydim&0xffff));
 }
-#endif // 
+#endif //
 
 static int32_t printext_checkypos(int32_t ypos, int32_t *yminptr, int32_t *ymaxptr)
 {
@@ -14805,4 +14811,3 @@ void tileInvalidate(int16_t tilenume, int32_t pal, int32_t how)
 /*
  * vim:ts=8:
  */
-
