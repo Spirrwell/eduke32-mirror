@@ -1100,7 +1100,8 @@ memberlabel_t const UserdefsLabels[]=
     { "gamepadactive",          USERDEFS_GAMEPADACTIVE,          0, 0, -1 },
     { "m_newgamecustom",        USERDEFS_M_NEWGAMECUSTOM,        0, 0, -1 },
     { "m_newgamecustomsub",     USERDEFS_M_NEWGAMECUSTOMSUB,     0, 0, -1 },
-    { "m_newgamecustoml3",      USERDEFS_M_NEWGAMECUSTOML3,      0, 0, -1 }
+    { "m_newgamecustoml3",      USERDEFS_M_NEWGAMECUSTOML3,      0, 0, -1 },
+    { "achievements_enabled",   USERDEFS_ACHIEVEMENTSENABLED,    0, 0, -1 },
 };
 
 int32_t __fastcall VM_GetUserdef(int32_t labelNum, int const lParm2)
@@ -1294,7 +1295,8 @@ int32_t __fastcall VM_GetUserdef(int32_t labelNum, int const lParm2)
         case USERDEFS_GAMEPADACTIVE:          labelNum = (CONTROL_LastSeenInput == LastSeenInput::Joystick); break;
         case USERDEFS_M_NEWGAMECUSTOM:        labelNum = ud.m_newgamecustom;              break;
         case USERDEFS_M_NEWGAMECUSTOMSUB:     labelNum = ud.m_newgamecustomsub;           break;
-        case USERDEFS_M_NEWGAMECUSTOML3:      labelNum = ud.m_newgamecustoml3;           break;
+        case USERDEFS_M_NEWGAMECUSTOML3:      labelNum = ud.m_newgamecustoml3;            break;
+        case USERDEFS_ACHIEVEMENTSENABLED:    labelNum = !g_achievementsDisabled;         break;
 
         default: EDUKE32_UNREACHABLE_SECTION(labelNum = -1; break);
     }
