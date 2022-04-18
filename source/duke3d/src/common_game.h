@@ -75,6 +75,7 @@ enum searchpathtypes_t {
     SEARCHPATH_NAM    = 1<<1,
     SEARCHPATH_WW2GI  = 1<<2,
     SEARCHPATH_FURY   = 1<<3,
+    SEARCHPATH_ALL    = (1<<4) - 1,
 };
 
 typedef enum basepal_ {

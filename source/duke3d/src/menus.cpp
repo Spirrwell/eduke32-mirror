@@ -205,7 +205,7 @@ Note that I prefer to include a space on the inside of the macro parentheses, si
 they effectively stand in for curly braces as struct initializers.
 */
 
-MenuGameplayEntry g_MenuGameplayEntries[MAXMENUGAMEPLAYENTRIES];
+MenuGameplayEntry_t g_MenuGameplayEntries[MAXMENUGAMEPLAYENTRIES];
 
 // common font types
 // tilenums are set after namesdyn runs
@@ -1784,7 +1784,7 @@ void Menu_PopulateNewGameCustom(void)
 
     int e = 0;
     int visible = 0;
-    for (MenuGameplayEntry const & entry : g_MenuGameplayEntries)
+    for (MenuGameplayEntry_t const & entry : g_MenuGameplayEntries)
     {
         if (!entry.isValid())
             break;
@@ -1805,7 +1805,7 @@ void Menu_PopulateNewGameCustomSub(int e)
     if ((unsigned)e >= MAXMENUGAMEPLAYENTRIES)
         return;
 
-    MenuGameplayEntry const & entry = g_MenuGameplayEntries[e];
+    MenuGameplayEntry_t const & entry = g_MenuGameplayEntries[e];
     if (!entry.isValid())
         return;
 
@@ -1815,7 +1815,7 @@ void Menu_PopulateNewGameCustomSub(int e)
     int visible = 0;
     for (int i = 0; i < MAXMENUGAMEPLAYENTRIES; i++)
     {
-        MenuGameplayEntry const & subentry  = entry.subentries[i];
+        MenuGameplayEntry_t const & subentry  = entry.subentries[i];
         if (!subentry.isValid())
             break;
 
@@ -1835,11 +1835,11 @@ void Menu_PopulateNewGameCustomL3(int e, int s)
     if ((unsigned)e >= MAXMENUGAMEPLAYENTRIES || (unsigned)s >= MAXMENUGAMEPLAYENTRIES)
         return;
 
-    MenuGameplayEntry const & entryl1 = g_MenuGameplayEntries[e];
+    MenuGameplayEntry_t const & entryl1 = g_MenuGameplayEntries[e];
     if (!entryl1.isValid())
         return;
 
-    MenuGameplayEntry const & entryl2 = entryl1.subentries[s];
+    MenuGameplayEntry_t const & entryl2 = entryl1.subentries[s];
     if (!entryl2.isValid())
         return;
 
@@ -1849,7 +1849,7 @@ void Menu_PopulateNewGameCustomL3(int e, int s)
     int visible = 0;
     for (int i = 0; i < MAXMENUGAMEPLAYENTRIES; i++)
     {
-        MenuGameplayEntry const & entryl3  = entryl2.subentries[i];
+        MenuGameplayEntry_t const & entryl3  = entryl2.subentries[i];
 
         if (!entryl3.isValid())
             break;
@@ -2131,7 +2131,7 @@ void Menu_Init(void)
         MEO_MAIN_NEWGAME.linkID = M_NEWVERIFY.linkID = MENU_NEWGAMECUSTOM;
 
         int l1 = 0;
-        for (MenuGameplayEntry const & l1entry : g_MenuGameplayEntries)
+        for (MenuGameplayEntry_t const & l1entry : g_MenuGameplayEntries)
         {
             if (!l1entry.isValid())
                 break;
@@ -2151,7 +2151,7 @@ void Menu_Init(void)
             int l2 = 0;
             for (int i = 0; i < MAXMENUGAMEPLAYENTRIES; i++)
             {
-                MenuGameplayEntry const & l2entry  = l1entry.subentries[i];
+                MenuGameplayEntry_t const & l2entry  = l1entry.subentries[i];
                 if (!l2entry.isValid())
                     break;
 
@@ -2170,7 +2170,7 @@ void Menu_Init(void)
                 int l3 = 0;
                 for (int j = 0; j < MAXMENUGAMEPLAYENTRIES; j++)
                 {
-                    MenuGameplayEntry const & l3entry  = l2entry.subentries[j];
+                    MenuGameplayEntry_t const & l3entry  = l2entry.subentries[j];
 
                     if (!l3entry.isValid())
                         break;
@@ -4772,8 +4772,18 @@ static void Menu_Verify(int32_t input)
     case MENU_ADDONSVERIFY:
         if (input)
         {
-            LOG_F(INFO, "Addons loaded.");
+            // Menu list order obeys internal load order.
+            for (int i = 0; i < M_ADDONS.numEntries; i++)
+            {
+                int32_t addonIndex = ADDONS_L2EMAP[i];
+                if (addonIndex < 0 || (!g_menuaddons[addonIndex].isValid()))
+                    continue;
+
+                if (g_menuaddons[addonIndex].selected)
+                    PrepareSelectedAddon(&g_menuaddons[addonIndex]);
+            }
             StartSelectedAddons();
+            g_bootState = BOOTSTATE_REBOOT_ADDONS;
         }
         break;
     case MENU_COLCORRRESETVERIFY:

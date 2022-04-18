@@ -746,7 +746,7 @@ static void G_ReadGLFrame(void)
 
     // Save OpenGL screenshot with Duke3D palette
     // NOTE: maybe need to move this to the engine...
-    
+
     static char lock;
     static palette_t *frame;
 
@@ -5314,7 +5314,7 @@ static const tokenlist newGameChoiceTokens[] =
     { "usercontent",   T_USERCONTENT },
 };
 
-static int newgamesubchoice_recursive(scriptfile *pScript, MenuGameplayEntry entry)
+static int newgamesubchoice_recursive(scriptfile *pScript, MenuGameplayEntry_t entry)
 {
 
     char * subChoicePtr = pScript->ltextptr;
@@ -5333,9 +5333,9 @@ static int newgamesubchoice_recursive(scriptfile *pScript, MenuGameplayEntry ent
         return -1;
     }
 
-    MenuGameplayEntry & subentry = entry.subentries[subChoiceID];
-    subentry = MenuGameplayEntry{};
-    subentry.subentries = (MenuGameplayEntry *) Xcalloc(MAXMENUGAMEPLAYENTRIES, sizeof(MenuGameplayEntry));
+    MenuGameplayEntry_t & subentry = entry.subentries[subChoiceID];
+    subentry = MenuGameplayEntry_t{};
+    subentry.subentries = (MenuGameplayEntry_t *) Xcalloc(MAXMENUGAMEPLAYENTRIES, sizeof(MenuGameplayEntry_t));
 
     while (pScript->textptr < subChoiceEnd)
     {
@@ -5377,9 +5377,9 @@ static int newgamesubchoice_recursive(scriptfile *pScript, MenuGameplayEntry ent
     return 0;
 }
 
-static void newgamechoices_recursive_free(MenuGameplayEntry* parent)
+static void newgamechoices_recursive_free(MenuGameplayEntry_t* parent)
 {
-    MenuGameplayEntry* entries = parent->subentries;
+    MenuGameplayEntry_t* entries = parent->subentries;
     for (int i = 0; i < MAXMENUGAMEPLAYENTRIES; i++)
         if (entries[i].subentries)
             newgamechoices_recursive_free(&entries[i]);
@@ -5434,7 +5434,6 @@ static int parsedefinitions_game(scriptfile *pScript, int firstPass)
         { "forcenofilter", T_FORCENOFILTER },
         { "texturefilter", T_TEXTUREFILTER },
     };
-
 
     for (int f = 0; f < NUMGAMEFUNCTIONS; f++)
        scriptfile_addsymbolvalue(gamefunc_symbol_names[f], f);
@@ -5736,12 +5735,12 @@ static int parsedefinitions_game(scriptfile *pScript, int firstPass)
                             break;
                         }
 
-                        MenuGameplayEntry & entry = g_MenuGameplayEntries[choiceID];
+                        MenuGameplayEntry_t & entry = g_MenuGameplayEntries[choiceID];
                         if (entry.subentries)
                             newgamechoices_recursive_free(&entry);
 
-                        entry = MenuGameplayEntry{};
-                        entry.subentries = (MenuGameplayEntry *) Xcalloc(MAXMENUGAMEPLAYENTRIES, sizeof(MenuGameplayEntry));
+                        entry = MenuGameplayEntry_t{};
+                        entry.subentries = (MenuGameplayEntry_t *) Xcalloc(MAXMENUGAMEPLAYENTRIES, sizeof(MenuGameplayEntry_t));
 
                         while (pScript->textptr < choiceEnd)
                         {
@@ -6017,6 +6016,240 @@ static void G_Cleanup(void)
 /*
 ===================
 =
+= Soft Reboot (restore to state post-setup window)
+=
+===================
+*/
+
+static void G_SoftReboot(void)
+{
+    int32_t i;
+    // Note: each string in this is freed and cleared, startup data is gone
+    // This means: necessary to backup initial startup con, def, rts, grp
+    // main pointers, if null, will load defaults
+    // g_scriptNamePtr, g_defNamePtr, g_rtsNamePtr
+    // g_scriptModules contains the module cons
+    // g_defModule is cleared and freed
+    // g_clipMapFiles exists
+
+    // reset caches
+    g_cache.reset();
+    for (i = 0; i < MAXTILES; i++)
+    {
+        waloff[i] = 0;
+        walock[i] = CACHE1D_UNLOCKED;
+        tileInvalidate(i, -1, -1);
+    }
+    memset(faketile, 0, ARRAY_SIZE(faketile));
+    DO_FREE_AND_NULL(g_screentextbuf);
+    // tilefontList
+    // TODO: tilefilenum[i] = tilefile; reset
+    // TODO: tilefileoffs[i] = offscount; reset
+
+    CONFIG_WriteSetup(1);
+    ud = {};
+    g_maxDefinedSkill = 4;
+    ud.multimode = 1;
+    CONFIG_ReadSetup();
+
+    S_SoundShutdown();
+    S_MusicShutdown();
+    // if (g_noSound) ud.config.SoundToggle = 0;
+    // if (g_noMusic) ud.config.MusicToggle = 0;
+
+    CONTROL_Shutdown();
+    KB_Shutdown();
+
+    // reset szPlayerName[l];
+    // reset g_gametypeFlags
+
+    for (i=(MAXLEVELS*(MAXVOLUMES+1))-1; i>=0; i--) // +1 volume for "intro", "briefing" music
+    {
+        DO_FREE_AND_NULL(g_mapInfo[i].name);
+        DO_FREE_AND_NULL(g_mapInfo[i].filename);
+        DO_FREE_AND_NULL(g_mapInfo[i].musicfn);
+
+        G_FreeMapState(i);
+        g_mapInfo[i] = {};
+    }
+
+    for (i=MAXQUOTES-1; i>=0; i--)
+    {
+        DO_FREE_AND_NULL(apStrings[i]);
+        DO_FREE_AND_NULL(apXStrings[i]);
+    }
+
+    for (i=MAXPLAYERS-1; i>=0; i--)
+    {
+        if (g_player[i].ps)
+            DO_FREE_AND_NULL(g_player[i].ps);
+    }
+    // this needs to happen because G_GameExit() accesses g_player[0]
+    G_MaybeAllocPlayer(0);
+
+    S_ClearSoundLocks();
+    for (native_t j = 0; j < 11; ++j)
+        rts_lumplockbyte[i] = CACHE1D_UNLOCKED;
+
+
+    for (i = 0; i <= g_highestSoundIdx; i++)
+    {
+        if (g_sounds[i] != &nullsound)
+        {
+            DO_FREE_AND_NULL(g_sounds[i]->filename);
+
+            if (g_sounds[i]->voices != &nullvoice)
+                DO_FREE_AND_NULL(g_sounds[i]->voices);
+
+            Xfree(g_sounds[i]);
+            g_sounds[i] = &nullsound;
+        }
+    }
+
+    // DEF
+    // scriptfile_clearsymbols();
+    // MAXCACHE1DSIZE = (96*1024*1024);
+    duke3d_globalflags = 0;
+    CommandMap = nullptr;
+    // note: by setting boardfilename, it's possible to directly start in a map
+    boardfilename[0] = '\0';
+
+    DO_FREE_AND_NULL(label);
+    DO_FREE_AND_NULL(labelcode);
+    DO_FREE_AND_NULL(labeltype);
+    g_labelCnt = 0;
+
+    DO_FREE_AND_NULL(apScript);
+    DO_FREE_AND_NULL(bitptr);
+
+    for (i = 0; i < MAXMENUGAMEPLAYENTRIES; i++)
+    {
+        if (g_MenuGameplayEntries[i].subentries)
+            newgamechoices_recursive_free(&g_MenuGameplayEntries[i]);
+        g_MenuGameplayEntries[i] = {};
+    }
+    Bmemset(keybind_order_custom, 0, ARRAY_SIZE(keybind_order_custom));
+
+    // "vmoffset"
+    // auto newofs = (struct vmofs*)Xcalloc(1, sizeof(struct vmofs));
+    // needs to be freed and reset
+    // TODO: free g_vm_data
+    auto ofs = vmoffset;
+    while (ofs)
+    {
+        auto next = ofs->next;
+        Xfree(ofs->fn);
+        Xfree(ofs);
+        ofs = next;
+    }
+    vmoffset = NULL;
+
+    Gv_Clear();
+    Bmemset(aGameVars, 0, ARRAY_SIZE(aGameVars) * sizeof(gamevar_t));
+    Bmemset(aGameArrays, 0, ARRAY_SIZE(aGameArrays) * sizeof(gamearray_t));
+
+    for (i = 0; i < MAXPALOOKUPS; i++)
+        if (palookup[i])
+            DO_FREE_AND_NULL(palookup[i]);
+    Bmemset(g_noFloorPal, 0, ARRAY_SIZE(g_noFloorPal));
+
+    // remapbuf needs to be reset
+
+    /* TODO:
+    // reset the following
+    hash_free(&h_keywords);
+    hash_free(&h_iter);
+    hash_free(&h_varvar);
+    hash_free(&h_globalvar);
+    hash_free(&h_playervar);
+    hash_free(&h_actorvar);
+
+    hash_free(&h_actor);
+    hash_free(&h_input);
+    hash_free(&h_paldata);
+    hash_free(&h_player);
+    hash_free(&h_projectile);
+    hash_free(&h_sector);
+    hash_free(&h_tiledata);
+    hash_free(&h_tsprite);
+    hash_free(&h_userdef);
+    hash_free(&h_wall);
+    */
+
+    // may be necessary to reset most variables in global.h
+
+    hash_free(&h_gamevars);
+    hash_free(&h_arrays);
+    hash_free(&h_labels);
+    hash_init(&h_gamefuncs);
+    for (bssize_t i=NUMGAMEFUNCTIONS-1; i>=0; i--)
+    {
+        if (gamefunctions[i][0] == '\0')
+            continue;
+
+        hash_add(&h_gamefuncs,gamefunctions[i],i,0);
+    }
+
+
+    hash_loop(&h_dukeanim, G_FreeHashAnim);
+    hash_free(&h_dukeanim);
+    inthash_free(&h_dsound);
+    inthash_free(&h_dynamictilemap);
+
+    // g_blimpSpawnItems, WeaponPickupSprites
+    // g_dynTileList; //TODO: Check if need to reset this
+    // g_dynSoundList; //TODO: Check if need to reset this
+
+    /* G_LoadGroups and G_CleanupSearchPaths */
+    // g_noAutoLoad = 0;
+    // g_modDir[0] = '\0';
+    // CommandMap, CommandName, CommandGrps, CommandPaths
+    // g_groupFileHandle (never used anywhere)
+    // pathsearchmode = 1; // full access
+    // pathsearchmode = 0; // local only
+    FreeGroups();
+    removesearchpaths_withuser(SEARCHPATH_ALL);
+    uninitkzstack();
+    uninitgroupfile();
+
+    // to reset:
+    // g_rootDir, g_modDir, cwd
+
+    //g_selectedGrp = NULL;
+    //DO_FREE_AND_NULL(g_grpNamePtr);
+    //DO_FREE_AND_NULL(g_scriptNamePtr);
+    //DO_FREE_AND_NULL(g_rtsNamePtr);
+
+    // TODO: loaddefinitionsfile */
+    // TODO: engineInit
+    // TODO: enginepostinit */
+    // Need to run engineUnInit() iff engineInit() was run (problem: Compile errors)
+    // engineUnInit();
+
+    // TODO: C_ParseCommand
+    // TODO: CONTROL_Startup -- maybe need to Uninit CONTROL
+    // TODO: CONFIG_SetupMouse
+    // TODO: CONFIG_SetupJoystick
+    // TODO: CONFIG_ReadSettings()
+    // TODO: CONFIG_SetDefaultKeys
+    // TODO: Menu_Init();
+    // TODO: ReadSaveGameHeaders();
+
+    // don't reset OSD because there's a static local var initDone set to 1
+    // Maybe need to skip the OSD command setup on Soft Reboot???
+    // OSD_Cleanup();
+    // TODO: OSD_Exec(autoexec.cfg) -- check console commands
+    Bfflush(NULL);
+
+    g_scriptDebug = 0;
+    g_netServer = g_netClient = NULL;
+    g_networkMode = NET_CLIENT;
+    g_fakeMultiMode = 0;
+}
+
+/*
+===================
+=
 = ShutDown
 =
 ===================
@@ -6059,14 +6292,29 @@ static void G_CompileScripts(void)
     pathsearchmode = 1;
 
     C_Compile(G_ConFile());
+    if ((g_bootState & BOOTSTATE_REBOOT_ADDONS) && g_errorCnt)
+    {
+        // allocated memory is later freed by soft reboot process
+        LOG_F(ERROR, "Failed to compile CON code for selected addons, resetting to previous values...");
+        pathsearchmode = psm;
+        return;
+    }
 
     if (g_loadFromGroupOnly) // g_loadFromGroupOnly is true only when compiling fails and internal defaults are utilized
         C_Compile(G_ConFile());
 
     // for safety
     if ((uint32_t)g_labelCnt >= MAXLABELS)
+    {
+        if ((g_bootState & BOOTSTATE_REBOOT_ADDONS))
+        {
+            LOG_F(ERROR, "Too many labels defined when launching addons! Resetting to previous values...");
+            g_errorCnt++;
+            pathsearchmode = psm;
+            return;
+        }
         G_GameExit("Error: too many labels defined!");
-
+    }
 
     label     = (char *) Xrealloc(label, g_labelCnt << 6);
     labelcode = (int32_t *) Xrealloc(labelcode, g_labelCnt * sizeof(int32_t));
@@ -6195,6 +6443,7 @@ static void G_Startup(void)
     initcrc32table();
 
     G_CompileScripts();
+    // TODO: not sure if to bail out here or later on error with addon restart
 
     if (engineInit())
         G_FatalEngineInitError();
@@ -6268,6 +6517,9 @@ static void G_Startup(void)
         G_Shutdown();
         return;
     }
+
+    if ((g_bootState & BOOTSTATE_REBOOT_ADDONS) && g_errorCnt)
+        return;
 
     Net_GetPackets();
 
@@ -6482,7 +6734,7 @@ static void drawframe_entry(mco_coro *co)
         for (auto &gv : aGameVars)
         {
             if ((gv.flags & (GAMEVAR_USER_MASK|GAMEVAR_PTR_MASK)) == 0)
-            {            
+            {
                 MICROPROFILE_COUNTER_SET(gv.szLabel, gv.global);
             }
         }
@@ -6710,6 +6962,7 @@ int app_main(int argc, char const* const* argv)
         LOG_F(INFO, "Using config file '%s'.",g_setupFileName);
 
     G_ScanGroups();
+    g_bootState = BOOTSTATE_NORMAL;
 
 #ifdef STARTUP_SETUP_WINDOW
     if (!Bgetenv("SteamTenfoot") && (readSetup < 0 || (!g_noSetup && (ud.configversion != BYTEVERSION_EDUKE32 || ud.setup.forcesetup)) || g_commandSetup))
@@ -6722,13 +6975,18 @@ int app_main(int argc, char const* const* argv)
     }
 #endif
 
+SOFT_REBOOT:
+    if (g_bootState & (BOOTSTATE_REBOOT_ADDONS | BOOTSTATE_REBOOT_CLEAN))
+        G_SoftReboot();
+
     G_LoadGroups(!g_noAutoLoad && !ud.setup.noautoload);
 
     if (!g_useCwd)
         G_CleanupSearchPaths();
 
+    G_ResetCheats();
 #ifndef EDUKE32_STANDALONE
-    G_SetupCheats();
+    G_RenameCheatsForAddons();
 
     if (SHAREWARE)
         g_Shareware = 1;
@@ -6787,6 +7045,12 @@ int app_main(int argc, char const* const* argv)
         G_MaybeAllocPlayer(i);
 
     G_Startup(); // a bunch of stuff including compiling cons
+    if ((g_bootState & BOOTSTATE_REBOOT_ADDONS)  && g_errorCnt)
+    {
+        LOG_F(ERROR, "Failed to launch selected addons, resetting to previous values...");
+        g_bootState = BOOTSTATE_REBOOT_CLEAN;
+        goto SOFT_REBOOT;
+    }
 
     g_player[0].playerquitflag = 1;
 
@@ -6849,7 +7113,8 @@ int app_main(int argc, char const* const* argv)
 
     g_mostConcurrentPlayers = ud.multimode;  // XXX: redundant?
 
-    ++ud.executions;
+    if (g_bootState == BOOTSTATE_NORMAL)
+        ++ud.executions;
     CONFIG_WriteSetup(1);
     CONFIG_ReadSetup();
 
@@ -6954,6 +7219,7 @@ int app_main(int argc, char const* const* argv)
         Menu_Init();
     }
 
+    // TODO: Need to put initial addon package loading here
     ReadSaveGameHeaders();
 
 #if 0
@@ -6981,6 +7247,7 @@ int app_main(int argc, char const* const* argv)
     dukeCreateFrameRoutine();
 
     VM_OnEvent(EVENT_INITCOMPLETE);
+    g_bootState = BOOTSTATE_NORMAL;
 
 MAIN_LOOP_RESTART:
     totalclock = 0;
@@ -7044,8 +7311,16 @@ MAIN_LOOP_RESTART:
                 if (G_PlaybackDemo())
                 {
                     FX_StopAllSounds();
-                    g_noLogoAnim = 1;
-                    goto MAIN_LOOP_RESTART;
+                    if (g_bootState & (BOOTSTATE_REBOOT_ADDONS | BOOTSTATE_REBOOT_CLEAN))
+                    {
+                        DLOG_F(INFO, "Reboot state %d requested, relaunching game...", g_bootState);
+                        goto SOFT_REBOOT;
+                    }
+                    else
+                    {
+                        g_noLogoAnim = 1;
+                        goto MAIN_LOOP_RESTART;
+                    }
                 }
             }
         }
@@ -7093,7 +7368,7 @@ MAIN_LOOP_RESTART:
 
         if (((g_netClient || g_netServer) || (myplayer.gm & (MODE_MENU|MODE_DEMO)) == 0) && (int32_t)(totalclock - ototalclock) >= TICSPERFRAME)
         {
-            do 
+            do
             {
                 if (g_networkMode != NET_DEDICATED_SERVER && (myplayer.gm & (MODE_MENU | MODE_DEMO)) == 0)
                 {

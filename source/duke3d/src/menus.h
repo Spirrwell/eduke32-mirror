@@ -527,16 +527,16 @@ enum MenuGameplayEntryFlags
     MGE_UserContent = 1u<<2u,
 };
 
-typedef struct MenuGameplayEntry
+typedef struct MenuGameplayEntry_t
 {
     char name[64];
     uint8_t flags;
-    MenuGameplayEntry* subentries;
+    MenuGameplayEntry_t* subentries;
 
     bool isValid() const { return name[0] != '\0'; }
-} MenuGameplayEntry;
+} MenuGameplayEntry_t;
 
-extern MenuGameplayEntry g_MenuGameplayEntries[MAXMENUGAMEPLAYENTRIES];
+extern MenuGameplayEntry_t g_MenuGameplayEntries[MAXMENUGAMEPLAYENTRIES];
 
 extern MenuEntry_t ME_NEWGAMECUSTOMENTRIES[MAXMENUGAMEPLAYENTRIES];
 extern MenuEntry_t ME_NEWGAMECUSTOMSUBENTRIES[MAXMENUGAMEPLAYENTRIES][MAXMENUGAMEPLAYENTRIES];

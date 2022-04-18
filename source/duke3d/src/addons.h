@@ -174,6 +174,7 @@ int32_t ReadAddonPackageDescriptors(void);
 int32_t LoadAddonPreviewImage(addonjson_t* mjsonStore);
 void SwapLoadOrder(int32_t indexA, int32_t indexB);
 void CleanUpLoadOrder(void);
+int32_t PrepareSelectedAddon(menuaddon_t* addon);
 int32_t StartSelectedAddons(void);
 
 #ifdef __cplusplus

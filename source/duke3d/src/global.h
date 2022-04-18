@@ -63,6 +63,12 @@ enum DUKE3D_GLOBALFLAGS {
     DUKE3D_GLOBAL_ADDITIVE_HITRADIUS = 1<<3,
 };
 
+enum DUKE3D_BOOTSTATES {
+    BOOTSTATE_NORMAL = 0,
+    BOOTSTATE_REBOOT_CLEAN = (1 << 0),
+    BOOTSTATE_REBOOT_ADDONS = (1 << 1),
+};
+
 G_EXTERN DukeStatus_t sbar;
 G_EXTERN actor_t actor[MAXSPRITES];
 #ifdef POLYMER
@@ -113,6 +119,7 @@ G_EXTERN int32_t g_playerSpawnCnt;
 G_EXTERN int32_t g_scriptDebug;
 G_EXTERN int32_t g_showShareware;
 G_EXTERN int32_t g_spriteDeleteQueuePos;
+G_EXTERN int32_t g_bootState;
 G_EXTERN int32_t g_startArmorAmount;
 G_EXTERN int32_t g_tripbombLaserMode;
 G_EXTERN int32_t screenpeek;

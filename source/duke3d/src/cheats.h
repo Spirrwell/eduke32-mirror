@@ -27,7 +27,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define NUMCHEATCODES (int32_t) ARRAY_SIZE(CheatStrings)
 
 void G_DoCheats(void);
-void G_SetupCheats(void);
+void G_ResetCheats(void);
+void G_RenameCheatsForAddons(void);
 extern int g_cheatBufLen;
 
 enum cheatindex_t

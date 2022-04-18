@@ -25,7 +25,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "duke3d.h"
 #include "osdcmds.h"
 
-char CheatStrings [NUMCHEATS][MAXCHEATLEN] =
+const char CheatStrings_Defaults[NUMCHEATS][MAXCHEATLEN] =
 {
 #ifndef EDUKE32_STANDALONE
     "cornholio",    // 0
@@ -58,7 +58,7 @@ char CheatStrings [NUMCHEATS][MAXCHEATLEN] =
 #endif
 };
 
-char CheatDescriptions[NUMCHEATS][MAXCHEATDESC] =
+const char CheatDescriptions_Defaults[NUMCHEATS][MAXCHEATDESC] =
 {
     "Toggle God Mode",
     "Give Everything",
@@ -88,6 +88,9 @@ char CheatDescriptions[NUMCHEATS][MAXCHEATDESC] =
     "", // <RESERVED>
     "", // cgs
 };
+
+char CheatStrings [NUMCHEATS][MAXCHEATLEN];
+char CheatDescriptions [NUMCHEATS][MAXCHEATDESC];
 
 const uint32_t CheatFunctionFlags [NUMCHEATS] =
 {
@@ -147,8 +150,28 @@ const uint8_t CheatFunctionIDs[NUMCHEATS] =
     CHEAT_DEBUG,
 };
 
+void G_ResetCheats(void)
+{
+    CheatKeys[0] = sc_D;
+    CheatKeys[1] = sc_N;
+
+    for (int i = 0; i < NUMCHEATS; i++)
+    {
+        Bstrcpy(CheatStrings[i], CheatStrings_Defaults[i]);
+        Bstrcpy(CheatDescriptions[i], CheatDescriptions_Defaults[i]);
+    }
+
 #ifndef EDUKE32_STANDALONE
-void G_SetupCheats(void)
+    Bstrcpy(g_gametypeNames[0], "DukeMatch (Spawn)");
+    Bstrcpy(g_gametypeNames[1], "DukeMatch (No Spawn)");
+#else
+    Bstrcpy(g_gametypeNames[0], "Deathmatch (Spawn)");
+    Bstrcpy(g_gametypeNames[1], "Deathmatch (No Spawn)");
+#endif
+}
+
+#ifndef EDUKE32_STANDALONE
+void G_RenameCheatsForAddons(void)
 {
     // KEEPINSYNC: NAM_WW2GI_CHEATS
     if (WW2GI)
@@ -187,7 +210,7 @@ void G_SetupCheats(void)
 
         Bstrcpy(g_gametypeNames[0], "GI Match (Spawn)");
         Bstrcpy(g_gametypeNames[2], "GI Match (No Spawn)");
-}
+    }
     else if (NAM)
     {
         CheatKeys[0] = sc_N;

@@ -73,7 +73,7 @@ void Demo_PrepareWarp(void)
 
 static void Demo_SetAllClocks(int32_t clocktime)
 {
-    totalclock = ototalclock = lockclock = clocktime;    
+    totalclock = ototalclock = lockclock = clocktime;
 }
 
 static int32_t G_OpenDemoRead(int32_t g_whichDemo) // 0 = mine
@@ -969,6 +969,10 @@ nextdemo_nomenu:
 
             return 0;
         }
+
+        // soft reboot initiated
+        if (g_bootState & (BOOTSTATE_REBOOT_ADDONS | BOOTSTATE_REBOOT_CLEAN))
+            return 1;
     }
 
     ud.multimode = numplayers;  // fixes 2 infinite loops after watching demo

@@ -34,7 +34,7 @@ static const char grpext[] = "*.grp";
 static const char ssiext[] = "*.ssi";
 static const char* addonextensions[] = { grpext, ssiext, "*.zip", "*.pk3", "*.pk4" };
 
-static const char addondirpath[] = "/addons";
+static const char addondirpath[] = "./addons";
 static const char addonjsonfn_standard[] = "addon.json";
 static const char addonjsonfn_83format[] = "addon.jso";
 
@@ -219,12 +219,12 @@ static int32_t a_parseaddonjson_scriptarray(sjson_node* root, const char* key, c
 
         if (!Bstrncasecmp(script_type->string_, jsonvalue_addonmain, ARRAY_SIZE(jsonvalue_addonmain)))
         {
-            Bstrncpy(mainscriptpath, scriptbuf, BMAX_PATH);
+            Bstrncpy(mainscriptpath, script_path->string_, BMAX_PATH);
         }
         else if (!Bstrncasecmp(script_type->string_, jsonvalue_addonmodule, ARRAY_SIZE(jsonvalue_addonmodule)))
         {
             scriptmodules[numValidChildren] = (char *) Xmalloc(BMAX_PATH * sizeof(char));
-            Bstrncpy(scriptmodules[numValidChildren], scriptbuf, BMAX_PATH);
+            Bstrncpy(scriptmodules[numValidChildren], script_path->string_, BMAX_PATH);
             numValidChildren++;
         }
         else
@@ -329,8 +329,6 @@ static int32_t a_parseaddonjson(sjson_context* ctx, addonjson_t* mjsonStore, con
 
     sjson_node * root = sjson_decode(ctx, raw_json);
     sjson_node * ele = nullptr;
-
-    Bstrncpy(mjsonStore->dataPath, basepath, BMAX_PATH);
 
     a_parseaddonjson_previewimage(root, mjsonStore->imageBuffer, basepath);
 
@@ -565,6 +563,7 @@ static int32_t LoadLocalPackagedAddons(sjson_context* ctx, fnlist_t* fnlist, con
             kclose(jsonfil);
 
             addonjson_t & ajson = madd.jsonDat;
+            Bstrncpy(ajson.dataPath, filepath, BMAX_PATH);
             const bool parseResult = a_parseaddonjson(ctx, &ajson, "/", jsonTextBuf);
             Xfree(jsonTextBuf);
 
@@ -631,6 +630,7 @@ static int32_t LoadLocalSubfolderAddons(sjson_context* ctx, fnlist_t* fnlist, co
         kclose(jsonfil);
 
         addonjson_t & ajson = madd.jsonDat;
+        Bstrncpy(ajson.dataPath, basepath, BMAX_PATH);
         const bool parseResult = a_parseaddonjson(ctx, &ajson, basepath, jsonTextBuf);
         Xfree(jsonTextBuf);
 
@@ -780,6 +780,49 @@ void SwapLoadOrder(int32_t indexA, int32_t indexB)
 
     a_updateaddonentryname(indexA);
     a_updateaddonentryname(indexB);
+}
+
+int32_t PrepareSelectedAddon(menuaddon_t* seladdon)
+{
+    addonjson_t & seljson = seladdon->jsonDat;
+    switch (seladdon->loadType)
+    {
+        case LT_FOLDER:
+        {
+            int32_t status = addsearchpath(seljson.dataPath);
+            DLOG_F(INFO, "Result of trying to add '%s': %d", seljson.dataPath, status);
+        }
+            break;
+        case LT_ZIP:
+        case LT_SSI:
+        case LT_GRP:
+            G_AddGroup(seljson.dataPath);
+            /*switch (seljson.addonType)
+            {
+                case ATYPE_MAIN:
+                    DLOG_F(INFO, "Previous main grp: %s", g_grpNamePtr);
+                    clearGrpNamePtr();
+                    g_grpNamePtr = dup_filename(seljson.dataPath);
+                    DLOG_F(INFO, "New main grp: %s", g_grpNamePtr);
+                    break;
+                case ATYPE_MODULE:
+                    G_AddGroup(seljson.dataPath);
+                    break;
+                default:
+                    return -1;
+            }*/
+            break;
+        default:
+            return -1;
+    }
+
+    if (seljson.scriptNamePath[0])
+        G_AddCon(seljson.scriptNamePath);
+
+    if (seljson.defNamePath[0])
+        G_AddDef(seljson.defNamePath);
+
+    return 0;
 }
 
 int32_t StartSelectedAddons(void)

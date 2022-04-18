@@ -87,7 +87,7 @@ void VM_ScriptInfo(intptr_t const * const ptr, int const range)
                 p_end   = min<intptr_t const *>(ptr + (range >> 1) + (range >> 2), apScript + g_scriptSize);
             pScript < p_end;
             ++pScript)
-    {        
+    {
         auto &v = *pScript;
         int const lineNum = VM_DECODE_LINE_NUMBER(v);
         int const vmInst  = VM_DECODE_INST(v);
@@ -477,7 +477,7 @@ void VM_GetZRange(int const spriteNum, int32_t* const ceilhit, int32_t* const fl
 
     pSprite->cstat = 0;
     pSprite->z -= AC_FZOFFSET(spriteNum);
-    
+
     getzrange(&pSprite->xyz, pSprite->sectnum, &pActor->ceilingz, ceilhit, &pActor->floorz, florhit, wallDist, CLIPMASK0);
 
     pSprite->z += AC_FZOFFSET(spriteNum);
@@ -1446,7 +1446,7 @@ GAMEEXEC_STATIC void VM_Execute(int vm_execution_depth /*= false*/)
 #endif
         int32_t tw = *insptr;
         g_tw = tw;
-        
+
         int const decoded = VM_DECODE_INST(tw);
 #if 0 && defined CON_USE_COMPUTED_GOTO
         // this is broken without CON_USE_COMPUTED_GOTO because it never goes out of scope
@@ -3901,7 +3901,7 @@ badindex:
                         return false;
                     };
 
-                    auto getjoyname = [&](void) 
+                    auto getjoyname = [&](void)
                     {
                         char const *joyname = CONFIG_GetGameFuncOnJoystick(gameFunc);
                         if (joyname != nullptr && joyname[0] != '\0')
@@ -6171,7 +6171,7 @@ badindex:
                         abort_after_error();
                     }
 
-                    MenuGameplayEntry* cmg = &g_MenuGameplayEntries[newIndex];
+                    MenuGameplayEntry_t* cmg = &g_MenuGameplayEntries[newIndex];
                     for (; i < MAXMENUGAMEPLAYLAYERS; i++)
                     {
                         if (*insptr == VM_VSIZE_LINE_END)

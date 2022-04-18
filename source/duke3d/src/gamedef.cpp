@@ -1238,6 +1238,11 @@ static void C_GetNextLabelName(void)
     {
         g_errorCnt++;
         C_ReportError(ERROR_TOOMANYLABELS);
+        if (g_bootState & BOOTSTATE_REBOOT_ADDONS)
+        {
+            LOG_F(ERROR, "Reboot: too many labels defined!");
+            return;
+        }
         G_GameExit("Error: too many labels defined!");
         return;
     }
@@ -2531,6 +2536,9 @@ static bool C_ParseCommand(bool loop /*= false*/)
         if (EDUKE32_PREDICT_FALSE(g_errorCnt > 63 || (*textptr == '\0') || (*(textptr+1) == '\0')))
             return 1;
 
+        if (EDUKE32_PREDICT_FALSE((g_bootState & BOOTSTATE_REBOOT_ADDONS) && g_errorCnt > 0))
+            return 1;
+
         if ((g_scriptPtr - apScript) > (g_scriptSize - 4096) && g_caseTablePtr == NULL)
             C_SetScriptSize(g_scriptSize << 1);
 
@@ -2673,7 +2681,7 @@ DO_DEFSTATE:
             // (see top of this files for flags)
 
             //Skip comments before calling the check in order to align the textptr onto the label
-            C_SkipComments(); 
+            C_SkipComments();
             if (EDUKE32_PREDICT_FALSE(isdigit(*textptr) || (*textptr == '-')))
             {
                 g_errorCnt++;
@@ -6521,6 +6529,13 @@ void C_Compile(const char *fileName)
         else
         {
             Bsprintf(tempbuf,"Unable to load %s: file not found.", fileName);
+            if (g_bootState & BOOTSTATE_REBOOT_ADDONS)
+            {
+                // retry with clean files
+                LOG_F(ERROR, tempbuf);
+                g_errorCnt++;
+                return;
+            }
             G_GameExit(tempbuf);
         }
 
@@ -6580,6 +6595,11 @@ void C_Compile(const char *fileName)
 
         if (g_errorCnt)
         {
+            if (g_bootState & BOOTSTATE_REBOOT_ADDONS)
+            {
+                LOG_F(ERROR, "Failed to compile CON files when loading addons!");
+                return;
+            }
             Bsprintf(buf, "Error compiling CON files.");
             G_GameExit(buf);
         }
