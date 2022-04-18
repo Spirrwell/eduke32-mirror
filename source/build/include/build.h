@@ -1662,6 +1662,7 @@ int32_t md_definehud (int32_t modelid, int32_t tilex, vec3f_t add,
 int32_t md_undefinetile(int32_t tile);
 int32_t md_undefinemodel(int32_t modelid);
 
+uint8_t* loadimagefromfile(const char *fn, vec2_t & xydim);
 int32_t loaddefinitionsfile(const char *fn);
 
 

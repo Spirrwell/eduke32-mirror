@@ -3841,6 +3841,38 @@ static int32_t defsparser(scriptfile *script)
     return 0;
 }
 
+uint8_t* loadimagefromfile(const char *fn, vec2_t & xydim)
+{
+#ifdef WITHKPLIB
+    palette_t *picptr = NULL;
+    if (!(paletteloaded & PALETTE_MAIN))
+    {
+        LOG_F(ERROR, "no palette loaded");
+        return nullptr;
+    }
+
+    kpzdecode(kpzbufload(fn), (intptr_t *)&picptr, &xydim.x, &xydim.y);
+    paletteFlushClosestColor();
+
+    uint8_t* imagebuffer = (uint8_t*) Xmalloc(xydim.x * xydim.y * sizeof(uint8_t));
+    for (int j = 0; j < xydim.y; ++j)
+    {
+        int const ofs = j * xydim.x;
+        for (int i = 0; i < xydim.x; ++i)
+        {
+            palette_t const *const col = &picptr[ofs + i];
+            imagebuffer[(i * xydim.y) + j] = paletteGetClosestColorUpToIndex(col->b, col->g, col->r, 254);
+        }
+    }
+
+    Xfree(picptr);
+    return imagebuffer;
+#else
+    UNREFERENCED_CONST_PARAMETER(fn);
+    UNREFERENCED_PARAMETER(xydim);
+    return nullptr;
+#endif
+}
 
 int32_t loaddefinitionsfile(const char *fn)
 {
