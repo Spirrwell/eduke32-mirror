@@ -2549,7 +2549,7 @@ int32_t kzaddstack(const char *filnam)
 int32_t kzpopstack(void)
 {
     // if the hashbuf isn't initialized, stop
-    if (!kzhashbuf)
+    if (!kzhashbuf || kzhashpos <= 0)
         return -1;
 
     const int32_t dirnamelen = (kzdirnamhead == -1) ? 0 : (int32_t) strlen(&kzhashbuf[kzdirnamhead + 4]);

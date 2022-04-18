@@ -681,6 +681,13 @@ void popgroupfile(void)
     groupfil[i] = -1;
 }
 
+void uninitkzstack(void)
+{
+#ifdef WITHKPLIB
+    do {} while (kzpopstack() != -1);
+#endif
+}
+
 void uninitgroupfile(void)
 {
     int32_t i;
