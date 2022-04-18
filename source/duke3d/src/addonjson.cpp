@@ -1104,6 +1104,7 @@ static int32_t AddonJson_GetLocalDir(char * pathbuf, const int32_t buflen)
 }
 
 
+#ifndef EDUKE32_RETAIL_MENU
 // read addon packages (zip, grp, pk3...) from local folder
 static void AddonJson_ReadLocalPackages(sjson_context *ctx, fnlist_t* fnlist, const char* addondir)
 {
@@ -1168,6 +1169,7 @@ static void AddonJson_ReadLocalPackages(sjson_context *ctx, fnlist_t* fnlist, co
         fnlist_clearnames(fnlist);
     }
 }
+#endif
 
 // find addons from subfolders contained within the local addon directory
 static void AddonJson_ReadLocalSubfolders(sjson_context *ctx, fnlist_t* fnlist, const char* addondir)
