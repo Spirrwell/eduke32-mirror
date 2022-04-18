@@ -308,20 +308,6 @@ static int32_t Defs_ImportTileFromTexture(char const * const fn, int32_t const t
     return 0;
 }
 
-int32_t loadtilefromfile(const char *fn, int32_t const tilenum, int32_t const alphacut, int32_t const istexture)
-{
-    int32_t const texstatus = Defs_ImportTileFromTexture(fn, tilenum, alphacut, istexture);
-    if (texstatus == -3)
-        LOG_F(ERROR, "loadtilefromfile: no palette loaded");
-
-    if (texstatus == -(3<<8))
-        LOG_F(ERROR, "loadtilefromfile: more than one tile found in %s", fn);
-
-    if (texstatus < 0)
-        return -1;
-
-    return 0;
-}
 
 #undef USE_DEF_PROGRESS
 #if defined _WIN32 || defined HAVE_GTK2

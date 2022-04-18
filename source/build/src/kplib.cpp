@@ -2546,6 +2546,40 @@ int32_t kzaddstack(const char *filnam)
     return 0;
 }
 
+int32_t kzpopstack(void)
+{
+    // if the hashbuf isn't initialized, stop
+    if (!kzhashbuf)
+        return -1;
+
+    const int32_t dirnamelen = (kzdirnamhead == -1) ? 0 : (int32_t) strlen(&kzhashbuf[kzdirnamhead + 4]);
+    if (kzdirnamhead != -1 && kzhashpos == (kzdirnamhead + dirnamelen + 5))
+    {
+        const int32_t p_kzdirnamhead = kzdirnamhead;
+        kzdirnamhead = B_UNBUF32(&kzhashbuf[p_kzdirnamhead]);
+        kzhashpos = p_kzdirnamhead;
+        return 1;
+    }
+    else
+    {
+        int32_t hashind;
+        const int32_t ziphashpos = B_UNBUF32(&kzhashbuf[kzlastfnam + 8]);
+        const int32_t zipfnlen = strlen(&kzhashbuf[ziphashpos]);
+
+        int32_t cfilepos = kzlastfnam;
+        while (cfilepos > ziphashpos)
+        {
+            hashind = kzcalchash(&kzhashbuf[cfilepos + 21]);
+            kzhashead[hashind] = B_UNBUF32(&kzhashbuf[cfilepos]);
+            cfilepos = B_UNBUF32(&kzhashbuf[cfilepos + 4]);
+        }
+
+        kzlastfnam = B_UNBUF32(&kzhashbuf[ziphashpos + zipfnlen + 5]);
+        kzhashpos = ziphashpos;
+        return 0;
+    }
+}
+
 //this allows the use of kplib.c with a file that is already open
 void kzsetfil(buildvfs_FILE fil)
 {

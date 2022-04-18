@@ -652,6 +652,7 @@ int initgroupfile(const char *filename)
     return -1;
 }
 
+// only use with GRP and SSI, not ZIP files!
 void popgroupfile(void)
 {
     // assumes all files from GRP are closed
