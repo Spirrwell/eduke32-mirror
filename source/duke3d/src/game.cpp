@@ -7356,7 +7356,7 @@ SOFT_REBOOT:
     system_getcvars();
 
     LOG_F(INFO, "Converting and caching addon preview images...");
-    Addon_CachePreviewImages();
+    Addon_LoadPreviewImages();
 
     if (quitevent) app_exit(4);
 

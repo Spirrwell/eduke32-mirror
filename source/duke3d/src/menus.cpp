@@ -1299,12 +1299,6 @@ static vec2_t m_addondesc_xysize = {0, 0};
 static int32_t m_addontitle_hscroll_lastticks = 0;
 static int32_t m_addontitle_hscroll = 0;
 
-// The major types of addons are grouped together in the menu list.
-// These values determine at what index in the list the different types of addons start.
-static int32_t m_addons_grpstartindex = 0;
-static int32_t m_addons_tcstartindex = 0;
-static int32_t m_addons_modstartindex = 0;
-
 // various strings
 static const char* m_addontext_launch = "Confirm Selection and Restart";
 static const char* m_addontext_grpinfolabel = "Predefined Addons";
@@ -1313,15 +1307,9 @@ static const char* m_addontext_modlabel = "Mods and Maps";
 
 // the following three arrays must be allocated with the same size
 
-// array of pointers that point to the menu entries. The pointers are swapped when load order changes!
+// menu entries with useraddon mapping
 static MenuEntry_t **MEL_ADDONS = nullptr;
-
-// pointer to an array of menu entries. NOT altered by load order swaps.
-static MenuEntry_t *ME_ADDONS = nullptr;
-
-// List Index to Menu Entry Index Map - maps the index of 'M_ADDONS.currentEntry' to the correct index of ME_ADDONS
-// Initially this is a 1:1 map, but it may be altered by load-order changes.
-static int32_t *ADDONS_L2EMAP = nullptr;
+static useraddon_t **EL2ADDONS = nullptr;
 
 static MenuLink_t MEO_ADDONS_ACCEPT = { MENU_ADDONSVERIFY, MA_None, };
 static MenuLink_t MEO_ADDONS_NULL = { MENU_NULL, MA_None, };
@@ -2125,89 +2113,6 @@ static vec2_t Menu_Addon_BodyTextWrap(char* dst, const char *src, int32_t const 
     return ABT_GETXYSIZE(dst);
 }
 
-// Given a list index from MEL_ADDONS, retrieve the addon pointer and index from its corresponding array
-static useraddon_t* Menu_GetUserAddonForMenuIndex(int32_t const listIndex, int32_t & addonIndex)
-{
-    if (!ADDONS_L2EMAP)
-    {
-        addonIndex = -1;
-        return nullptr;
-    }
-
-    // assumed order: grpstart -> tcstart -> modstart
-    int32_t const originalIndex = ADDONS_L2EMAP[listIndex];
-    if (originalIndex >= m_addons_grpstartindex && originalIndex < m_addons_tcstartindex)
-    {
-        addonIndex = originalIndex - m_addons_grpstartindex;
-        if (addonIndex >= 0 && addonIndex < g_addoncount_grpinfo)
-        {
-            return g_useraddons_grpinfo[addonIndex];
-        }
-    }
-    else if (originalIndex >= m_addons_tcstartindex && originalIndex < m_addons_modstartindex)
-    {
-        addonIndex = originalIndex - m_addons_tcstartindex;
-        if (addonIndex >= 0 && addonIndex < g_addoncount_tcs)
-        {
-            return g_useraddons_tcs[addonIndex];
-        }
-    }
-    else if (originalIndex >= m_addons_modstartindex)
-    {
-        addonIndex = originalIndex - m_addons_modstartindex;
-        if (addonIndex >= 0 && addonIndex < g_addoncount_mods)
-        {
-            return g_useraddons_mods[addonIndex];
-        }
-    }
-
-    addonIndex = -1;
-    return nullptr;
-}
-
-// function to control special actions when changing menu entry in addons menu
-// or when trying to shift the load order. boundaries given are inclusive
-// Return 1 if succeeding actions should be interrupted, 0 otherwise.
-static int32_t Menu_AddonMenuUpDown(int32_t const entryIndex, int32_t const otherIndex, int32_t const minIndex, int32_t const maxIndex)
-{
-    if (!ADDONS_L2EMAP)
-        return 0;
-
-    int32_t curAddonIndex = -1;
-    useraddon_t* addonPtr = Menu_GetUserAddonForMenuIndex(entryIndex, curAddonIndex);
-
-    // When shift is held, load order is changed
-    if (KB_KeyPressed(sc_LeftShift) || KB_KeyPressed(sc_RightShift))
-    {
-        // don't change load order andprevent moving the cursor completely
-        if (!addonPtr || (otherIndex > maxIndex) || (otherIndex < minIndex))
-            return 1;
-
-        // get the other addon and do internal addon changes
-        int32_t otherAddonIndex = -1;
-        Menu_GetUserAddonForMenuIndex(otherIndex, otherAddonIndex);
-        Addon_SwapLoadOrder(curAddonIndex, otherAddonIndex, MENU_ADDON_TITLESCROLL_MAXVIS);
-
-        // swap list entries
-        MenuEntry_t* me_temp = MEL_ADDONS[otherIndex];
-        MEL_ADDONS[otherIndex] = MEL_ADDONS[entryIndex];
-        MEL_ADDONS[entryIndex] = me_temp;
-
-        // update the index map
-        int16_t l2e_temp = ADDONS_L2EMAP[otherIndex];
-        ADDONS_L2EMAP[otherIndex] = ADDONS_L2EMAP[entryIndex];
-        ADDONS_L2EMAP[entryIndex] = l2e_temp;
-    }
-
-    // Reset the shift of the current addon's menu entry text
-    // Note: This is actually a hack, the scroll shift doesn't get reset when using the mouse cursor.
-    //       We cannot use the focus change because MenuMenu_t doesn't keep track of the previous entry.
-    if (addonPtr)
-        addonPtr->updateMenuEntryName(0, MENU_ADDON_TITLESCROLL_MAXVIS);
-
-    return 0;
-}
-
 static void Menu_Addon_ResetHorizontalScroll(void)
 {
     // reset the title shift for the selected addon and record time of change
@@ -2234,37 +2139,75 @@ static void Menu_Addon_UpdateMenuEntryStatus(MenuEntry_t* menuEntry, useraddon_t
     }
 }
 
+
+static int32_t Menu_AddonMenuUpDown(int32_t const entryIndex, int32_t const otherIndex, int32_t const minBound, int32_t const maxBound)
+{
+    useraddon_t* thisAddon = EL2ADDONS[entryIndex];
+
+    // When shift is held, load order is changed
+    if (KB_KeyPressed(sc_LeftShift) || KB_KeyPressed(sc_RightShift))
+    {
+        if (otherIndex < minBound || otherIndex > maxBound)
+            return 1;
+
+        useraddon_t* otherAddon = EL2ADDONS[otherIndex];
+        if (!otherAddon)
+            return 1;
+
+        MenuEntry_t* me_temp = MEL_ADDONS[entryIndex];
+        MEL_ADDONS[entryIndex] = MEL_ADDONS[otherIndex];
+        MEL_ADDONS[otherIndex] = me_temp;
+
+        EL2ADDONS[entryIndex] = otherAddon;
+        EL2ADDONS[otherIndex] = thisAddon;
+
+        // update load orders and entries
+        int32_t const temp_lo = otherAddon->loadorder_idx;
+        otherAddon->loadorder_idx = thisAddon->loadorder_idx;
+        thisAddon->loadorder_idx = temp_lo;
+
+        CONFIG_SetAddonLoadOrder(thisAddon->internalId, thisAddon->loadorder_idx);
+        CONFIG_SetAddonLoadOrder(otherAddon->internalId, otherAddon->loadorder_idx);
+
+        Menu_Addon_UpdateMenuEntryStatus(MEL_ADDONS[entryIndex], thisAddon);
+        Menu_Addon_UpdateMenuEntryStatus(MEL_ADDONS[otherIndex], otherAddon);
+    }
+
+    if (thisAddon) thisAddon->updateMenuEntryName(0, MENU_ADDON_TITLESCROLL_MAXVIS);
+
+    return 0;
+}
+
 // return -1 if an unusual error occurred
 static int32_t Menu_Addon_EntryLinkActivate(int32_t const entryIndex)
 {
-    if (!ADDONS_L2EMAP) return -1;
-
-    int32_t addonIndex = -1;
-    useraddon_t* addonPtr = Menu_GetUserAddonForMenuIndex(entryIndex, addonIndex);
+    useraddon_t* addonPtr = EL2ADDONS[entryIndex];
 
     // if an addon was found for this menu entry, select it to be launched on next reboot
-    if (addonPtr && addonIndex >= 0)
+    if (addonPtr)
     {
         if (addonPtr->isGrpInfoAddon())
         {
             // unselect all other grp info addons
-            for (int i = 0; i < g_addoncount_grpinfo; i++)
+            for_grpaddons(otherAddon,
             {
-                if (i == addonIndex) continue;
-                g_useraddons_grpinfo[i]->setSelected(false);
-            }
+                if (addonPtr == otherAddon) continue;
+                otherAddon->setSelected(false);
+            });
         }
         else if (addonPtr->isTotalConversion())
         {
             // unselect other total conversions only if strict mode set
             if (cvar_addonmenu_strict)
             {
-                for (int i = 0; i < g_addoncount_tcs; i++)
+                for_tcaddons(otherAddon,
                 {
-                    if (i == addonIndex) continue;
-                    g_useraddons_tcs[i]->setSelected(false);
-                    CONFIG_SetAddonActivationStatus(g_useraddons_tcs[i]->internalId, false);
-                }
+                    if (addonPtr != otherAddon && otherAddon->isSelected())
+                    {
+                        otherAddon->setSelected(false);
+                        CONFIG_SetAddonActivationStatus(otherAddon->internalId, false);
+                    }
+                });
             }
         }
 
@@ -2277,10 +2220,8 @@ static int32_t Menu_Addon_EntryLinkActivate(int32_t const entryIndex)
         // update menu entries
         for (int j = 0; j < M_ADDONS.numEntries; j++)
         {
-            int iterAddonIndex = -1;
-            useraddon_t * iterAddon = Menu_GetUserAddonForMenuIndex(j, iterAddonIndex);
-            if (iterAddonIndex >= 0)
-                Menu_Addon_UpdateMenuEntryStatus(&ME_ADDONS[ADDONS_L2EMAP[j]], iterAddon);
+            useraddon_t * iterAddon = EL2ADDONS[j];
+            if (iterAddon) Menu_Addon_UpdateMenuEntryStatus(MEL_ADDONS[j], iterAddon);
         }
 
         Menu_Addon_ResetHorizontalScroll();
@@ -2381,7 +2322,35 @@ static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
     m_addondesc_xysize = Menu_Addon_BodyTextWrap(m_addondesc_buffer, tempcontentbuf, MENU_ADDON_MAXDESC);
 }
 
-static void Menu_LoadAddonPackages(void)
+static void Menu_Addon_SetupMenuSpacer(int32_t & listIdx, const char* textlabel)
+{
+    // spacer
+    MEL_ADDONS[listIdx] = (MenuEntry_t*) Xmalloc(sizeof(MenuEntry_t));
+    *MEL_ADDONS[listIdx] = (FURY) ? ME_Space8_Redfont : ME_Space4_Bluefont;
+    EL2ADDONS[listIdx] = nullptr;
+    listIdx++;
+
+    //label
+    MEL_ADDONS[listIdx] = (MenuEntry_t*) Xmalloc(sizeof(MenuEntry_t));
+    *MEL_ADDONS[listIdx] = ME_ADDONS_LABEL;
+    MEL_ADDONS[listIdx]->name = textlabel;
+    MEL_ADDONS[listIdx]->flags |= MEF_Unselectable;
+    EL2ADDONS[listIdx] = nullptr;
+    listIdx++;
+}
+
+static void Menu_Addon_SetupMenuEntry(useraddon_t* addonPtr, int32_t & listIdx)
+{
+    MEL_ADDONS[listIdx] = (MenuEntry_t*) Xmalloc(sizeof(MenuEntry_t));
+    *MEL_ADDONS[listIdx] = ME_ADDONS_ITEM;
+    MEL_ADDONS[listIdx]->name = addonPtr->menuentryname;
+    EL2ADDONS[listIdx] = addonPtr;
+
+    Menu_Addon_UpdateMenuEntryStatus(MEL_ADDONS[listIdx], addonPtr);
+    listIdx++;
+}
+
+static void Menu_PopulateAddonsMenu(void)
 {
     Addon_LoadDescriptors();
 
@@ -2392,9 +2361,7 @@ static void Menu_LoadAddonPackages(void)
 
     Addon_InitializeLoadOrder();
     Addon_RefreshDependencyStates();
-    Addon_CachePreviewImages();
-
-    int k = 0;
+    Addon_LoadPreviewImages();
 
     // compute number of menu items
     int nummenuitems = TOTAL_ADDON_COUNT + 1;
@@ -2402,112 +2369,45 @@ static void Menu_LoadAddonPackages(void)
     if (g_addoncount_tcs > 0) nummenuitems += 2;
     if (g_addoncount_mods > 0) nummenuitems += 2;
 
-    MEL_ADDONS = (MenuEntry_t **)Xrealloc(MEL_ADDONS, nummenuitems * sizeof(MenuEntry_t *));
-    ME_ADDONS = (MenuEntry_t *)Xrealloc(ME_ADDONS, nummenuitems * sizeof(MenuEntry_t));
-    ADDONS_L2EMAP = (int32_t *) Xrealloc(ADDONS_L2EMAP, nummenuitems * sizeof(int32_t));
+    // reallocate menu arrays
+    if (MEL_ADDONS)
+    {
+        for (int i = 0; i < M_ADDONS.numEntries; i++)
+            Xfree(MEL_ADDONS[i]);
+        DO_FREE_AND_NULL(MEL_ADDONS);
+    }
+    MEL_ADDONS = (MenuEntry_t **) Xcalloc(nummenuitems, sizeof(MenuEntry_t *));
+    EL2ADDONS = (useraddon_t **) Xrealloc(EL2ADDONS, nummenuitems * sizeof(useraddon_t *));
 
-    // accept button
-    MEL_ADDONS[k] = &ME_ADDONS[k];
-    ME_ADDONS[k] = ME_ADDONS_ACCEPT;
-    MenuEntry_DisableOnCondition(&ME_ADDONS[k], TOTAL_ADDON_COUNT == 0);
-    ADDONS_L2EMAP[k] = k;
+    int k = 0;
+    MEL_ADDONS[k] = (MenuEntry_t*) Xmalloc(sizeof(MenuEntry_t));
+    *MEL_ADDONS[k] = ME_ADDONS_ACCEPT;
+    EL2ADDONS[k] = nullptr;
+    MenuEntry_DisableOnCondition(MEL_ADDONS[k], TOTAL_ADDON_COUNT == 0);
     k++;
 
-    // first label
-    if (g_addoncount_grpinfo > 0)
-    {
-        // spacer
-        MEL_ADDONS[k] = &ME_ADDONS[k];
-        ME_ADDONS[k] = (FURY) ? ME_Space8_Redfont : ME_Space4_Bluefont;
-        ADDONS_L2EMAP[k] = k;
-        k++;
+    // grp addons
+    if (g_addoncount_grpinfo > 0) Menu_Addon_SetupMenuSpacer(k, m_addontext_grpinfolabel);
+    for_grpaddons(addonPtr, Menu_Addon_SetupMenuEntry(addonPtr, k));
 
-        //label
-        MEL_ADDONS[k] = &ME_ADDONS[k];
-        ME_ADDONS[k] = ME_ADDONS_LABEL;
-        ME_ADDONS[k].name = m_addontext_grpinfolabel;
-        ME_ADDONS[k].flags |= MEF_Unselectable;
-        ADDONS_L2EMAP[k] = k;
-        k++;
-    }
+    // tc addons
+    if (g_addoncount_tcs > 0) Menu_Addon_SetupMenuSpacer(k, m_addontext_tclabel);
+    for_tcaddons(addonPtr, Menu_Addon_SetupMenuEntry(addonPtr, k));
 
-    // GRP Info addons loaded into menu
-    m_addons_grpstartindex = k;
-    for (int i = 0; i < g_addoncount_grpinfo; i++)
-    {
-        MEL_ADDONS[k] = &ME_ADDONS[k];
-        ME_ADDONS[k] = ME_ADDONS_ITEM;
-        ADDONS_L2EMAP[k] = k;
+    // mod addons
+    if (g_addoncount_mods > 0) Menu_Addon_SetupMenuSpacer(k, m_addontext_modlabel);
 
-        g_useraddons_grpinfo[i]->updateMenuEntryName(0, MENU_ADDON_TITLESCROLL_MAXVIS);
-        ME_ADDONS[k].name = g_useraddons_grpinfo[i]->menuentryname;
-        Menu_Addon_UpdateMenuEntryStatus(&ME_ADDONS[k], g_useraddons_grpinfo[i]);
-        k++;
-    }
+    // assume that load order already sanitized, each index unique
+    useraddon_t** lobuf = (useraddon_t**) Xcalloc(g_addoncount_mods, sizeof(useraddon_t*));
+    for_modaddons(addonPtr, lobuf[addonPtr->loadorder_idx] = addonPtr);
 
-    if (g_addoncount_tcs > 0)
-    {
-        //spacer
-        MEL_ADDONS[k] = &ME_ADDONS[k];
-        ME_ADDONS[k] = (FURY) ? ME_Space8_Redfont : ME_Space4_Bluefont;
-        ADDONS_L2EMAP[k] = k;
-        k++;
-
-        //label
-        MEL_ADDONS[k] = &ME_ADDONS[k];
-        ME_ADDONS[k] = ME_ADDONS_LABEL;
-        ME_ADDONS[k].name = m_addontext_tclabel;
-        ME_ADDONS[k].flags |= MEF_Unselectable;
-        ADDONS_L2EMAP[k] = k;
-        k++;
-    }
-
-    // Total Conversions
-    m_addons_tcstartindex = k;
-    for (int i = 0; i < g_addoncount_tcs; i++)
-    {
-        MEL_ADDONS[k] = &ME_ADDONS[k];
-        ME_ADDONS[k] = ME_ADDONS_ITEM;
-        ADDONS_L2EMAP[k] = k;
-
-        g_useraddons_tcs[i]->updateMenuEntryName(0, MENU_ADDON_TITLESCROLL_MAXVIS);
-        ME_ADDONS[k].name = g_useraddons_tcs[i]->menuentryname;
-        Menu_Addon_UpdateMenuEntryStatus(&ME_ADDONS[k], g_useraddons_tcs[i]);
-        k++;
-    }
-
-    if (g_addoncount_mods > 0)
-    {
-        //spacer
-        MEL_ADDONS[k] = &ME_ADDONS[k];
-        ME_ADDONS[k] = (FURY) ? ME_Space8_Redfont : ME_Space4_Bluefont;
-        ADDONS_L2EMAP[k] = k;
-        k++;
-
-        //label
-        MEL_ADDONS[k] = &ME_ADDONS[k];
-        ME_ADDONS[k] = ME_ADDONS_LABEL;
-        ME_ADDONS[k].name = m_addontext_modlabel;
-        ME_ADDONS[k].flags |= MEF_Unselectable;
-        ADDONS_L2EMAP[k] = k;
-        k++;
-    }
-
-    // Mods
-    m_addons_modstartindex = k;
     for (int i = 0; i < g_addoncount_mods; i++)
     {
-        int32_t listIdx = g_useraddons_mods[i]->loadorder_idx + m_addons_modstartindex;
-        MEL_ADDONS[listIdx] = &ME_ADDONS[k];
-        ME_ADDONS[k] = ME_ADDONS_ITEM;
-        ADDONS_L2EMAP[listIdx] = k;
-
-        g_useraddons_mods[i]->updateMenuEntryName(0, MENU_ADDON_TITLESCROLL_MAXVIS);
-        ME_ADDONS[k].name = g_useraddons_mods[i]->menuentryname;
-        Menu_Addon_UpdateMenuEntryStatus(&ME_ADDONS[k], g_useraddons_mods[i]);
-        k++;
+        useraddon_t* addonPtr = lobuf[i];
+        Menu_Addon_SetupMenuEntry(addonPtr, k);
     }
 
+    // finalize
     M_ADDONS.entrylist = MEL_ADDONS;
     M_ADDONS.numEntries = nummenuitems;
 }
@@ -3758,8 +3658,7 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
                 ABT_FLAGS, 0, ABT_YBOUNDS_TOP, xdim-1, ABT_YBOUNDS_BOTTOM);
 
         // check if an addon is selected
-        int32_t addonIndex = -1;
-        useraddon_t* addonPtr = Menu_GetUserAddonForMenuIndex(M_ADDONS.currentEntry, addonIndex);
+        useraddon_t* addonPtr = EL2ADDONS[M_ADDONS.currentEntry];
 
         if (!addonPtr)
         {
@@ -4433,8 +4332,7 @@ static void Menu_EntryFocus(/*MenuEntry_t *entry*/)
             // reset description scroll position on each selection
             m_addondesc_scrollpos = 0;
 
-            int32_t addonIndex = -1;
-            useraddon_t* addonPtr = Menu_GetUserAddonForMenuIndex(M_ADDONS.currentEntry, addonIndex);
+            useraddon_t* addonPtr = EL2ADDONS[M_ADDONS.currentEntry];
             if (addonPtr) addonPtr->updateMenuEntryName(0, MENU_ADDON_TITLESCROLL_MAXVIS);
 
             // update menu contents using given addon
@@ -5904,7 +5802,7 @@ static void Menu_AboutToStartDisplaying(Menu_t * m)
         if (FURY)
             M_ADDONS.title = s_UserContent;
 
-        Menu_LoadAddonPackages();
+        Menu_PopulateAddonsMenu();
         break;
 
     case MENU_JOYSTICKSETUP:
@@ -8657,7 +8555,7 @@ static void Menu_RunInput(Menu_t *cm)
                     if (g_currentMenu == MENU_ADDONS)
                     {
                         int32_t const cEntry = M_ADDONS.currentEntry;
-                        if (Menu_AddonMenuUpDown(cEntry, cEntry - 1, m_addons_modstartindex, M_ADDONS.numEntries - 1))
+                        if (Menu_AddonMenuUpDown(cEntry, cEntry - 1, 0, M_ADDONS.numEntries - 1))
                             break;
                     }
 
@@ -8672,7 +8570,7 @@ static void Menu_RunInput(Menu_t *cm)
                     if (g_currentMenu == MENU_ADDONS)
                     {
                         int32_t const cEntry = M_ADDONS.currentEntry;
-                        if (Menu_AddonMenuUpDown(cEntry, cEntry + 1, m_addons_modstartindex, M_ADDONS.numEntries - 1))
+                        if (Menu_AddonMenuUpDown(cEntry, cEntry + 1, 0, M_ADDONS.numEntries - 1))
                             break;
                     }
 

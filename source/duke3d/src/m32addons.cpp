@@ -44,7 +44,7 @@ uint32_t g_addon_compatrendmode = ADDON_RENDMASK;
 bool g_addon_failedboot = false;
 
 void Addon_FreePreviewHashTable(void){ /* stub */ };
-void Addon_CachePreviewImages(void) { /* stub */ };
+void Addon_LoadPreviewImages(void) { /* stub */ };
 int32_t Addon_LoadPreviewTile(const useraddon_t* addon)
 {
     // stub
@@ -61,13 +61,6 @@ void Addon_PruneInvalidAddons(useraddon_t** & useraddons, int32_t & numuseraddon
 };
 
 void Addon_InitializeLoadOrder(void) { /* stub */ };
-void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB, int32_t const maxvis)
-{
-    // stub
-    (void) indexA;
-    (void) indexB;
-    (void) maxvis;
-};
 
 void Addon_RefreshDependencyStates(void) { /* stub */ };
 int32_t Addon_CheckDependencyProblems(const useraddon_t* addonPtr)

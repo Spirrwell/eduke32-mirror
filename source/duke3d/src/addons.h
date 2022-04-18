@@ -143,6 +143,24 @@ struct addonjson_t
     addondependency_t* dependencies = nullptr;
     addondependency_t* incompatibles = nullptr;
     int32_t num_dependencies = 0, num_incompatibles = 0;
+
+    void freeContents()
+    {
+        if (script_modules)
+        {
+            for (int j = 0; j < num_script_modules; j++)
+                Xfree(script_modules[j]);
+            Xfree(script_modules);
+        }
+        if (def_modules)
+        {
+            for (int j = 0; j < num_def_modules; j++)
+                Xfree(def_modules[j]);
+            Xfree(def_modules);
+        }
+        if (dependencies) Xfree(dependencies);
+        if (incompatibles) Xfree(incompatibles);
+    }
 };
 
 struct useraddon_t
@@ -172,6 +190,12 @@ struct useraddon_t
     uint32_t flags;
     int32_t loadorder_idx;
     int32_t mdeps, incompats;
+
+    void freeContents()
+    {
+        if (internalId) Xfree(internalId);
+        jsondat.freeContents();
+    }
 
     // getter and setter for selection status
     void setSelected(bool status)
@@ -259,6 +283,28 @@ extern int32_t g_addoncount_mods;
 
 #define TOTAL_ADDON_COUNT (g_addoncount_grpinfo + g_addoncount_tcs + g_addoncount_mods)
 
+// shorthands for common iteration types
+#define for_grpaddons(_ptr, _body)\
+    for (int _idx = 0; _idx < g_addoncount_grpinfo; _idx++)\
+    {\
+        useraddon_t* _ptr = g_useraddons_grpinfo[_idx];\
+        _body;\
+    }
+
+#define for_tcaddons(_ptr, _body)\
+    for (int _idx = 0; _idx < g_addoncount_tcs; _idx++)\
+    {\
+        useraddon_t* _ptr = g_useraddons_tcs[_idx];\
+        _body;\
+    }
+
+#define for_modaddons(_ptr, _body)\
+    for (int _idx = 0; _idx < g_addoncount_mods; _idx++)\
+    {\
+        useraddon_t* _ptr = g_useraddons_mods[_idx];\
+        _body;\
+    }
+
 // global counters (selected, missing dependencies, incompatible addons)
 extern int32_t g_num_selected_addons;
 extern int32_t g_num_active_mdeps;
@@ -270,7 +316,7 @@ extern bool g_addon_failedboot;
 
 // preview image binary data is cached so expensive palette conversion does not need to be repeated
 void Addon_FreePreviewHashTable(void);
-void Addon_CachePreviewImages(void);
+void Addon_LoadPreviewImages(void);
 int32_t Addon_LoadPreviewTile(const useraddon_t* addon);
 
 void Addon_FreeUserAddons(void);
@@ -278,7 +324,6 @@ void Addon_LoadDescriptors(void);
 void Addon_PruneInvalidAddons(useraddon_t** & useraddons, int32_t & numuseraddons);
 
 void Addon_InitializeLoadOrder(void);
-void Addon_SwapLoadOrder(int32_t const indexA, int32_t const indexB, int32_t const maxvis);
 
 bool Addon_GetStartMap(const char* & startfn, int32_t & startlevel, int32_t & startvolume);
 void Addon_RefreshDependencyStates(void);
