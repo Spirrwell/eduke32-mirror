@@ -25,157 +25,94 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include "game.h"
 
-#include "vfs.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define MAXLEN_ADDONTITLE 32
-#define MAXLEN_ADDONAUTHOR 32
-#define MAXLEN_ADDONVERSION 16
-#define MAXLEN_ADDONDATE 32
-#define MAXLEN_ADDONDESC 8192
+#define MAXADDONTITLE 128
+#define MAXADDONAUTHOR 128
+#define MAXADDONVERSION 32
+#define MAXADDONDESC 32768
 
-#define PREVIEWTILEX 320
-#define PREVIEWTILEY 200
+#define PREVIEWTILE_XSIZE 320
+#define PREVIEWTILE_YSIZE 200
 
-enum addontype_t
+enum addongame_t
 {
-    ATYPE_INVALID = -1,
-    ATYPE_MAIN = 0,
-    ATYPE_MODULE = 1,
+    BASEGAME_ANY = GAMEFLAGMASK,
+    BASEGAME_DUKE = GAMEFLAG_DUKE,
+    BASEGAME_NAM = GAMEFLAG_NAM | GAMEFLAG_NAPALM,
+    BASEGAME_WW2GI = GAMEFLAG_WW2GI,
+    BASEGAME_NAM_WW2GI = GAMEFLAG_NAM | GAMEFLAG_NAPALM | GAMEFLAG_WW2GI,
+    BASEGAME_FURY = GAMEFLAG_FURY,
 };
 
-// internal struct
+enum addonpackage_t
+{
+    LT_INVALID = 0,
+    LT_ZIP,      // ZIP, PK3, PK4
+    LT_GRP,      // KenS GRP
+    LT_SSI,      // Sunstorm
+    LT_FOLDER,   // Local Subfolder
+    LT_WORKSHOP, // Workshop Folder
+};
+
 struct addonjson_t
 {
-    addonjson_t()
-    {
-        reset();
-    }
+    char title[MAXADDONTITLE];
+    char author[MAXADDONAUTHOR];
+    char version[MAXADDONVERSION];
 
-    // data path
-    char dataPath[BMAX_PATH];
+    char main_script_path[BMAX_PATH];
+    char main_def_path[BMAX_PATH];
+    char main_rts_path[BMAX_PATH];
 
-    // preview image
-    char imageBuffer[PREVIEWTILEX * PREVIEWTILEY];
-    bool invalidImage;
+    uint32_t flags;
+    int32_t desc_len, desc_linecnt;
+    int32_t num_script_modules, num_def_modules;
 
-    // type and dependency
-    addontype_t addonType;
-    uint32_t dependencyCRC;
+    char* description;
+    uint8_t* image_data;
 
-    // visual descriptors
-    char title[MAXLEN_ADDONTITLE];
-    char author[MAXLEN_ADDONAUTHOR];
-    char version[MAXLEN_ADDONVERSION];
-    char description[MAXLEN_ADDONDESC];
-    int32_t desclinecount;
-
-    // main script paths
-    char scriptNamePath[BMAX_PATH];
-    char defNamePath[BMAX_PATH];
-    char rtsNamePath[BMAX_PATH];
-
-    // modules
-    int32_t numCONModules;
-    char** scriptModules;
-
-    int32_t numDEFModules;
-    char** defModules;
-
-    void reset()
-    {
-        addonType = ATYPE_INVALID;
-        dataPath[0] = '\0';
-
-        imageBuffer[0] = '\0';
-        invalidImage = false;
-
-        title[0] = '\0';
-        author[0] = '\0';
-        version[0] = '\0';
-        description[0] = '\0';
-        desclinecount = 0;
-
-        scriptNamePath[0] = '\0';
-        defNamePath[0] = '\0';
-        rtsNamePath[0] = '\0';
-
-        if (!scriptModules)
-        {
-            for (int i = 0; i < numCONModules; i++)
-            {
-                Xfree(scriptModules[i]);
-            }
-            Xfree(scriptModules);
-        }
-        scriptModules = nullptr;
-        numCONModules = 0;
-
-        if (!defModules)
-        {
-            for (int i = 0; i < numDEFModules; i++)
-            {
-                Xfree(defModules[i]);
-            }
-            Xfree(defModules);
-        }
-        defModules = nullptr;
-        numDEFModules = 0;
-    }
-
-    bool isValid() const
-    {
-        return addonType != ATYPE_INVALID;
-    }
+    char** script_modules;
+    char** def_modules;
 };
 
-enum aloadtype_t
+struct useraddon_t
 {
-    LT_INVALID = -1,
-    LT_FOLDER = 0, // Local Subfolder
-    LT_ZIP = 1, // ZIP, PK3, PK4, GRP as ZIP etc.
-    LT_GRP = 2, // Ken GRP
-    LT_SSI = 3, // Sunstorm
-    LT_WORKSHOP = 4 // Workshop Folder
-};
+    char* uniqueId;
+    char menuentryname[MAXADDONTITLE];
+    char data_path[BMAX_PATH];
 
-struct menuaddon_t
-{
-    char entryname[MAXLEN_ADDONTITLE + 8];
+    addongame_t gametype;
+    addonpackage_t loadtype;
+    addonjson_t jsondat;
 
-    int16_t loadOrderIndex;
-    bool selected;
+    int16_t loadorder_idx;
+    uint8_t selected;
 
-    aloadtype_t loadType;
-    addonjson_t jsonDat;
-
+    void updateMenuEntryName()
+    {
+        Bsnprintf(menuentryname, MAXADDONTITLE, "%d: %s", loadorder_idx + 1, jsondat.title);
+    }
 
     bool isValid()
     {
-        return loadType != LT_INVALID && jsonDat.isValid();
-    }
-
-    void clear()
-    {
-        loadType = LT_INVALID;
-        loadOrderIndex = -1;
-        jsonDat.reset();
-        selected = false;
+        return loadtype != LT_INVALID;
     }
 };
 
-extern menuaddon_t * g_menuaddons;
-extern uint16_t g_nummenuaddons;
+extern useraddon_t * g_useraddons;
+extern uint16_t g_numuseraddons;
 
-int32_t ReadAddonPackageDescriptors(void);
-int32_t LoadAddonPreviewImage(addonjson_t* mjsonStore);
-void SwapLoadOrder(int32_t indexA, int32_t indexB);
-void CleanUpLoadOrder(void);
-int32_t PrepareSelectedAddon(menuaddon_t* addon);
-int32_t StartSelectedAddons(void);
+void Addon_FreePreviewHashTable(void);
+void Addon_FreeUserAddons(void);
+int32_t Addon_ReadPackageDescriptors(void);
+int32_t Addon_LoadPreviewTile(addonjson_t* mjsonStore);
+void Addon_SwapLoadOrder(int32_t indexA, int32_t indexB);
+
+int32_t Addon_PrepareSelectedAddon(useraddon_t* addon);
+int32_t Addon_StartSelectedAddons(void);
 
 #ifdef __cplusplus
 }

@@ -43,6 +43,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "savegame.h"
 #include "sbar.h"
 #include "screens.h"
+#include "addons.h"
 
 #ifdef __ANDROID__
 #include "android.h"
@@ -6010,6 +6011,9 @@ static void G_Cleanup(void)
 
     inthash_free(&h_dynamictilemap);
 
+    Addon_FreePreviewHashTable();
+    Addon_FreeUserAddons();
+
     Duke_CommonCleanup();
 }
 
@@ -7166,6 +7170,8 @@ SOFT_REBOOT:
 
     if (quitevent) app_exit(4);
 
+    Addon_ReadPackageDescriptors();
+
     if (g_networkMode != NET_DEDICATED_SERVER && validmodecnt > 0)
     {
         if (videoSetGameMode(ud.setup.fullscreen, ud.setup.xdim, ud.setup.ydim, ud.setup.bpp, ud.detail) < 0)
@@ -7219,7 +7225,6 @@ SOFT_REBOOT:
         Menu_Init();
     }
 
-    // TODO: Need to put initial addon package loading here
     ReadSaveGameHeaders();
 
 #if 0

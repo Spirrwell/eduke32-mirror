@@ -56,7 +56,7 @@ extern "C" {
 #define WW2GI_CRC   (int32_t)0x907B82BF
 #define PLATOONL_CRC (int32_t)0xD1ED8C0C
 
-enum addon_t {
+enum dukeaddon_t {
     ADDON_NONE,
     ADDON_DUKEDC,
     ADDON_NWINTER,

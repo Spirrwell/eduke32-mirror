@@ -22,71 +22,143 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include "duke3d.h"
 #include "addons.h"
-#include "sjson.h"
 
+#include "sjson.h"
 #include "colmatch.h"
 #include "kplib.h"
 #include "vfs.h"
 
-static const char* currentaddonfilename;
+// supported extensions
+static const char grp_ext[] = "*.grp";
+static const char ssi_ext[] = "*.ssi";
+static const char* addon_extensions[] = { grp_ext, ssi_ext, "*.zip", "*.pk3", "*.pk4" };
 
-static const char grpext[] = "*.grp";
-static const char ssiext[] = "*.ssi";
-static const char* addonextensions[] = { grpext, ssiext, "*.zip", "*.pk3", "*.pk4" };
-
-static const char addondirpath[] = "./addons";
-static const char addonjsonfn_standard[] = "addon.json";
-static const char addonjsonfn_83format[] = "addon.jso";
-
-// Keys used in the JSON addon descriptor
+// keys used in the JSON addon descriptor
+static const char jsonkey_game[] = "game";
 static const char jsonkey_title[] = "title";
 static const char jsonkey_author[] = "author";
 static const char jsonkey_version[] = "version";
 static const char jsonkey_desc[] = "description";
 static const char jsonkey_image[] = "image";
-static const char jsonkey_modtype[] = "type";
-static const char jsonkey_dependency[] = "dependency";
 static const char jsonkey_con[] = "CON";
 static const char jsonkey_def[] = "DEF";
 static const char jsonkey_rts[] = "RTS";
 static const char jsonkey_scripttype[] = "type";
 static const char jsonkey_scriptpath[] = "path";
 
-//addon type strings
-static const char jsonvalue_addonmain[] = "main";
-static const char jsonvalue_addonmodule[] = "module";
+// json gametype values
+static const char jsonval_gt_any[] = "any";
+static const char jsonval_gt_duke[] = "duke3d";
+static const char jsonval_gt_nam[] = "nam";
+static const char jsonval_gt_ww2gi[] = "ww2gi";
+static const char jsonval_gt_nam_ww2gi[] = "nam_ww2gi";
+static const char jsonval_gt_fury[] = "fury";
 
-menuaddon_t * g_menuaddons = nullptr;
-uint16_t g_nummenuaddons = 0;
+// script path values
+static const char jsonval_scriptmain[] = "main";
+static const char jsonval_scriptmodule[] = "module";
 
-static void a_free_menuaddons(void)
+// default addon content
+static const char default_title[] = "Unnamed Addon";
+static const char default_author[] = "N/A";
+static const char default_version[] = "N/A";
+static const char default_description[] = "--Empty Description--";
+
+// hashtable for images
+hashtable_t h_addonpreviews = { 1024, NULL };
+// hashtable_t h_addondescriptions = { 1024, NULL };
+
+// extern vars, tracks the currently loaded addons
+useraddon_t * g_useraddons = nullptr;
+uint16_t g_numuseraddons = 0;
+
+// local path for loading addons and json descriptor filenames
+static const char addon_dir[] = "./addons";
+static const char addonjsonfn[] = "addon.json";
+
+// adjust for mod directory
+static int32_t Addon_GetLocalDir(char * pathbuf, const int32_t buflen)
 {
-    if (g_menuaddons != nullptr)
+    if (g_modDir[0] != '/' || g_modDir[1] != 0)
+        Bsnprintf(pathbuf, buflen, "%s/%s", g_modDir, addon_dir);
+    else
+        Bstrncpy(pathbuf, addon_dir, buflen);
+
+    if (!buildvfs_isdir(pathbuf))
     {
-        Xfree(g_menuaddons);
-        g_menuaddons = nullptr;
+        DLOG_F(INFO, "Addon path does not exist: '%s", pathbuf);
+        return -1;
     }
-    g_nummenuaddons = 0;
+
+    return 0;
 }
 
-
-static void a_updateaddonentryname(int32_t index)
+static void freehashpreviewimage(const char *, intptr_t key)
 {
-    Bsprintf(g_menuaddons[index].entryname, "%d: %s", g_menuaddons[index].loadOrderIndex+1, g_menuaddons[index].jsonDat.title);
+    Xfree((void *)key);
+}
+void Addon_FreePreviewHashTable()
+{
+    hash_loop(&h_addonpreviews, freehashpreviewimage);
+    hash_free(&h_addonpreviews);
 }
 
+// free individual addon struct memory
+static void Addon_FreeAddonContents(useraddon_t * addon)
+{
+    if (addon->uniqueId)
+        DO_FREE_AND_NULL(addon->uniqueId);
+
+    if (addon->jsondat.description)
+        DO_FREE_AND_NULL(addon->jsondat.description);
+
+    if (addon->jsondat.script_modules)
+    {
+        for (int j = 0; j < addon->jsondat.num_script_modules; j++)
+            Xfree(addon->jsondat.script_modules[j]);
+        DO_FREE_AND_NULL(addon->jsondat.script_modules);
+    }
+
+    if (addon->jsondat.def_modules)
+    {
+        for (int j = 0; j < addon->jsondat.num_def_modules; j++)
+            Xfree(addon->jsondat.def_modules[j]);
+        DO_FREE_AND_NULL(addon->jsondat.def_modules);
+    }
+}
+
+// free all addon storage
+void Addon_FreeUserAddons(void)
+{
+    if (g_useraddons)
+    {
+        for (int i = 0; i < g_numuseraddons; i++)
+            Addon_FreeAddonContents(&g_useraddons[i]);
+
+        DO_FREE_AND_NULL(g_useraddons);
+    }
+    g_numuseraddons = 0;
+}
+
+static bool Addon_CheckFilePresence(const char* filepath)
+{
+    buildvfs_kfd jsonfil = kopen4loadfrommod(filepath, 0);
+    bool loadsuccess = (jsonfil != buildvfs_kfd_invalid);
+    kclose(jsonfil);
+    return loadsuccess;
+}
 
 // This function copies the given string into the text buffer and adds linebreaks at appropriate locations.
-//   * lblen : maximum number of characters until linebreak forced
-// Returns the number of lines in the text.
-static int32_t a_strncpy_textwrap(char* dst, const char *src, int32_t const maxlen, int32_t const lblen)
+// * lblen : maximum number of characters until linebreak forced
+static int32_t Addon_Strncpy_TextWrap(char *dst, const char *src, int32_t const maxlen, int32_t const lblen)
 {
     // indices and line length
+    const int endbufspace = 8;
     int srcidx = 0, dstidx = 0, lastwsidx = 0;
     int currlinelength = 0;
 
     int32_t linecount = 1;
-    while (src[srcidx] && (dstidx < maxlen - 8))
+    while (src[srcidx] && (dstidx < maxlen - endbufspace))
     {
         // track last whitespace index of destination
         if (isspace(src[srcidx]))
@@ -118,7 +190,7 @@ static int32_t a_strncpy_textwrap(char* dst, const char *src, int32_t const maxl
         }
     }
 
-    if (dstidx >= maxlen - 8)
+    if (dstidx >= maxlen - endbufspace)
     {
         Bstrcpy(&dst[dstidx], " [...]");
     }
@@ -130,19 +202,42 @@ static int32_t a_strncpy_textwrap(char* dst, const char *src, int32_t const maxl
     return linecount;
 }
 
-static int32_t a_checkfilepresence(const char* filepath)
+static int32_t Addon_ParseJson_String(useraddon_t *addon, sjson_node *node, const char *key,
+                                        char *dstbuf, int32_t const bufsize)
 {
-    buildvfs_kfd jsonfil = kopen4loadfrommod(filepath, 0);
-    bool loadsuccess = (jsonfil != buildvfs_kfd_invalid);
-    kclose(jsonfil);
-    return loadsuccess;
+    sjson_node * ele = sjson_find_member_nocase(node, key);
+    if (ele == nullptr)
+    {
+        dstbuf[0] = '\0';
+        return 1;
+    }
+
+    if (ele->tag != SJSON_STRING)
+    {
+        LOG_F(WARNING, "Addon descriptor member '%s' of addon '%s' is not string typed!", key, addon->uniqueId);
+        return -1;
+    }
+
+    Bstrncpy(dstbuf, ele->string_, bufsize);
+    if (dstbuf[bufsize-1])
+    {
+        LOG_F(WARNING, "Member '%s' of addon '%s' exceeds maximum size of %d chars!", key, addon->uniqueId, bufsize);
+        dstbuf[bufsize-1] = '\0';
+    }
+    return 0;
 }
 
-// Copy addon string from JSON into buffer and check for errors in the json
-// Optionally perform textwrapping if lblen > 0
-// Returns 0 on success, 1 if member not present, -1 on error
-static int32_t a_parseaddonjson_stringmember(sjson_node* node, const char* key, char* dstbuf,
-                                             int32_t const bufsize, int32_t const lblen, int32_t* linecount)
+static void Addon_AllocateDefaultDescription(useraddon_t *addon)
+{
+    const int desclen = ARRAY_SIZE(default_description);
+    addon->jsondat.description = (char *) Xmalloc(desclen);
+    Bstrncpy(addon->jsondat.description, default_description, desclen);
+
+    addon->jsondat.desc_len = desclen;
+    addon->jsondat.desc_linecnt = 1;
+}
+
+static int32_t Addon_ParseJson_Description(useraddon_t *addon, sjson_node *node, const char *key)
 {
     sjson_node * ele = sjson_find_member_nocase(node, key);
     if (ele == nullptr)
@@ -150,120 +245,127 @@ static int32_t a_parseaddonjson_stringmember(sjson_node* node, const char* key, 
 
     if (ele->tag != SJSON_STRING)
     {
-        LOG_F(ERROR, "Addon descriptor member '%s' of addon '%s' is not string typed!", key, currentaddonfilename);
+        LOG_F(WARNING, "Addon descriptor member '%s' of addon '%s' is not string typed!", key, addon->uniqueId);
         return -1;
     }
 
-    if (lblen <= 0)
-        Bstrncpy(dstbuf, ele->string_, bufsize);
-    else
-        *linecount = a_strncpy_textwrap(dstbuf, ele->string_, bufsize, lblen);
-
-    if (dstbuf[bufsize-1])
+    // add some extra space for linebreaks inserted by textwrap
+    int desclen = strlen(ele->string_) + 256;
+    if (desclen > MAXADDONDESC)
     {
-        LOG_F(WARNING, "Member '%s' of addon '%s' exceeds maximum size of %d chars!", key, currentaddonfilename, bufsize);
-        dstbuf[bufsize-1] = '\0';
+        LOG_F(WARNING, "Member '%s' of addon '%s' exceeds maximum size of %d chars!", key, addon->uniqueId, MAXADDONDESC);
+        desclen = MAXADDONDESC;
     }
+
+    addon->jsondat.description = (char *) Xmalloc(desclen);
+    addon->jsondat.desc_linecnt = Addon_Strncpy_TextWrap(addon->jsondat.description, ele->string_, desclen, (FURY) ? 84 : 64);
+    addon->jsondat.desc_len = desclen;
+
     return 0;
 }
 
-// Load script array from JSON
-// Returns 0 on success, 1 if member not present, -1 on error
-static int32_t a_parseaddonjson_scriptarray(sjson_node* root, const char* key, const char* basepath,
-                                            char* mainscriptpath, char*** modules, int32_t* modulecount)
+static int32_t Addon_ParseJson_Scripts(useraddon_t *addon, sjson_node* root, const char* key, const char* basepath,
+                                        char* mainscriptbuf, char** & modulebuffers, int32_t & modulecount)
 {
+    char scriptbuf[BMAX_PATH];
+    int32_t numValidChildren = 0;
+
+    mainscriptbuf[0] = '\0';
+    modulebuffers = nullptr;
+    modulecount = 0;
+
     sjson_node * nodes = sjson_find_member_nocase(root, key);
     if (nodes == nullptr)
         return 1;
 
     if (nodes->tag != SJSON_ARRAY)
     {
-        LOG_F(ERROR, "Content of member '%s' of addon '%s' is not an array!", key, currentaddonfilename);
+        LOG_F(WARNING, "Content of member '%s' of addon '%s' is not an array!", key, addon->uniqueId);
         return -1;
     }
 
     int numchildren = sjson_child_count(nodes);
-    char** scriptmodules = (char **) Xmalloc(numchildren * sizeof(char*));
+    modulebuffers = (char **) Xmalloc(numchildren * sizeof(char*));
 
-    char scriptbuf[BMAX_PATH];
-    sjson_node* snode;
-    int32_t numValidChildren = 0;
+    sjson_node *snode, *script_path, *script_type;
     sjson_foreach(snode, nodes)
     {
         if (snode->tag != SJSON_OBJECT)
         {
-            LOG_F(ERROR, "Invalid json type in array of member '%s' of addon '%s'!", key, currentaddonfilename);
+            LOG_F(WARNING, "Invalid json type in array of member '%s' of addon '%s'!", key, addon->uniqueId);
             continue;
         }
 
-        sjson_node * script_path = sjson_find_member_nocase(snode, jsonkey_scriptpath);
+        script_path = sjson_find_member_nocase(snode, jsonkey_scriptpath);
         if (script_path == nullptr || script_path->tag != SJSON_STRING)
         {
-            LOG_F(ERROR, "Script path missing or has invalid format in addon '%s'!", currentaddonfilename);
+            LOG_F(WARNING, "Script path missing or has invalid format in addon '%s'!", addon->uniqueId);
             continue;
         }
 
         Bsnprintf(scriptbuf, BMAX_PATH, "%s/%s", basepath, script_path->string_);
-        if (!a_checkfilepresence(scriptbuf))
+        if (!Addon_CheckFilePresence(scriptbuf))
         {
-            LOG_F(ERROR, "Script file of addon '%s' at location '%s' does not exist!", currentaddonfilename, scriptbuf);
+            LOG_F(WARNING, "Script file of addon '%s' at location '%s' does not exist!", addon->uniqueId, scriptbuf);
             continue;
         }
 
-        sjson_node * script_type = sjson_find_member_nocase(snode, jsonkey_scripttype);
+        script_type = sjson_find_member_nocase(snode, jsonkey_scripttype);
         if (script_type == nullptr || script_type->tag != SJSON_STRING)
         {
-            LOG_F(ERROR, "Script type missing or has invalid format in addon '%s'!", currentaddonfilename);
+            LOG_F(WARNING, "Script type missing or has invalid format in addon '%s'!", addon->uniqueId);
             continue;
         }
 
-        if (!Bstrncasecmp(script_type->string_, jsonvalue_addonmain, ARRAY_SIZE(jsonvalue_addonmain)))
+        if (!Bstrncasecmp(script_type->string_, jsonval_scriptmain, ARRAY_SIZE(jsonval_scriptmain)))
         {
-            Bstrncpy(mainscriptpath, script_path->string_, BMAX_PATH);
+            Bstrncpyz(mainscriptbuf, script_path->string_, BMAX_PATH);
         }
-        else if (!Bstrncasecmp(script_type->string_, jsonvalue_addonmodule, ARRAY_SIZE(jsonvalue_addonmodule)))
+        else if (!Bstrncasecmp(script_type->string_, jsonval_scriptmodule, ARRAY_SIZE(jsonval_scriptmodule)))
         {
-            scriptmodules[numValidChildren] = (char *) Xmalloc(BMAX_PATH * sizeof(char));
-            Bstrncpy(scriptmodules[numValidChildren], script_path->string_, BMAX_PATH);
+            modulebuffers[numValidChildren] = (char *) Xmalloc(BMAX_PATH);
+            Bstrncpyz(modulebuffers[numValidChildren], script_path->string_, BMAX_PATH);
             numValidChildren++;
         }
         else
         {
-            LOG_F(ERROR, "Invalid script type '%s' specified in addon '%s'!", script_type->string_, currentaddonfilename);
+            LOG_F(WARNING, "Invalid script type '%s' specified in addon '%s'!", script_type->string_, addon->uniqueId);
             continue;
         }
     }
 
-    if (numValidChildren == 0)
+    if (numValidChildren <= 0)
     {
-        Xfree(scriptmodules);
-        *modules = nullptr;
+        DO_FREE_AND_NULL(modulebuffers);
+        modulecount = 0;
     }
     else
     {
-        *modules = (char **) Xrealloc(scriptmodules, numValidChildren * sizeof(char*));
+        modulebuffers = (char **) Xrealloc(modulebuffers, numValidChildren * sizeof(char*));
+        modulecount = numValidChildren;
     }
-    *modulecount = numValidChildren;
     return 0;
 }
 
 
-static int32_t a_loadpreviewfromfile(char const * fn, char* imagebuffer)
+static int32_t Addon_LoadPreviewFromFile(char const *fn, uint8_t *imagebuffer)
 {
 #ifdef WITHKPLIB
     int32_t i, j, xsiz = 0, ysiz = 0;
     palette_t *picptr = NULL;
 
     kpzdecode(kpzbufload(fn), (intptr_t *)&picptr, &xsiz, &ysiz);
-    if (xsiz != PREVIEWTILEX || ysiz != PREVIEWTILEY)
+    if (xsiz != PREVIEWTILE_XSIZE || ysiz != PREVIEWTILE_YSIZE)
     {
-        LOG_F(ERROR, "Addon preview image '%s' does not have required format: %dx%d", fn, PREVIEWTILEX, PREVIEWTILEY);
+        if (picptr) Xfree(picptr);
+        LOG_F(WARNING, "Addon preview image '%s' does not have required format: %dx%d", fn, PREVIEWTILE_XSIZE, PREVIEWTILE_YSIZE);
         return -2;
     }
 
     if (!(paletteloaded & PALETTE_MAIN))
     {
-        LOG_F(ERROR, "Addon Preview: no palette loaded");
+        if (picptr) Xfree(picptr);
+        LOG_F(WARNING, "Addon Preview: no palette loaded");
         return -3;
     }
 
@@ -287,188 +389,208 @@ static int32_t a_loadpreviewfromfile(char const * fn, char* imagebuffer)
 #endif
 }
 
-
-static int32_t a_parseaddonjson_previewimage(sjson_node* root, char* imagebuffer, const char* basepath)
+static int32_t Addon_ParseJson_PreviewImage(useraddon_t* addon, sjson_node* root, const char* key, const char* basepath)
 {
-    sjson_node * ele = sjson_find_member_nocase(root, jsonkey_image);
+    sjson_node * ele = sjson_find_member_nocase(root, key);
     if (ele == nullptr)
         return -1;
 
     if (ele->tag != SJSON_STRING)
     {
-        LOG_F(ERROR, "Provided image path for addon '%s' is not a string!", currentaddonfilename);
+        LOG_F(WARNING, "Provided image path for addon '%s' is not a string!", addon->uniqueId);
         return -1;
     }
 
     char fnbuf[BMAX_PATH];
     Bsnprintf(fnbuf, BMAX_PATH, "%s/%s", basepath, ele->string_);
-    if (!a_checkfilepresence(fnbuf))
+
+    intptr_t cachedImage = hash_find(&h_addonpreviews, fnbuf);
+    if (cachedImage == -1)
     {
-        LOG_F(ERROR, "Preview image of addon '%s' at location '%s' does not exist!", currentaddonfilename, fnbuf);
+        if (!Addon_CheckFilePresence(fnbuf))
+        {
+            LOG_F(WARNING, "Preview image of addon '%s' at location '%s' does not exist!", addon->uniqueId, fnbuf);
+            return -1;
+        }
+
+        addon->jsondat.image_data = (uint8_t *) Xmalloc(PREVIEWTILE_XSIZE * PREVIEWTILE_YSIZE * sizeof(uint8_t));
+        if (Addon_LoadPreviewFromFile(fnbuf, addon->jsondat.image_data) < 0)
+        {
+            DO_FREE_AND_NULL(addon->jsondat.image_data);
+            return -1;
+        }
+        hash_add(&h_addonpreviews, fnbuf, (intptr_t) addon->jsondat.image_data, 0);
+    }
+    else
+    {
+        addon->jsondat.image_data = (uint8_t*) cachedImage;
+    }
+
+    return 0;
+}
+
+static int32_t Addon_ParseJson_RTSPath(useraddon_t* addon, sjson_node* root, const char* key, const char* basepath)
+{
+    sjson_node * ele = sjson_find_member_nocase(root, key);
+    if (ele == nullptr)
+        return -1;
+
+    if (ele->tag != SJSON_STRING)
+    {
+        LOG_F(WARNING, "Provided RTS file path for addon '%s' is not a string!", addon->uniqueId);
         return -1;
     }
 
-    if (a_loadpreviewfromfile(fnbuf, imagebuffer) < 0)
+    char full_path_buf[BMAX_PATH];
+    Bsnprintf(full_path_buf, BMAX_PATH, "%s/%s", basepath, ele->string_);
+    if (!Addon_CheckFilePresence(full_path_buf))
     {
-        imagebuffer[0] = '\0';
+        LOG_F(WARNING, "RTS file for addon '%s' at location '%s' does not exist!", addon->uniqueId, full_path_buf);
+        return -1;
+    }
+
+    Bstrncpyz(addon->jsondat.main_rts_path, ele->string_, BMAX_PATH);
+    return 0;
+}
+
+static int32_t Addon_ParseJson_GameFlag(useraddon_t* addon, sjson_node* root, const char* key)
+{
+    sjson_node * ele = sjson_find_member_nocase(root, key);
+    if (ele == nullptr)
+        return -1;
+
+    if (ele->tag != SJSON_STRING)
+    {
+        LOG_F(WARNING, "Provided game type of addon '%s' is not a string!", addon->uniqueId);
+        return -1;
+    }
+
+    if (!Bstrncasecmp(ele->string_, jsonval_gt_any, ARRAY_SIZE(jsonval_gt_any)))
+        addon->gametype = BASEGAME_ANY;
+    else if (!Bstrncasecmp(ele->string_, jsonval_gt_duke, ARRAY_SIZE(jsonval_gt_duke)))
+        addon->gametype = BASEGAME_DUKE;
+    else if (!Bstrncasecmp(ele->string_, jsonval_gt_fury, ARRAY_SIZE(jsonval_gt_fury)))
+        addon->gametype = BASEGAME_FURY;
+    else if (!Bstrncasecmp(ele->string_, jsonval_gt_ww2gi, ARRAY_SIZE(jsonval_gt_ww2gi)))
+        addon->gametype = BASEGAME_WW2GI;
+    else if (!Bstrncasecmp(ele->string_, jsonval_gt_nam, ARRAY_SIZE(jsonval_gt_nam)))
+        addon->gametype = BASEGAME_NAM;
+    else if (!Bstrncasecmp(ele->string_, jsonval_gt_nam_ww2gi, ARRAY_SIZE(jsonval_gt_nam_ww2gi)))
+        addon->gametype = BASEGAME_NAM_WW2GI;
+    else
+    {
+        LOG_F(WARNING, "Provided game type '%s' of '%s' is invalid!", ele->string_, addon->uniqueId);
         return -1;
     }
 
     return 0;
 }
 
-
-// retrieve information from addon.json -- returns 0 on success, -1 on error
-static int32_t a_parseaddonjson(sjson_context* ctx, addonjson_t* mjsonStore, const char* basepath, char* raw_json)
+// Load data from json file into addon -- assumes that addon ID has been defined!
+static int32_t Addon_ParseJson(useraddon_t* addon, sjson_context* ctx, const char* basepath)
 {
-    if (!sjson_validate(ctx, raw_json))
-    {
-        LOG_F(ERROR, "Invalid JSON structure for addon '%s'!", currentaddonfilename);
-        return -1;
-    }
+    char json_path[BMAX_PATH];
+    Bsnprintf(json_path, BMAX_PATH, "%s/%s", basepath, addonjsonfn);
 
-    sjson_node * root = sjson_decode(ctx, raw_json);
-    sjson_node * ele = nullptr;
-
-    a_parseaddonjson_previewimage(root, mjsonStore->imageBuffer, basepath);
-
-    // addon type
-    ele = sjson_find_member_nocase(root, jsonkey_modtype);
-    if ((ele == nullptr) || ele->tag != SJSON_STRING)
+    buildvfs_kfd jsonfil = kopen4load(json_path, 0);
+    if (jsonfil == buildvfs_kfd_invalid)
     {
-        LOG_F(ERROR, "Member 'type' missing or has invalid format!");
-        return -1;
-    }
-    else
-    {
-        if (!Bstrncasecmp(ele->string_, jsonvalue_addonmain, ARRAY_SIZE(jsonvalue_addonmain)))
+        // reduce extension from ".json" to ".jso"
+        json_path[strlen(json_path) - 1] = '\0';
+        jsonfil = kopen4load(json_path, 0);
+        if (jsonfil == buildvfs_kfd_invalid)
         {
-            mjsonStore->addonType = ATYPE_MAIN;
-        }
-        else if (!Bstrncasecmp(ele->string_, jsonvalue_addonmodule, ARRAY_SIZE(jsonvalue_addonmodule)))
-        {
-            mjsonStore->addonType = ATYPE_MODULE;
-        }
-        else
-        {
-            LOG_F(ERROR, "Invalid addon type specified: %s", ele->string_);
+            LOG_F(ERROR, "Could not find addon descriptor '%s' for addon: '%s'", json_path, addon->uniqueId);
             return -1;
         }
     }
 
-    // load visual descriptors (and defaults)
-    if (a_parseaddonjson_stringmember(root, jsonkey_title, mjsonStore->title, MAXLEN_ADDONTITLE, -1, nullptr))
+    int32_t len = kfilelength(jsonfil);
+    char* jsonTextBuf = (char *)Xmalloc(len+1);
+    jsonTextBuf[len] = '\0';
+
+    if (kread_and_test(jsonfil, jsonTextBuf, len))
     {
-        const char defaultTitle[] = "Unnamed Addon";
-        Bstrncpy(mjsonStore->title, defaultTitle, ARRAY_SIZE(defaultTitle));
+        LOG_F(ERROR, "Failed to read addon descriptor at: '%s'", json_path);
+        Xfree(jsonTextBuf);
+        kclose(jsonfil);
+        return -1;
+    }
+    kclose(jsonfil);
+
+    sjson_reset_context(ctx);
+    if (!sjson_validate(ctx, jsonTextBuf))
+    {
+        LOG_F(ERROR, "Invalid addon descriptor JSON structure for addon '%s'!", addon->uniqueId);
+        return -1;
     }
 
-    if (a_parseaddonjson_stringmember(root, jsonkey_author, mjsonStore->author, MAXLEN_ADDONAUTHOR, -1, nullptr))
-    {
-        const char defaultAuthor[] = "N/A";
-        Bstrncpy(mjsonStore->author, defaultAuthor, ARRAY_SIZE(defaultAuthor));
-    }
+    sjson_node * root = sjson_decode(ctx, jsonTextBuf);
+    Xfree(jsonTextBuf);
 
-    if (a_parseaddonjson_stringmember(root, jsonkey_version, mjsonStore->version, MAXLEN_ADDONVERSION, -1, nullptr))
-    {
-        const char defaultVersion[] = "N/A";
-        Bstrncpy(mjsonStore->version, defaultVersion, ARRAY_SIZE(defaultVersion));
-    }
+    // base game type
+    if (Addon_ParseJson_GameFlag(addon, root, jsonkey_game))
+        addon->gametype = BASEGAME_ANY;
 
-    int const lblen = (FURY) ? 84 : 64;
-    if (a_parseaddonjson_stringmember(root, jsonkey_desc, mjsonStore->description,
-                                        MAXLEN_ADDONDESC, lblen, &mjsonStore->desclinecount))
-    {
-        const char defaultDescription[] = "!!!Missing Description!!!";
-        Bstrncpy(mjsonStore->description, defaultDescription, ARRAY_SIZE(defaultDescription));
-    }
+    // load visual descriptors
+    if (Addon_ParseJson_String(addon, root, jsonkey_title, addon->jsondat.title, MAXADDONTITLE))
+        Bstrncpy(addon->jsondat.title, default_title, ARRAY_SIZE(default_title));
 
-    // optional dependency
-    ele = sjson_find_member_nocase(root, jsonkey_dependency);
-    if (ele != nullptr)
-    {
-        if (ele->tag == SJSON_STRING)
-        {
-            //TODO: Transform string to a predefined CRC
-            mjsonStore->dependencyCRC = 0;
-        }
-        else if (ele->tag == SJSON_NUMBER)
-        {
-            mjsonStore->dependencyCRC = (uint32_t) ele->number_;
-        }
-        else
-        {
-            LOG_F(ERROR, "Dependency must be an integer or a predefined string!");
-            mjsonStore->dependencyCRC = 0;
-        }
-    }
-    else
-    {
-        mjsonStore->dependencyCRC = 0;
-    }
+    if (Addon_ParseJson_String(addon, root, jsonkey_author, addon->jsondat.author, MAXADDONAUTHOR))
+        Bstrncpy(addon->jsondat.author, default_author, ARRAY_SIZE(default_author));
 
-    // CON script loading
-    a_parseaddonjson_scriptarray(root, jsonkey_con, basepath, mjsonStore->scriptNamePath,
-                &mjsonStore->scriptModules, &mjsonStore->numCONModules);
+    if (Addon_ParseJson_String(addon, root, jsonkey_version, addon->jsondat.version, MAXADDONVERSION))
+        Bstrncpy(addon->jsondat.version, default_version, ARRAY_SIZE(default_version));
 
-    // DEF script loading
-    a_parseaddonjson_scriptarray(root, jsonkey_def, basepath, mjsonStore->defNamePath,
-                &mjsonStore->defModules, &mjsonStore->numDEFModules);
+    if (Addon_ParseJson_Description(addon, root, jsonkey_desc))
+        Addon_AllocateDefaultDescription(addon);
 
-    // RTS file
-    ele = sjson_find_member_nocase(root, jsonkey_rts);
-    if (ele != nullptr)
-    {
-        if (ele->tag == SJSON_STRING)
-        {
-            Bsnprintf(mjsonStore->rtsNamePath, BMAX_PATH, "%s/%s", basepath, ele->string_);
-            if (!a_checkfilepresence(mjsonStore->rtsNamePath))
-            {
-                LOG_F(ERROR, "Script file of addon '%s' at location '%s' does not exist!", currentaddonfilename, mjsonStore->rtsNamePath);
-            }
-        }
-        else
-        {
-            LOG_F(ERROR, "Dependency must be an integer or a predefined string!");
-        }
-    }
+    // Load addon preview image
+    // TODO: could load a default image using the return value
+    Addon_ParseJson_PreviewImage(addon, root, jsonkey_image, basepath);
+
+    // CON script paths
+    Addon_ParseJson_Scripts(addon, root, jsonkey_con, basepath, addon->jsondat.main_script_path,
+                            addon->jsondat.script_modules, addon->jsondat.num_script_modules);
+
+    // DEF script paths
+    Addon_ParseJson_Scripts(addon, root, jsonkey_def, basepath, addon->jsondat.main_def_path,
+                            addon->jsondat.def_modules, addon->jsondat.num_def_modules);
+
+    // RTS file path
+    Addon_ParseJson_RTSPath(addon, root, jsonkey_rts, basepath);
 
     return 0;
 }
 
-
-static char* a_getaddondir()
+static void Addon_PackageCleanup(int32_t grpfileidx)
 {
-    char * outfile_buf = (char*) Xmalloc(BMAX_PATH);
-
-    if (g_modDir[0] != '/' || g_modDir[1] != 0)
-        Bsnprintf(outfile_buf, BMAX_PATH, "%s/%s", g_modDir, addondirpath);
+    if (grpfileidx < numgroupfiles)
+        popgroupfile(); // remove grp/ssi
     else
-        Bstrncpy(outfile_buf, addondirpath, BMAX_PATH);
-
-    return outfile_buf;
+        popgroupfromkzstack(); // remove zip
 }
 
 // Count the number of addons present in the local folder, and the workshop folders.
-static int32_t CountPotentialAddons(void)
+static int32_t Addon_CountPotentialAddons(void)
 {
     int32_t numaddons = 0;
-    char * addondir = a_getaddondir();
+    char * addonpathbuf = (char*) Xmalloc(BMAX_PATH);
 
-    if (addondir)
+    if (!Addon_GetLocalDir(addonpathbuf, BMAX_PATH))
     {
         fnlist_t fnlist = FNLIST_INITIALIZER;
         fnlist_clearnames(&fnlist);
 
         // get packages in the local addon dir
-        for (auto & ext : addonextensions)
+        for (auto & ext : addon_extensions)
         {
-            fnlist_getnames(&fnlist, addondir, ext, -1, 0);
+            fnlist_getnames(&fnlist, addonpathbuf, ext, -1, 0);
             numaddons += fnlist.numfiles;
             fnlist_clearnames(&fnlist);
         }
 
-        fnlist_getnames(&fnlist, addondir, "*", 0, -1);
+        fnlist_getnames(&fnlist, addonpathbuf, "*", 0, -1);
         for (BUILDVFS_FIND_REC *rec = fnlist.finddirs; rec; rec=rec->next)
         {
             if (!strcmp(rec->name, ".")) continue;
@@ -476,108 +598,69 @@ static int32_t CountPotentialAddons(void)
             numaddons++;
         }
         fnlist_clearnames(&fnlist);
-
-        Xfree(addondir);
     }
+    Xfree(addonpathbuf);
 
     // TODO: get number of workshop addon folders
 
     return numaddons;
 }
 
-static void a_packagecleanup(int32_t grpfileidx)
+static int32_t Addon_ReadLocalPackages(sjson_context* ctx, fnlist_t* fnlist, const char* addondir)
 {
-    if (grpfileidx < numgroupfiles)
-        popgroupfile(); // remove grp/ssi
-#ifdef WITHKPLIB
-    else
-        kzpopstack(); // remove zip
-#endif
-}
-
-static int32_t LoadLocalPackagedAddons(sjson_context* ctx, fnlist_t* fnlist, const char* addondir)
-{
-    // look for addon packages
-    for (auto & ext : addonextensions)
+    // search for local addon packages
+    for (auto & ext : addon_extensions)
     {
         BUILDVFS_FIND_REC *rec;
         fnlist_getnames(fnlist, addondir, ext, -1, 0);
-
         for (rec=fnlist->findfiles; rec; rec=rec->next)
         {
-            currentaddonfilename = rec->name;
-            menuaddon_t & madd = g_menuaddons[g_nummenuaddons];
-            madd.loadOrderIndex = g_nummenuaddons;
+            char package_path[BMAX_PATH];
+            Bsnprintf(package_path, BMAX_PATH, "%s/%s", addondir, rec->name);
 
-            // check file type based on extension
-            if (!Bstrcmp(ext, grpext))
-                madd.loadType = LT_GRP;
-            else if (!Bstrcmp(ext, ssiext))
-                madd.loadType = LT_SSI;
+            useraddon_t & addon = g_useraddons[g_numuseraddons];
+            addon.uniqueId = Xstrdup(package_path);
+            Bstrncpy(addon.data_path, package_path, BMAX_PATH);
+            addon.loadorder_idx = -1;
+
+            // set initial file type based on extension
+            if (!Bstrcmp(ext, grp_ext))
+                addon.loadtype = LT_GRP;
+            else if (!Bstrcmp(ext, ssi_ext))
+                addon.loadtype = LT_SSI;
             else
-                madd.loadType = LT_ZIP;
+                addon.loadtype = LT_ZIP;
 
-            char filepath[BMAX_PATH];
-            Bsnprintf(filepath, ARRAY_SIZE(filepath), "%s/%s", addondir, rec->name);
-
-            DLOG_F(INFO, "Attempting to load addon package file %s", filepath);
-
-            const int32_t grpfileidx = initgroupfile(filepath);
+            // try to load the package and change the grp file idx
+            const int32_t grpfileidx = initgroupfile(package_path);
             if (grpfileidx == -1)
             {
-                LOG_F(ERROR, "Failed to open package at %s", filepath);
-                madd.loadType = LT_INVALID;
+                LOG_F(ERROR, "Failed to open addon package at '%s'", package_path);
+                Addon_FreeAddonContents(&addon);
+                addon.loadtype = LT_INVALID;
                 continue;
             }
             else if (grpfileidx >= numgroupfiles)
             {
-                // file was a renamed zip, correct file type
-                madd.loadType = LT_ZIP;
+                // zip file renamed to grp
+                addon.loadtype = LT_ZIP;
             }
 
-            buildvfs_kfd jsonfil = buildvfs_kfd_invalid;
-            if (madd.loadType == LT_GRP || madd.loadType == LT_SSI)
-                jsonfil = kopen4load(addonjsonfn_83format, 0);
-            else
-                jsonfil = kopen4load(addonjsonfn_standard, 0);
-
-            if (jsonfil == buildvfs_kfd_invalid)
+            if (Addon_ParseJson(&addon, ctx, "/"))
             {
-                LOG_F(ERROR, "Could not find addon descriptor for package: '%s'", currentaddonfilename);
-                a_packagecleanup(grpfileidx);
+                Addon_FreeAddonContents(&addon);
+                Addon_PackageCleanup(grpfileidx);
+                addon.loadtype = LT_INVALID;
                 continue;
             }
 
-            int32_t len = kfilelength(jsonfil);
-            char* jsonTextBuf = (char *)Xmalloc(len+1);
-            jsonTextBuf[len] = '\0';
+            Addon_PackageCleanup(grpfileidx);
 
-            if (kread_and_test(jsonfil, jsonTextBuf, len))
-            {
-                LOG_F(ERROR, "Failed to read addon descriptor for package: '%s'", currentaddonfilename);
-                Xfree(jsonTextBuf);
-                kclose(jsonfil);
-                a_packagecleanup(grpfileidx);
+            // clean up based on game type
+            if (!(g_gameType & addon.gametype))
                 continue;
-            }
-            kclose(jsonfil);
 
-            addonjson_t & ajson = madd.jsonDat;
-            Bstrncpy(ajson.dataPath, filepath, BMAX_PATH);
-            const bool parseResult = a_parseaddonjson(ctx, &ajson, "/", jsonTextBuf);
-            Xfree(jsonTextBuf);
-
-            if (parseResult)
-            {
-                LOG_F(ERROR, "Fatal errors found in addon descriptor in package: '%s'", currentaddonfilename);
-                ajson.addonType = ATYPE_INVALID;
-                a_packagecleanup(grpfileidx);
-                continue;
-            }
-
-            a_packagecleanup(grpfileidx);
-            a_updateaddonentryname(g_nummenuaddons);
-            ++g_nummenuaddons;
+            ++g_numuseraddons;
         }
 
         fnlist_clearnames(fnlist);
@@ -586,179 +669,90 @@ static int32_t LoadLocalPackagedAddons(sjson_context* ctx, fnlist_t* fnlist, con
     return 0;
 }
 
-static int32_t LoadLocalSubfolderAddons(sjson_context* ctx, fnlist_t* fnlist, const char* addondir)
+static int32_t Addon_ReadSubfolderAddons(sjson_context* ctx, fnlist_t* fnlist, const char* addondir)
 {
     // look for addon directories
     BUILDVFS_FIND_REC *rec;
     fnlist_getnames(fnlist, addondir, "*", 0, -1);
-    sjson_reset_context(ctx);
-
     for (rec=fnlist->finddirs; rec; rec=rec->next)
     {
         // these aren't actually directories we want to consider
         if (!strcmp(rec->name, ".")) continue;
         if (!strcmp(rec->name, "..")) continue;
 
-        currentaddonfilename = rec->name;
+        char basepath[BMAX_PATH];
+        Bsnprintf(basepath, BMAX_PATH, "%s/%s", addondir, rec->name);
 
-        char basepath[BMAX_PATH], jsonpath[BMAX_PATH];
-        Bsnprintf(basepath, ARRAY_SIZE(basepath), "%s/%s", addondir, rec->name);
+        useraddon_t & addon = g_useraddons[g_numuseraddons];
+        addon.uniqueId = Xstrdup(basepath);
+        Bstrncpy(addon.data_path, basepath, BMAX_PATH);
+        addon.loadtype = LT_FOLDER;
+        addon.loadorder_idx = -1;
 
-        menuaddon_t & madd = g_menuaddons[g_nummenuaddons];
-        madd.loadType = LT_FOLDER;
-        madd.loadOrderIndex = g_nummenuaddons;
-
-        Bsnprintf(jsonpath, ARRAY_SIZE(jsonpath), "%s/%s/addon.json", addondir, rec->name);
-        buildvfs_kfd jsonfil = kopen4loadfrommod(jsonpath, 0);
-        if (jsonfil == buildvfs_kfd_invalid)
+        if (Addon_ParseJson(&addon, ctx, basepath))
         {
-            LOG_F(ERROR, "Could not find addon descriptor at: '%s'", jsonpath);
+            Addon_FreeAddonContents(&addon);
+            addon.loadtype = LT_INVALID;
             continue;
         }
 
-        int32_t len = kfilelength(jsonfil);
-        char* jsonTextBuf = (char *)Xmalloc(len+1);
-        jsonTextBuf[len] = '\0';
-
-        if (kread_and_test(jsonfil, jsonTextBuf, len))
-        {
-            LOG_F(ERROR, "Failed to read addon descriptor at: '%s'", jsonpath);
-            kclose(jsonfil);
-            Xfree(jsonTextBuf);
+        // clean up based on game type
+        if (!(g_gameType & addon.gametype))
             continue;
-        }
-        kclose(jsonfil);
 
-        addonjson_t & ajson = madd.jsonDat;
-        Bstrncpy(ajson.dataPath, basepath, BMAX_PATH);
-        const bool parseResult = a_parseaddonjson(ctx, &ajson, basepath, jsonTextBuf);
-        Xfree(jsonTextBuf);
-
-        if (parseResult)
-        {
-            LOG_F(ERROR, "Fatal errors found in addon descriptor at: '%s'", jsonpath);
-            ajson.addonType = ATYPE_INVALID;
-            continue;
-        }
-        a_updateaddonentryname(g_nummenuaddons);
-        ++g_nummenuaddons;
+        ++g_numuseraddons;
     }
     fnlist_clearnames(fnlist);
 
     return 0;
 }
 
-static int32_t LoadWorkshopAddons(sjson_context* ctx)
+static int32_t Addon_LoadWorkshopAddons(sjson_context* ctx)
 {
     // TODO
     UNREFERENCED_PARAMETER(ctx);
     return 0;
 }
 
-// Load addon information from the package and subfolder json files
-// into the menu addon storage
-int32_t ReadAddonPackageDescriptors(void)
+static int32_t Addon_InitLoadOrderFromConfig()
 {
-    if (G_GetLogoFlags() & LOGO_NOADDONS)
-        return 0;
-
-    // TODO: Need to devise a way to remember addons
-    // create space for all potentially valid addons
-    int32_t maxaddons = CountPotentialAddons();
-    if (maxaddons <= 0)
-    {
-        DLOG_F(INFO, "No custom addons detected, aborting.");
-        a_free_menuaddons();
-        return -1;
-    }
-
-    if (g_menuaddons == nullptr)
-    {
-        g_menuaddons = (menuaddon_t *)Xcalloc(maxaddons, sizeof(menuaddon_t));
-    }
-    else
-    {
-        g_menuaddons = (menuaddon_t *)Xrealloc(g_menuaddons, maxaddons * sizeof(menuaddon_t));
-
-        for (int i = 0; i < maxaddons; i++)
-            g_menuaddons[i].clear();
-        g_nummenuaddons = 0;
-    }
-
-    sjson_context * ctx = sjson_create_context(0, 0, nullptr);
-    char * addondir = a_getaddondir();
-    if (addondir)
-    {
-        fnlist_t fnlist = FNLIST_INITIALIZER;
-        fnlist_clearnames(&fnlist);
-        LoadLocalPackagedAddons(ctx, &fnlist, addondir);
-        LoadLocalSubfolderAddons(ctx, &fnlist, addondir);
-        Xfree(addondir);
-    }
-    LoadWorkshopAddons(ctx);
-    sjson_destroy_context(ctx);
-
-    if (g_nummenuaddons <= 0)
-    {
-        a_free_menuaddons();
-        return -1;
-    }
-
-    g_menuaddons = (menuaddon_t *)Xrealloc(g_menuaddons, sizeof(menuaddon_t) * g_nummenuaddons);
-    return 0;
-}
-
-int32_t LoadAddonPreviewImage(addonjson_t* mjsonStore)
-{
-    if (!mjsonStore->imageBuffer[0])
+    if (g_numuseraddons <= 0 || !g_useraddons)
         return -1;
 
-    walock[TILE_ADDONSHOT] = CACHE1D_PERMANENT;
+    int32_t i, cl, maxLoadOrder = 0;
 
-    if (waloff[TILE_ADDONSHOT] == 0)
-        g_cache.allocateBlock(&waloff[TILE_ADDONSHOT], PREVIEWTILEX * PREVIEWTILEY, &walock[TILE_ADDONSHOT]);
-
-    tilesiz[TILE_ADDONSHOT].x = PREVIEWTILEX;
-    tilesiz[TILE_ADDONSHOT].y = PREVIEWTILEY;
-
-    Bmemcpy((char *)waloff[TILE_ADDONSHOT], mjsonStore->imageBuffer, PREVIEWTILEX * PREVIEWTILEY);
-    tileInvalidate(TILE_ADDONSHOT, 0, 255);
-    return 0;
-}
-
-
-// This function serves to clean up messy load order sequences, such that there are no gaps or duplicates
-// e.g.: {2, 5, 4, 8, 4}
-// turned into: {1, 3, 2, 4, 5}
-void CleanUpLoadOrder()
-{
-    if (g_nummenuaddons <= 0 || !g_menuaddons)
-        return;
-
-    // get max load order
-    int32_t i, cl, maxBufSize, maxLoadOrder = 0;
-    for (i = 0; i < g_nummenuaddons; i++)
+    // temp: get max load order
+    for (i = 0; i < g_numuseraddons; i++)
     {
-        cl = g_menuaddons[i].loadOrderIndex + 1;
+        cl = g_useraddons[i].loadorder_idx + 1;
         if (cl > maxLoadOrder)
             maxLoadOrder = cl;
     }
 
+    return maxLoadOrder;
+}
+
+static void Addon_InitializeLoadOrder()
+{
+    int32_t i, cl, maxBufSize;
+    if (g_numuseraddons <= 0 || !g_useraddons)
+        return;
+
+    int maxLoadOrder = Addon_InitLoadOrderFromConfig();
+
     // allocate enough space for the case where all load order indices are duplicates
-    maxBufSize = maxLoadOrder + g_nummenuaddons - 1;
-    menuaddon_t** lobuf = (menuaddon_t**) Xcalloc(maxBufSize, sizeof(menuaddon_t*));
+    maxBufSize = maxLoadOrder + g_numuseraddons;
+    useraddon_t** lobuf = (useraddon_t**) Xcalloc(maxBufSize, sizeof(useraddon_t*));
 
     // place pointers to menu addons corresponding to load order
-    for (i = 0; i < g_nummenuaddons; i++)
+    for (i = 0; i < g_numuseraddons; i++)
     {
-        cl = g_menuaddons[i].loadOrderIndex;
-        if (EDUKE32_PREDICT_TRUE(!lobuf[cl]))
-            lobuf[cl] = &g_menuaddons[i];
+        cl = g_useraddons[i].loadorder_idx;
+
+        if (cl < 0 || lobuf[cl])
+            lobuf[maxLoadOrder++] = &g_useraddons[i];
         else
-        {
-            // somehow had a duplicate load order index
-            lobuf[maxLoadOrder++] = &g_menuaddons[i];
-        }
+            lobuf[cl] = &g_useraddons[i];
     }
 
     // clean up load order
@@ -767,39 +761,107 @@ void CleanUpLoadOrder()
     {
         if (lobuf[i])
         {
-            lobuf[i]->loadOrderIndex = newlo;
+            lobuf[i]->loadorder_idx = newlo;
+            lobuf[i]->updateMenuEntryName();
             newlo++;
         }
     }
     Xfree(lobuf);
 }
 
-// switch load order between two addon items, and update name
-void SwapLoadOrder(int32_t indexA, int32_t indexB)
+int32_t Addon_ReadPackageDescriptors(void)
 {
-    int temp = g_menuaddons[indexA].loadOrderIndex;
-    g_menuaddons[indexA].loadOrderIndex = g_menuaddons[indexB].loadOrderIndex;
-    g_menuaddons[indexB].loadOrderIndex = temp;
+    if (G_GetLogoFlags() & LOGO_NOADDONS)
+        return 0;
 
-    a_updateaddonentryname(indexA);
-    a_updateaddonentryname(indexB);
+    // initialize hash table if it doesn't exist yet
+    if (!h_addonpreviews.items)
+        hash_init(&h_addonpreviews);
+
+    // free current storage (large data)
+    Addon_FreeUserAddons();
+
+    // create space for all potentially valid addons
+    int32_t maxaddons = Addon_CountPotentialAddons();
+    if (maxaddons <= 0)
+    {
+        DLOG_F(INFO, "No custom addons detected.");
+        return -1;
+    }
+    g_useraddons = (useraddon_t *)Xcalloc(maxaddons, sizeof(useraddon_t));
+
+    sjson_context * ctx = sjson_create_context(0, 0, nullptr);
+    char * addonpathbuf = (char*) Xmalloc(BMAX_PATH);
+    if (!Addon_GetLocalDir(addonpathbuf, BMAX_PATH))
+    {
+        fnlist_t fnlist = FNLIST_INITIALIZER;
+        fnlist_clearnames(&fnlist);
+        Addon_ReadLocalPackages(ctx, &fnlist, addonpathbuf);
+        Addon_ReadSubfolderAddons(ctx, &fnlist, addonpathbuf);
+    }
+    Xfree(addonpathbuf);
+
+    Addon_LoadWorkshopAddons(ctx);
+    sjson_destroy_context(ctx);
+
+    if (g_numuseraddons <= 0)
+    {
+        DLOG_F(INFO, "No valid addons found.");
+        Addon_FreeUserAddons();
+        return -1;
+    }
+
+    g_useraddons = (useraddon_t *)Xrealloc(g_useraddons, sizeof(useraddon_t) * g_numuseraddons);
+    Addon_InitializeLoadOrder();
+
+    return 0;
 }
 
-int32_t PrepareSelectedAddon(menuaddon_t* seladdon)
+int32_t Addon_LoadPreviewTile(addonjson_t* mjsonStore)
 {
-    addonjson_t & seljson = seladdon->jsonDat;
-    switch (seladdon->loadType)
+    if (!mjsonStore->image_data[0])
+        return -1;
+
+    walock[TILE_ADDONSHOT] = CACHE1D_PERMANENT;
+
+    if (waloff[TILE_ADDONSHOT] == 0)
+        g_cache.allocateBlock(&waloff[TILE_ADDONSHOT], PREVIEWTILE_XSIZE * PREVIEWTILE_YSIZE, &walock[TILE_ADDONSHOT]);
+
+    tilesiz[TILE_ADDONSHOT].x = PREVIEWTILE_XSIZE;
+    tilesiz[TILE_ADDONSHOT].y = PREVIEWTILE_YSIZE;
+
+    Bmemcpy((char *)waloff[TILE_ADDONSHOT], mjsonStore->image_data, PREVIEWTILE_XSIZE * PREVIEWTILE_YSIZE);
+    tileInvalidate(TILE_ADDONSHOT, 0, 255);
+    return 0;
+}
+
+void Addon_SwapLoadOrder(int32_t indexA, int32_t indexB)
+{
+    useraddon_t & addonA = g_useraddons[indexA];
+    useraddon_t & addonB = g_useraddons[indexB];
+
+    int temp = addonA.loadorder_idx;
+    addonA.loadorder_idx = addonB.loadorder_idx;
+    addonB.loadorder_idx = temp;
+
+    addonA.updateMenuEntryName();
+    addonB.updateMenuEntryName();
+}
+
+int32_t Addon_PrepareSelectedAddon(useraddon_t* addon)
+{
+    switch (addon->loadtype)
     {
         case LT_FOLDER:
         {
-            int32_t status = addsearchpath(seljson.dataPath);
-            DLOG_F(INFO, "Result of trying to add '%s': %d", seljson.dataPath, status);
-        }
+            int32_t status = addsearchpath(addon->data_path);
+            DLOG_F(INFO, "Result of trying to add '%s': %d", addon->data_path, status);
             break;
+        }
         case LT_ZIP:
         case LT_SSI:
         case LT_GRP:
-            G_AddGroup(seljson.dataPath);
+            G_AddGroup(addon->data_path);
             /*switch (seljson.addonType)
             {
                 case ATYPE_MAIN:
@@ -819,16 +881,16 @@ int32_t PrepareSelectedAddon(menuaddon_t* seladdon)
             return -1;
     }
 
-    if (seljson.scriptNamePath[0])
-        G_AddCon(seljson.scriptNamePath);
+    if (addon->jsondat.main_script_path[0])
+        G_AddCon(addon->jsondat.main_script_path);
 
-    if (seljson.defNamePath[0])
-        G_AddDef(seljson.defNamePath);
+    if (addon->jsondat.main_def_path[0])
+        G_AddDef(addon->jsondat.main_def_path);
 
     return 0;
 }
 
-int32_t StartSelectedAddons(void)
+int32_t Addon_StartSelectedAddons(void)
 {
     // addsearchpath(g_rootDir);
     return 0;
