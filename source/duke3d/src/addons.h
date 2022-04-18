@@ -135,17 +135,23 @@ struct addonjson_t
 enum aloadtype_t
 {
     LT_INVALID = -1,
-    LT_FOLDER = 0, // Local Subfolder, Workshop Folder
+    LT_FOLDER = 0, // Local Subfolder
     LT_ZIP = 1, // ZIP, PK3, PK4, GRP as ZIP etc.
     LT_GRP = 2, // Ken GRP
     LT_SSI = 3, // Sunstorm
+    LT_WORKSHOP = 4 // Workshop Folder
 };
 
 struct menuaddon_t
 {
+    char entryname[MAXLEN_ADDONTITLE + 8];
+
+    int16_t loadOrderIndex;
+    bool selected;
+
     aloadtype_t loadType;
-    int32_t loadOrderIndex;
     addonjson_t jsonDat;
+
 
     bool isValid()
     {
@@ -157,6 +163,7 @@ struct menuaddon_t
         loadType = LT_INVALID;
         loadOrderIndex = -1;
         jsonDat.reset();
+        selected = false;
     }
 };
 
@@ -165,6 +172,8 @@ extern uint16_t g_nummenuaddons;
 
 int32_t ReadAddonPackageDescriptors(void);
 int32_t LoadAddonPreviewImage(addonjson_t* mjsonStore);
+void SwapLoadOrder(int32_t indexA, int32_t indexB);
+void CleanUpLoadOrder(void);
 int32_t StartSelectedAddons(void);
 
 #ifdef __cplusplus

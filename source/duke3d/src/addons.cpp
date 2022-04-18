@@ -69,6 +69,13 @@ static void a_free_menuaddons(void)
     g_nummenuaddons = 0;
 }
 
+
+static void a_updateaddonentryname(int32_t index)
+{
+    Bsprintf(g_menuaddons[index].entryname, "%d: %s", g_menuaddons[index].loadOrderIndex+1, g_menuaddons[index].jsonDat.title);
+}
+
+
 // This function copies the given string into the text buffer and adds linebreaks at appropriate locations.
 //   * lblen : maximum number of characters until linebreak forced
 // Returns the number of lines in the text.
@@ -431,6 +438,7 @@ static int32_t a_parseaddonjson(sjson_context* ctx, addonjson_t* mjsonStore, con
     return 0;
 }
 
+
 static char* a_getaddondir()
 {
     char * outfile_buf = (char*) Xmalloc(BMAX_PATH);
@@ -569,6 +577,7 @@ static int32_t LoadLocalPackagedAddons(sjson_context* ctx, fnlist_t* fnlist, con
             }
 
             a_packagecleanup(grpfileidx);
+            a_updateaddonentryname(g_nummenuaddons);
             ++g_nummenuaddons;
         }
 
@@ -631,7 +640,7 @@ static int32_t LoadLocalSubfolderAddons(sjson_context* ctx, fnlist_t* fnlist, co
             ajson.addonType = ATYPE_INVALID;
             continue;
         }
-
+        a_updateaddonentryname(g_nummenuaddons);
         ++g_nummenuaddons;
     }
     fnlist_clearnames(fnlist);
@@ -712,6 +721,65 @@ int32_t LoadAddonPreviewImage(addonjson_t* mjsonStore)
     Bmemcpy((char *)waloff[TILE_ADDONSHOT], mjsonStore->imageBuffer, PREVIEWTILEX * PREVIEWTILEY);
     tileInvalidate(TILE_ADDONSHOT, 0, 255);
     return 0;
+}
+
+
+// This function serves to clean up messy load order sequences, such that there are no gaps or duplicates
+// e.g.: {2, 5, 4, 8, 4}
+// turned into: {1, 3, 2, 4, 5}
+void CleanUpLoadOrder()
+{
+    if (g_nummenuaddons <= 0 || !g_menuaddons)
+        return;
+
+    // get max load order
+    int32_t i, cl, maxBufSize, maxLoadOrder = 0;
+    for (i = 0; i < g_nummenuaddons; i++)
+    {
+        cl = g_menuaddons[i].loadOrderIndex + 1;
+        if (cl > maxLoadOrder)
+            maxLoadOrder = cl;
+    }
+
+    // allocate enough space for the case where all load order indices are duplicates
+    maxBufSize = maxLoadOrder + g_nummenuaddons - 1;
+    menuaddon_t** lobuf = (menuaddon_t**) Xcalloc(maxBufSize, sizeof(menuaddon_t*));
+
+    // place pointers to menu addons corresponding to load order
+    for (i = 0; i < g_nummenuaddons; i++)
+    {
+        cl = g_menuaddons[i].loadOrderIndex;
+        if (EDUKE32_PREDICT_TRUE(!lobuf[cl]))
+            lobuf[cl] = &g_menuaddons[i];
+        else
+        {
+            // somehow had a duplicate load order index
+            lobuf[maxLoadOrder++] = &g_menuaddons[i];
+        }
+    }
+
+    // clean up load order
+    int16_t newlo = 0;
+    for (i = 0; i < maxLoadOrder; i++)
+    {
+        if (lobuf[i])
+        {
+            lobuf[i]->loadOrderIndex = newlo;
+            newlo++;
+        }
+    }
+    Xfree(lobuf);
+}
+
+// switch load order between two addon items, and update name
+void SwapLoadOrder(int32_t indexA, int32_t indexB)
+{
+    int temp = g_menuaddons[indexA].loadOrderIndex;
+    g_menuaddons[indexA].loadOrderIndex = g_menuaddons[indexB].loadOrderIndex;
+    g_menuaddons[indexB].loadOrderIndex = temp;
+
+    a_updateaddonentryname(indexA);
+    a_updateaddonentryname(indexB);
 }
 
 int32_t StartSelectedAddons(void)
