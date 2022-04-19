@@ -6403,12 +6403,6 @@ static void G_SoftReboot(void)
 
     // clear all CON VM globals
     C_ResetCompilerVars();
-    g_labelCnt = 0;
-    DO_FREE_AND_NULL(label);
-    DO_FREE_AND_NULL(labelcode);
-    DO_FREE_AND_NULL(labeltype);
-    DO_FREE_AND_NULL(apScript);
-    DO_FREE_AND_NULL(bitptr);
 
     // reset all voxels
     for (int i = 0; i < MAXUSERTILES; i++)

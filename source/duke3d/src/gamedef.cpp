@@ -6500,26 +6500,19 @@ static int C_GetLabelIndex(int32_t val, int type)
 void C_ResetCompilerVars(void)
 {
     // Reset compilation variables to default -- needed for Soft Reboot
-    // TODO: Go over all variables here and decide which need to be reset
-    /*
-    g_aimAngleVarID;
-    g_angRangeVarID;
-    g_hitagVarID;
-    g_lotagVarID;
-    g_returnVarID;
-    g_textureVarID;
-    g_thisActorVarID;
-    g_weaponVarID;
-    g_worksLikeVarID;
-    g_zRangeVarID;
-    g_lineNumber;
-    g_numXStrings;
-    g_scriptVersion;
-    g_totalLines;
-    g_scriptcrc;
-    otherp;
-    bitptr;
-    */
+    // TODO: Double check if everything is reset properly
+    g_aimAngleVarID = -1;
+    g_angRangeVarID = -1;
+    g_hitagVarID = -1;
+    g_lotagVarID = -1;
+    g_returnVarID = -1;
+    g_textureVarID = -1;
+    g_thisActorVarID = -1;
+    g_weaponVarID = -1;
+    g_worksLikeVarID = -1;
+    g_zRangeVarID = -1;
+
+    g_labelCnt = 0;
     g_checkingCase = false;
     g_dynamicSoundMapping = 0;
     g_dynamicTileMapping = 0;
@@ -6533,13 +6526,21 @@ void C_ResetCompilerVars(void)
     g_lastKeyword = -1;
     g_numBraces = 0;
     g_numCases = 0;
-    /*
-    static intptr_t apScriptGameEventEnd[MAXEVENTS];
-    static intptr_t g_scriptActorOffset;
-    static intptr_t g_scriptEventBreakOffset;
-    static intptr_t g_scriptEventChainOffset;
-    static intptr_t g_scriptEventOffset;
-    */
+    otherp = 0;
+
+    g_scriptEventOffset = 0;
+    g_scriptEventChainOffset = 0;
+    g_scriptActorOffset = 0;
+    g_scriptEventBreakOffset = 0;
+
+    Bmemset(apScriptEvents, 0, sizeof(apScriptEvents));
+    Bmemset(apScriptGameEventEnd, 0, sizeof(apScriptGameEventEnd));
+
+    DO_FREE_AND_NULL(label);
+    DO_FREE_AND_NULL(labelcode);
+    DO_FREE_AND_NULL(labeltype);
+    DO_FREE_AND_NULL(apScript);
+    DO_FREE_AND_NULL(bitptr);
 }
 
 void C_Compile(const char *fileName)
