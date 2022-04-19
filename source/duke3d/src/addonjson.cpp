@@ -48,6 +48,7 @@ useraddon_t** g_useraddons_mods = nullptr;
 int32_t g_addoncount_mods = 0;
 
 // keys used in the JSON addon descriptor
+static const char jsonkey_manifestv[] = "manifest_version";
 static const char jsonkey_depid[] = "id";
 static const char jsonkey_game[] = "game";
 static const char jsonkey_gamecrc[] = "gamecrc";
@@ -68,8 +69,8 @@ static const char jsonkey_startmap[] = "startmap";
 // all keys of the base json level -- anything else being present triggers a warning
 static const char* json_basekeys[] =
 {
-    jsonkey_depid, jsonkey_game, jsonkey_gamecrc, jsonkey_version,jsonkey_title,jsonkey_author,
-    jsonkey_desc, jsonkey_image, jsonkey_con, jsonkey_def, jsonkey_rts, jsonkey_grpdata,
+    jsonkey_manifestv, jsonkey_depid, jsonkey_game, jsonkey_gamecrc, jsonkey_version,jsonkey_title,
+    jsonkey_author, jsonkey_desc, jsonkey_image, jsonkey_con, jsonkey_def, jsonkey_rts, jsonkey_grpdata,
     jsonkey_dependencies,jsonkey_incompatibles,jsonkey_rendmodes,jsonkey_startmap
 };
 
@@ -977,26 +978,49 @@ static int32_t AddonJson_ParseDescriptor(sjson_context *ctx, char* json_fn, user
         LOG_F(ERROR, "Structural syntax errors detected in addon descriptor file '%s'!", json_fn);
         return -1;
     }
-
-    int32_t parseResult, jsonErrorCnt = 0;
     sjson_node * root = sjson_decode(ctx, jsonTextBuf);
     Xfree(jsonTextBuf);
 
-    AddonJson_CheckUnknownKeys(addonPtr->internalId, root, nullptr, json_basekeys, ARRAY_SIZE(json_basekeys));
-
-    // game type is required to identify for which game the addon should be shown in the menu (required)
-    addonPtr->gametype = AddonJson_ParseGameFlag(addonPtr, root, jsonkey_game);
-    if (addonPtr->gametype == ADDONGF_NONE)
+    int32_t parseResult, jsonErrorCnt = 0;
+    char* mversion = nullptr;
+    parseResult = AddonJson_ParseString(addonPtr, root, jsonkey_manifestv, mversion);
+    if (parseResult == -1) jsonErrorCnt++;
+    else if (parseResult == 1)
     {
-        LOG_F(ERROR, "Invalid game type specified for addon: '%s'! (key: %s)", addonPtr->internalId, jsonkey_game);
+        LOG_F(ERROR, "Missing manifest version for addon: '%s'! (key: %s)", addonPtr->internalId, jsonkey_manifestv);
         jsonErrorCnt++;
     }
+    else
+    {
+        if (Bstrcmp(mversion, "1.0"))
+        {
+            LOG_F(ERROR, "Invalid manifest version '%s' on addon: '%s'! Supported versions: {\"1.0\"}", mversion, addonPtr->internalId);
+            jsonErrorCnt++;
+        }
+    }
 
-    // creator must specify an identity for the addon, such that other addons can reference it (required)
+    // bail if manifest version error
+    if (jsonErrorCnt != 0)
+    {
+        Xfree(mversion);
+        return -1;
+    }
+
+    AddonJson_CheckUnknownKeys(addonPtr->internalId, root, nullptr, json_basekeys, ARRAY_SIZE(json_basekeys));
+
+    // identity string (required)
     parseResult = AddonJson_ParseExternalId(addonPtr, root, jsonkey_depid);
     if (parseResult != 0)
     {
         if (parseResult == 1) LOG_F(ERROR, "Missing identity for addon: '%s'! (key: %s)", addonPtr->internalId, jsonkey_depid);
+        jsonErrorCnt++;
+    }
+
+    // game type (optional)
+    addonPtr->gametype = AddonJson_ParseGameFlag(addonPtr, root, jsonkey_game);
+    if (addonPtr->gametype == ADDONGF_NONE)
+    {
+        LOG_F(ERROR, "Invalid game type specified for addon: '%s'! (key: %s)", addonPtr->internalId, jsonkey_game);
         jsonErrorCnt++;
     }
 
@@ -1071,6 +1095,7 @@ static int32_t AddonJson_ParseDescriptor(sjson_context *ctx, char* json_fn, user
     parseResult = AddonJson_CheckFilesPresence(addonPtr, isgroup);
     if (parseResult > 0) jsonErrorCnt++;
 
+    Xfree(mversion);
     if (jsonErrorCnt > 0)
     {
         LOG_F(ERROR, "Found %d errors in addon descriptor of: '%s'", jsonErrorCnt, addonPtr->internalId);
