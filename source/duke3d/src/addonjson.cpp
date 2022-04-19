@@ -753,7 +753,7 @@ static int32_t AddonJson_AddGameCRC(useraddon_t* addonPtr, sjson_node* ele, cons
         }
 
         char* endptr;
-        int32_t hex = Bstrtol(ele->string_, &endptr, 0);
+        int32_t hex = Bstrtoul(ele->string_, &endptr, 0);
         if (hex == 0 || *endptr)
         {
             LOG_F(ERROR, "Value %s in addon %s is not a valid hexadecimal!", ele->string_, addonPtr->internalId);
