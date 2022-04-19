@@ -2601,10 +2601,10 @@ static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
         }
 
         abt_buffersize += addonPtr->startmapfilename ? strlen(addonPtr->startmapfilename) : 0;
+        abt_buffersize += strlen(addonPtr->internalId);
 
 #ifdef DEBUGGINGAIDS
         // size for text only shown with debug mode on
-        abt_buffersize += strlen(addonPtr->internalId);
         abt_buffersize += addonPtr->data_path ? strlen(addonPtr->data_path) : 0;
         abt_buffersize += addonPtr->mscript_path ? strlen(addonPtr->mscript_path) : 0;
         abt_buffersize += addonPtr->mdef_path ? strlen(addonPtr->mdef_path) : 0;
@@ -2735,6 +2735,9 @@ static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
             Bsprintf(tempbuf, "\n\n^%dProperties:^%d\n", abt_headerpal, abt_textpal);
             Bstrcat(m_addonbodytext, tempbuf);
 
+            Bsprintf(tempbuf, "^%d- Internal ID:^%d %s\n", abt_headerpal, abt_textpal, addonPtr->internalId);
+            Bstrcat(m_addonbodytext, tempbuf);
+
             const size_t startlen = strlen(m_addonbodytext);
 
             if (addonPtr->aflags & ADDONFLAG_OFFICIAL)
@@ -2811,9 +2814,6 @@ static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
 #ifdef DEBUGGINGAIDS
         // debug description
         Bsprintf(tempbuf, "\n^%dDebug Info:\n^%d", abt_headerpal, abt_textpal);
-        Bstrcat(m_addonbodytext, tempbuf);
-
-        Bsprintf(tempbuf, "- Internal ID: %s\n", addonPtr->internalId);
         Bstrcat(m_addonbodytext, tempbuf);
 
         if (addonPtr->data_path)
