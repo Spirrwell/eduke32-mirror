@@ -343,12 +343,6 @@ static int32_t AddonJson_CheckExternalIdentityRestrictions(const useraddon_t *ad
         return -1;
     }
 
-    if (!isalpha(ident[0]))
-    {
-        LOG_F(ERROR, "Starting character in identity string of addon '%s' must be alphabetical!", addonPtr->internalId);
-        return -1;
-    }
-
     for (int i = 1; ident[i]; i++)
     {
         const char c = ident[i];
