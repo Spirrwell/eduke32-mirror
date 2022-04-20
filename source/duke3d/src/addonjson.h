@@ -31,6 +31,8 @@ extern "C" {
 
 // ----------------------------------------
 
+extern char g_addonDir[BMAX_PATH];
+
 void Addon_ReadJsonDescriptors(void);
 void Addon_FreeUserTCs();
 void Addon_FreeUserMods(void);

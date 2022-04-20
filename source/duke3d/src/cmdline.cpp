@@ -33,6 +33,7 @@ int32_t g_noSound = 0;
 int32_t g_noMusic = 0;
 const char *CommandMap = NULL;
 const char *CommandName = NULL;
+const char *CommandAddonDir = NULL;
 int32_t g_forceWeaponChoice = 0;
 int32_t g_fakeMultiMode = 0;
 
@@ -406,6 +407,16 @@ void G_CheckCommandLine(int32_t argc, char const * const * argv)
                     if (argc > i+1)
                     {
                         CommandMap = argv[i+1];
+                        i++;
+                    }
+                    i++;
+                    continue;
+                }
+                if (!Bstrcasecmp(c+1, "addondir"))
+                {
+                    if (argc > i+1)
+                    {
+                        CommandAddonDir = argv[i+1];
                         i++;
                     }
                     i++;

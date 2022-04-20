@@ -6451,6 +6451,7 @@ static void G_SoftReboot(void)
     // this disables several potential startup parameters that should not be active on a soft reboot
     CommandName = NULL;
     CommandMap = NULL;
+    CommandAddonDir = NULL;
     boardfilename[0] = '\0';
     ud.warp_on = 0;
     g_scriptDebug = 0;
@@ -7210,6 +7211,8 @@ int app_main(int argc, char const* const* argv)
 
 #ifdef ADDONS_MENU
     LOG_F(INFO, "Loading addon descriptors...");
+    if (CommandAddonDir)
+        Bstrncpy(g_addonDir, CommandAddonDir, BMAX_PATH);
     Addon_ReadJsonDescriptors();
     Addon_InitializeLoadOrders();
 #endif

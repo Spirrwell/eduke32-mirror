@@ -32,8 +32,8 @@ static const char ssi_ext[] = "*.ssi";
 static const char* addon_extensions[] = { grp_ext, ssi_ext, "*.zip", "*.pk3", "*.pk4" };
 
 // local addon folder name and json descriptor filename
-static const char addondirname[] = "addons";
 static const char addonjsonfn[] = "addon.json";
+char g_addonDir[BMAX_PATH] = "useraddons";
 
 // temporary storage for all addons -- all addons are first stored in this array before being separated by type
 static useraddon_t** s_useraddons = nullptr;
@@ -1111,20 +1111,24 @@ static void AddonJson_SetContentType(useraddon_t* addonPtr)
         addonPtr->content_type = ADDONTYPE_MOD;
 }
 
-// Check if the addon directory exists. This is always placed in the folder where the exe is found.
+// retrieve the location to load addons from
 static int32_t AddonJson_GetLocalDir(char * pathbuf, const int32_t buflen)
 {
+    // directory where binary is located always takes priority
     char* appdir = Bgetappdir();
-    Bsnprintf(pathbuf, buflen, "%s/%s", appdir, addondirname);
+    Bsnprintf(pathbuf, buflen, "%s/%s", appdir, g_addonDir);
     Xfree(appdir);
+    if (buildvfs_isdir(pathbuf))
+        return 0;
 
-    if (!buildvfs_isdir(pathbuf))
-    {
-        // DLOG_F(INFO, "Addon path does not exist: '%s", pathbuf);
-        return -1;
-    }
+    // if failed, try profile paths, and absolute paths
+    Bstrncpyz(pathbuf, g_addonDir, buflen);
+    if (buildvfs_isdir(pathbuf))
+        return 0;
 
-    return 0;
+    // not found
+    pathbuf[0] = '\0';
+    return -1;
 }
 
 

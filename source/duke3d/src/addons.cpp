@@ -742,7 +742,6 @@ int32_t Addon_LoadUserTCs(void)
     if (g_addoncount_tcs <= 0 || !g_useraddons_tcs)
         return -1;
 
-    // use absolute paths to load addons
     int const bakpathsearchmode = pathsearchmode;
     pathsearchmode = 1;
 
@@ -771,7 +770,6 @@ int32_t Addon_LoadUserMods(void)
     if (g_addoncount_mods <= 0 || !g_useraddons_mods)
         return -1;
 
-    // use absolute paths to load addons
     int const bakpathsearchmode = pathsearchmode;
     pathsearchmode = 1;
 
