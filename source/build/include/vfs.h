@@ -188,7 +188,8 @@ extern char toupperlookup[256];
 
 extern char *kpzbuf;
 extern int32_t kpzbufsiz;
-extern int32_t kpzbufload(const char *);
+extern int32_t kpzbufload_sf(const char *, char);
+#define kpzbufload(fn) kpzbufload_sf(fn, 0)
 
 #ifdef USE_PHYSFS
 using buildvfs_kfd = PHYSFS_File *;

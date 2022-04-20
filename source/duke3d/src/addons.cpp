@@ -89,10 +89,10 @@ void Addon_FreePreviewHashTable(void)
 }
 
 // Load preview contents from an image file and convert it to palette
-static uint8_t* Addon_LoadPreviewFromFile(const char *fn)
+static uint8_t* Addon_LoadPreviewFromFile(const char *fn, char searchfirst)
 {
     vec2_t xydim = {0, 0};
-    uint8_t* imagebuffer = loadimagefromfile(fn, xydim);
+    uint8_t* imagebuffer = loadimagefromfile(fn, xydim, searchfirst);
 
     if (!imagebuffer)
     {
@@ -123,8 +123,13 @@ static void Addon_LoadAddonPreview(useraddon_t* addonPtr)
         addonPtr->preview_image_data = (uint8_t*) cachedImage;
     else
     {
-        char fullPreviewPath[BMAX_PATH];
+        // Need to set the search type to ensure preview is read from exactly this package
+        char searchfirst = 0;
+        if (addonPtr->package_type & (ADDONLT_GRP | ADDONLT_SSI)) searchfirst = 4;
+        else if (addonPtr->package_type & ADDONLT_ZIP) searchfirst = 3;
+
         // prepare and construct image path
+        char fullPreviewPath[BMAX_PATH];
         if (addonPtr->package_type & (ADDONLT_GRP | ADDONLT_ZIP | ADDONLT_SSI))
         {
             initgroupfile(addonPtr->data_path);
@@ -140,7 +145,7 @@ static void Addon_LoadAddonPreview(useraddon_t* addonPtr)
         }
 
         // try to load the image
-        addonPtr->preview_image_data = Addon_LoadPreviewFromFile(fullPreviewPath);
+        addonPtr->preview_image_data = Addon_LoadPreviewFromFile(fullPreviewPath, searchfirst);
 
         // cleanup
         if (addonPtr->package_type & (ADDONLT_GRP | ADDONLT_ZIP | ADDONLT_SSI))

@@ -78,9 +78,9 @@ int32_t kpzbufloadfil(buildvfs_kfd const handle)
     return leng;
 }
 
-int32_t kpzbufload(char const * const filnam)
+int32_t kpzbufload_sf(char const * const filnam, char searchfirst)
 {
-    buildvfs_kfd const handle = kopen4load(filnam, 0);
+    buildvfs_kfd const handle = kopen4load(filnam, searchfirst);
     if (handle == buildvfs_kfd_invalid)
         return 0;
 

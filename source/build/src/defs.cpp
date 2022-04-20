@@ -3841,7 +3841,7 @@ static int32_t defsparser(scriptfile *script)
     return 0;
 }
 
-uint8_t* loadimagefromfile(const char *fn, vec2_t & xydim)
+uint8_t* loadimagefromfile(const char *fn, vec2_t & xydim, char searchfirst)
 {
 #ifdef WITHKPLIB
     palette_t *picptr = NULL;
@@ -3851,7 +3851,7 @@ uint8_t* loadimagefromfile(const char *fn, vec2_t & xydim)
         return nullptr;
     }
 
-    kpzdecode(kpzbufload(fn), (intptr_t *)&picptr, &xydim.x, &xydim.y);
+    kpzdecode(kpzbufload_sf(fn, searchfirst), (intptr_t *)&picptr, &xydim.x, &xydim.y);
     paletteFlushClosestColor();
 
     if (!picptr || xydim.x == 0 || xydim.y == 0)
