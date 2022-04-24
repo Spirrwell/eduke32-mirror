@@ -704,13 +704,8 @@ static int32_t AddonJson_ParseDependencyList(useraddon_t* addonPtr, sjson_node* 
     return 0;
 }
 
-// game type for which the addon is valid and available
-static int32_t AddonJson_ParseGameFlag(const useraddon_t* addonPtr, sjson_node* root, const char* key)
+static int32_t AddonJson_CompareGameFlagString(const useraddon_t* addonPtr, sjson_node* ele)
 {
-    sjson_node * ele = sjson_find_member_nocase(root, key);
-    if (ele == nullptr || AddonJson_CheckStringTyped(addonPtr, ele, key))
-        return ADDONGF_ANY;
-
     if (!Bstrncasecmp(ele->string_, jsonval_gt_any, ARRAY_SIZE(jsonval_gt_any)))
         return ADDONGF_ANY;
     else if (!Bstrncasecmp(ele->string_, jsonval_gt_duke, ARRAY_SIZE(jsonval_gt_duke)))
@@ -726,6 +721,39 @@ static int32_t AddonJson_ParseGameFlag(const useraddon_t* addonPtr, sjson_node* 
         LOG_F(ERROR, "Invalid gametype on addon '%s'.\nValid gametype strings are: {%s, %s, %s, %s, %s}.",
                 addonPtr->internalId, jsonval_gt_any, jsonval_gt_duke, jsonval_gt_nam, jsonval_gt_ww2gi, jsonval_gt_fury);
         return ADDONGF_NONE;
+    }
+}
+
+// game type for which the addon is valid and available
+static int32_t AddonJson_ParseGameFlag(useraddon_t* addonPtr, sjson_node* root, const char* key)
+{
+    addonPtr->gametype = ADDONGF_NONE;
+    sjson_node * ele = sjson_find_member_nocase(root, key);
+    if (ele == nullptr)
+    {
+        addonPtr->gametype = ADDONGF_ANY;
+        return 1;
+    }
+
+    if (ele->tag == SJSON_ARRAY)
+    {
+        sjson_node * snode;
+        sjson_foreach(snode, ele)
+        {
+            int32_t gflag = AddonJson_CompareGameFlagString(addonPtr, snode);
+            if (gflag == ADDONGF_NONE) return -1;
+            addonPtr->gametype |= gflag;
+        }
+        return 0;
+    }
+    else
+    {
+        if (AddonJson_CheckStringTyped(addonPtr, ele, key)) return -1;
+        int32_t gflag = AddonJson_CompareGameFlagString(addonPtr, ele);
+        if (gflag == ADDONGF_NONE) return -1;
+        addonPtr->gametype |= gflag;
+
+        return 0;
     }
 }
 
@@ -1014,12 +1042,8 @@ static int32_t AddonJson_ParseDescriptor(sjson_context *ctx, char* json_fn, user
     }
 
     // game type (optional)
-    addonPtr->gametype = AddonJson_ParseGameFlag(addonPtr, root, jsonkey_game);
-    if (addonPtr->gametype == ADDONGF_NONE)
-    {
-        LOG_F(ERROR, "Invalid game type specified for addon: '%s'! (key: %s)", addonPtr->internalId, jsonkey_game);
-        jsonErrorCnt++;
-    }
+    parseResult = AddonJson_ParseGameFlag(addonPtr, root, jsonkey_game);
+    if (parseResult == -1) jsonErrorCnt++;
 
     // game crc (crc match for root parent grp)  (optional)
     parseResult = AddonJson_ParseGameCRC(addonPtr, root, jsonkey_gamecrc);
