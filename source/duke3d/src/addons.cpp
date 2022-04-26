@@ -711,8 +711,9 @@ static int32_t Addon_PrepareUserAddon(const useraddon_t* addonPtr)
 
     if (addonPtr->mrts_path)
     {
-        Bstrncpy(ud.rtsname, addonPtr->mrts_path, MAXRTSNAME);
-        LOG_F(INFO, "Using RTS file: %s", ud.rtsname);
+        DO_FREE_AND_NULL(g_rtsNamePtr);
+        g_rtsNamePtr = dup_filename(addonPtr->mrts_path);
+        LOG_F(INFO, "Using RTS file: %s", g_rtsNamePtr);
     }
 
     return 0;
