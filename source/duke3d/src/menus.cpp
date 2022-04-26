@@ -244,6 +244,7 @@ MenuFont_t MF_Minifont = MF_Minifont_Default;
 #ifdef ADDONS_MENU
 // hack: runtime copies of Minifont for the addon menu entry list
 // these exist mainly to change the palette and size
+MenuFont_t MF_Bluefont_Addon_Confirm = {};
 MenuFont_t MF_Minifont_Addon_Entry = {};
 MenuFont_t MF_Minifont_Addon_Active = {};
 MenuFont_t MF_Minifont_Addon_Warning = {};
@@ -1332,8 +1333,9 @@ static int32_t m_addontitle_hscroll = 0;
 static bool m_addons_launchmap = false;
 
 // various strings
-static const char m_addontext_deactivate[] = "Unload Addons and Restart";
-static const char m_addontext_launch[] = "Confirm Selection and Restart";
+static const char m_addontext_deactivate[] = "Unload Addons";
+static const char m_addontext_launch[] = "Load Addons and Restart";
+static const char m_addontext_warning[] = "Warning: Conflicts Found";
 static const char m_addontext_grpinfolabel[] = "Predefined Addons";
 static const char m_addontext_tclabel[] = "Total Conversions";
 static const char m_addontext_modlabel[] = "Mods and Maps";
@@ -1346,7 +1348,7 @@ static MenuLink_t MEO_ADDONS_ACCEPT = { MENU_ADDONSVERIFY, MA_None, };
 static MenuLink_t MEO_ADDONS_NULL = { MENU_NULL, MA_None, };
 
 // template addon menu entries
-static MenuEntry_t ME_ADDONS_ACCEPT = MAKE_MENUENTRY( m_addontext_launch, &MF_Minifont_Addon_Entry, &MEF_Addons, &MEO_ADDONS_ACCEPT, Link );
+static MenuEntry_t ME_ADDONS_ACCEPT = MAKE_MENUENTRY( m_addontext_launch, &MF_Bluefont_Addon_Confirm, &MEF_Addons, &MEO_ADDONS_ACCEPT, Link );
 static MenuEntry_t ME_ADDONS_ITEM = MAKE_MENUENTRY( NULL, &MF_Minifont_Addon_Entry, &MEF_Addons, &MEO_ADDONS_NULL, Link );
 static MenuEntry_t ME_ADDONS_LABEL = MAKE_MENUENTRY( NULL, &MF_Minifont_Addon_Label, &MEF_Addons, &MEO_ADDONS_NULL, Dummy );
 
@@ -2184,17 +2186,31 @@ static void Menu_Addon_UpdateConfirmationEntry(MenuEntry_t* menuEntry)
 {
     // check if the current selection of addons contains a problem
     const bool hasIssue = (g_num_active_incompats > 0) || (g_num_active_mdeps > 0)
-                            || ((g_addon_compatrendmode & ADDON_SUPPORTED_RENDMODES) == 0);
+            || ((g_addon_compatrendmode & ADDON_SUPPORTED_RENDMODES) == 0);
 
     if (g_num_selected_addons > 0)
     {
-        menuEntry->name = m_addontext_launch;
-        menuEntry->font = hasIssue ? &MF_Minifont_Addon_Warning : &MF_Minifont_Addon_Active;
+        if (hasIssue)
+        {
+            menuEntry->name = m_addontext_warning;
+            MF_Bluefont_Addon_Confirm.pal = MENUTEXTPAL_RED;
+            MF_Bluefont_Addon_Confirm.pal_selected = MENUTEXTPAL_RED;
+            MF_Bluefont_Addon_Confirm.pal_deselected = MENUTEXTPAL_RED;
+        }
+        else
+        {
+            menuEntry->name = m_addontext_launch;
+            MF_Bluefont_Addon_Confirm.pal = MENUTEXTPAL_GREEN;
+            MF_Bluefont_Addon_Confirm.pal_selected = MENUTEXTPAL_GREEN;
+            MF_Bluefont_Addon_Confirm.pal_deselected = MENUTEXTPAL_GREEN;
+        }
     }
     else
     {
         menuEntry->name = m_addontext_deactivate;
-        menuEntry->font = &MF_Minifont_Addon_Entry;
+        MF_Bluefont_Addon_Confirm.pal = MENUTEXTPAL_BLUE;
+        MF_Bluefont_Addon_Confirm.pal_selected = MENUTEXTPAL_BLUE;
+        MF_Bluefont_Addon_Confirm.pal_deselected = MENUTEXTPAL_BLUE;
     }
 
     MenuEntry_DisableOnCondition(menuEntry, (NUM_TOTAL_ADDONS == 0) || (hasIssue && cvar_addonmenu_strict));
@@ -3392,11 +3408,17 @@ void Menu_Init(void)
     MenuEntry_HideOnCondition(&ME_MAIN_ADDONS, G_GetLogoFlags() & LOGO_NOADDONS);
 
     // Duplicate the minifont for addon menu
+    MF_Bluefont_Addon_Confirm = MF_Bluefont;
+
     MF_Minifont_Addon_Entry = MF_Minifont;
     MF_Minifont_Addon_Label = MF_Minifont;
 
-    if (!FURY)
+    if (FURY)
+        MF_Bluefont_Addon_Confirm.zoom = (16384 + 2048);
+    else
     {
+        // Duke case
+        MF_Bluefont_Addon_Confirm.zoom = (4096*10);
         MF_Minifont_Addon_Entry.zoom = (4096*11);
         MF_Minifont_Addon_Label.zoom = (4096*12);
     }
@@ -3586,6 +3608,7 @@ void Menu_UnInit(void)
 
 #ifdef ADDONS_MENU
     DO_FREE_AND_NULL(m_addonbodytext);
+    MF_Bluefont_Addon_Confirm = {};
     MF_Minifont_Addon_Entry = {};
     MF_Minifont_Addon_Label = {};
     MF_Minifont_Addon_Active = {};
@@ -4390,6 +4413,10 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
 #ifdef ADDONS_MENU
     case MENU_ADDONS:
     {
+        // make the confirmation menu entry glow
+        if ((M_ADDONS.entrylist[0]->flags & (MEF_Disabled|MEF_LookDisabled)) == 0)
+            MF_Bluefont_Addon_Confirm.shade_deselected = MENU_GLOWSHADE;
+
         // list background
         Menu_BlackRectangle(origin.x + (161<<16), origin.y + (34<<16), 132<<16, 96<<16, 1);
 
