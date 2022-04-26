@@ -2791,7 +2791,7 @@ static void Menu_Addon_RefreshTextBuffers(const useraddon_t* addonPtr)
 
             if (addonPtr->mrts_path)
             {
-                Bsprintf(m_addonbodytext, "^%d- Replaces:^%d Main RTS File\n", abt_headerpal, abt_textpal);
+                Bsprintf(tempbuf, "^%d- Replaces:^%d Main RTS File\n", abt_headerpal, abt_textpal);
                 Bstrcat(m_addonbodytext, tempbuf);
             }
 
