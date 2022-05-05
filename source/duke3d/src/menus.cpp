@@ -386,7 +386,10 @@ static char const s_UserContent[] = "User Content";
 #endif
 
 static char const s_Monsters[] = "Monsters";
+#ifndef EDUKE32_STANDALONE
 static char const s_DukeTalk[] = "Duke talk:";
+#endif
+static char const s_SilentProtag[] = "Silent protagonist:";
 
 MAKE_MENU_TOP_ENTRYLINK( s_NewGame, MEF_MainMenu, MAIN_NEWGAME, MENU_EPISODE );
 #ifdef EDUKE32_RETAIL_MENU
@@ -1381,7 +1384,7 @@ static MenuOption_t MEO_SOUND_DUKETALK = MAKE_MENUOPTION(&MF_Redfont, &MEOS_NoYe
 static MenuEntry_t ME_SOUND_DUKETALK = MAKE_MENUENTRY( s_DukeTalk, &MF_Redfont, &MEF_BigOptionsRt, &MEO_SOUND_DUKETALK, Option );
 #else
 static MenuOption_t MEO_SOUND_DUKETALK = MAKE_MENUOPTION(&MF_Redfont, &MEOS_YesNo, NULL);
-static MenuEntry_t ME_SOUND_DUKETALK = MAKE_MENUENTRY("Silent protagonist:", &MF_Redfont, &MEF_BigOptionsRt, &MEO_SOUND_DUKETALK, Option);
+static MenuEntry_t ME_SOUND_DUKETALK = MAKE_MENUENTRY( s_SilentProtag, &MF_Redfont, &MEF_BigOptionsRt, &MEO_SOUND_DUKETALK, Option);
 #endif
 
 static char const *MEOSN_SOUND_SAMPLINGRATE[] = { "22050Hz", "44100Hz", "48000Hz", };
@@ -3340,6 +3343,8 @@ void Menu_Init(void)
         ME_SOUND_DUKETALK.name = "GI talk:";
     else if (NAM)
         ME_SOUND_DUKETALK.name = "Grunt talk:";
+    else if (FURY)
+        ME_SOUND_DUKETALK.name = s_SilentProtag;
 #endif
 
     if (FURY)
@@ -3582,7 +3587,12 @@ void Menu_UnInit(void)
 
     // reset strings changed by gametypes
     ME_NETOPTIONS_MONSTERS.name = s_Monsters;
+
+#ifndef EDUKE32_STANDALONE
     ME_SOUND_DUKETALK.name = s_DukeTalk;
+#else
+    ME_SOUND_DUKETALK.name = s_SilentProtag;
+#endif
 
     // reset FURY changes to default (TODO: Need to move some of this out into static definitions... -DB64)
     g_textstat = RS_AUTO | RS_NOCLIP | RS_TOPLEFT;
