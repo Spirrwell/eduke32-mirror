@@ -1133,6 +1133,10 @@ int CONFIG_SetMapBestTime(uint8_t const * const mapmd4, int32_t tm)
 int32_t CONFIG_GetAddonActivationStatus(const char* addonIdentifier)
 {
     int32_t status = 0;
+
+    if (!ud.config.setupread || ud.config.scripthandle < 0)
+        return status;
+
     SCRIPT_GetBoolean(ud.config.scripthandle, "Active Addons", addonIdentifier, &status);
     return status;
 }
@@ -1140,6 +1144,10 @@ int32_t CONFIG_GetAddonActivationStatus(const char* addonIdentifier)
 int32_t CONFIG_GetAddonLoadOrder(const char* addonIdentifier)
 {
     int32_t loadOrder = -1;
+
+    if (!ud.config.setupread || ud.config.scripthandle < 0)
+        return loadOrder;
+
     if (SCRIPT_GetNumber(ud.config.scripthandle, "TC Load Order", addonIdentifier, &loadOrder))
         SCRIPT_GetNumber(ud.config.scripthandle, "Mod Load Order", addonIdentifier, &loadOrder);
     return loadOrder;
