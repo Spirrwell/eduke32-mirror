@@ -7651,20 +7651,13 @@ ACTOR_STATIC void G_MoveEffectors(void)   //STATNUM 3
                     int const  warpPlayer = P_Get(j);
                     auto const pPlayer    = g_player[warpPlayer].ps;
 
-                    if (numplayers < 2 && !g_netServer)
-                        pPlayer->opos.z = pPlayer->pos.z;
-
                     pPlayer->pos.z += q;
                     pPlayer->truefz += q;
                     pPlayer->truecz += q;
-
-                    if (g_netServer || numplayers > 1)
-                        pPlayer->opos.z = pPlayer->pos.z;
                 }
 
                 if (sprite[j].statnum != STAT_EFFECTOR)
                 {
-                    actor[j].bpos.z = sprite[j].z;
                     sprite[j].z += q;
                 }
 
@@ -7716,6 +7709,8 @@ ACTOR_STATIC void G_MoveEffectors(void)   //STATNUM 3
                         pPlayer->pos.z = sector[sprite[j].sectnum].floorz - (pSector->floorz - pPlayer->pos.z);
                         pPlayer->opos.z += pPlayer->pos.z;
 
+                        if (q > 0) pPlayer->opos.z = pPlayer->pos.z;
+
                         actor[k].floorz     = sector[sprite[j].sectnum].floorz;
                         actor[k].ceilingz   = sector[sprite[j].sectnum].ceilingz;
                         pPlayer->opos.xy    = pPlayer->pos.xy;
@@ -7735,6 +7730,8 @@ ACTOR_STATIC void G_MoveEffectors(void)   //STATNUM 3
                         actor[k].bpos.z -= sprite[k].z;
                         sprite[k].z = sector[sprite[j].sectnum].floorz - (pSector->floorz - sprite[k].z);
                         actor[k].bpos.z += sprite[k].z;
+
+                        if (q > 0) actor[k].bpos.z = sprite[k].z;
 
                         changespritesect(k,sprite[j].sectnum);
                         setsprite(k,&sprite[k].xyz);
