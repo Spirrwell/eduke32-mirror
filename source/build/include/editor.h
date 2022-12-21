@@ -452,7 +452,6 @@ extern int32_t scripthistend;
 enum SaveBoardFlags
 {
     M32_SB_NOEXT = 1,  // no ExtSaveMap (backup.map) and no taglabels saving
-    M32_SB_ASKOV = 2,  // for NEW_MAP_FORMAT build, ask whether write map if going from V7/8 to VX
 };
 
 // showdebug is now used as a general informational on-screen display

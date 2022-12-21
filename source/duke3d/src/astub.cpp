@@ -10859,7 +10859,7 @@ static void Keys2d3d(void)
                     Bsprintf(tempbuf, "Save to %s?", levelname);
                     if (!AskIfSure(tempbuf))
                     {
-                        if (SaveBoard(levelname, M32_SB_ASKOV) != NULL)
+                        if (SaveBoard(levelname, 0) != NULL)
                         {
                             message("Board saved to %s", levelname);
                             asksave = 0;

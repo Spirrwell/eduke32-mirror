@@ -952,7 +952,7 @@ CANCEL:
             {
                 keystatus[sc_Y] = keystatus[sc_Enter] = 0;
 
-                SaveBoard(NULL, M32_SB_ASKOV);
+                SaveBoard(NULL, 0);
 
                 break;
             }
@@ -8487,7 +8487,7 @@ CANCEL:
                         int32_t corrupt = CheckMapCorruption(4, 0);
 
                         if (ask_if_sure(corrupt<4?"Save changes?":"Map corrupt. Save changes?", 2+(corrupt>=4)))
-                            SaveBoard(NULL, M32_SB_ASKOV);
+                            SaveBoard(NULL, 0);
 
                         while (keystatus[sc_Escape] || keystatus[sc_C])
                         {
@@ -8641,7 +8641,7 @@ static void SaveBoardAndPrintMessage(const char *fn)
     _printmessage16("Saving board...");
     videoShowFrame(1);
 
-    f = SaveBoard(fn, M32_SB_ASKOV);
+    f = SaveBoard(fn, 0);
 
     if (f)
     {
