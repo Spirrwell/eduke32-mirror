@@ -180,11 +180,7 @@ int32_t __fastcall VM_GetWall(int const wallNum, int32_t labelNum)
     switch (labelNum)
     {
         case WALL_BLEND:
-#ifdef NEW_MAP_FORMAT
-            labelNum = w.blend;
-#else
             labelNum = wallext[wallNum].blend;
-#endif
             break;
 
         default: EDUKE32_UNREACHABLE_SECTION(labelNum = -1; break);
@@ -198,11 +194,7 @@ void __fastcall VM_SetWall(int const wallNum, int const labelNum, int32_t const 
     switch (labelNum)
     {
         case WALL_BLEND:
-#ifdef NEW_MAP_FORMAT
-            w.blend = newValue;
-#else
             wallext[wallNum].blend = newValue;
-#endif
             break;
     }
 

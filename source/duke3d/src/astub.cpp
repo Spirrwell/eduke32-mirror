@@ -4311,11 +4311,7 @@ static int64_t lldotv2(const vec2_t *v1, const vec2_t *v2)
     return (int64_t)v1->x * v2->x + (int64_t)v1->y * v2->y;
 }
 
-#ifdef NEW_MAP_FORMAT
-# define YAX_BIT_PROTECT 0
-#else
-# define YAX_BIT_PROTECT YAX_BIT
-#endif
+#define YAX_BIT_PROTECT YAX_BIT
 
 ////////// KEY PRESS HANDLER IN 3D MODE //////////
 static void Keys3d(void)
@@ -4635,11 +4631,7 @@ static void Keys3d(void)
     {
         if (AIMING_AT_WALL_OR_MASK)
         {
-#ifdef NEW_MAP_FORMAT
-            wall[searchwall].cstat = 0;
-#else
             wall[searchwall].cstat &= YAX_NEXTWALLBITS;
-#endif
             message("Wall %d cstat = %d", searchwall, TrackerCast(wall[searchwall].cstat));
         }
         else if (AIMING_AT_SPRITE)
@@ -6445,11 +6437,7 @@ static void Keys3d(void)
                 tempyrepeat = AIMED_SEL_WALL(yrepeat);
                 tempxpanning = AIMED_SEL_WALL(xpanning);
                 tempypanning = AIMED_SEL_WALL(ypanning);
-#ifdef NEW_MAP_FORMAT
-                tempcstat = AIMED_SEL_WALL(cstat);
-#else
                 tempcstat = AIMED_SEL_WALL(cstat) & ~YAX_NEXTWALLBITS;
-#endif
                 templenrepquot = getlenbyrep(wallength(searchwall), tempxrepeat);
 
                 tempsectornum = sectorofwall(searchwall);
@@ -6468,11 +6456,7 @@ static void Keys3d(void)
                     tempxrepeat = 0;
 #endif
 
-#ifdef NEW_MAP_FORMAT
-                tempcstat = AIMED_CEILINGFLOOR(stat);
-#else
                 tempcstat = AIMED_CEILINGFLOOR(stat) & ~YAX_BIT;
-#endif
                 tempsectornum = searchsector;
 
                 tempstatnum = 0;
@@ -6986,20 +6970,15 @@ paste_ceiling_or_floor:
             wall[w].ypanning = 0;
             wall[w].xrepeat = 8;
             wall[w].yrepeat = 8;
-#ifdef NEW_MAP_FORMAT
-            wall[w].cstat = 0;
-#else
             wall[w].cstat &= YAX_NEXTWALLBITS;
-#endif
             fixrepeats(searchwall);
         }
         else if (AIMING_AT_CEILING_OR_FLOOR)
         {
 #ifdef YAX_ENABLE
             int16_t bunchnum = yax_getbunch(searchsector, AIMING_AT_FLOOR);
-# if !defined NEW_MAP_FORMAY
+
             if (bunchnum < 0)
-# endif
 #endif
                 AIMED_CEILINGFLOOR(xpanning) = 0;
             AIMED_CEILINGFLOOR(ypanning) = 0;
@@ -11463,15 +11442,11 @@ static void EditWallData(int16_t wallnum)
         switch (row)
         {
         case 0:
-#if !defined NEW_MAP_FORMAT
             i = wall[wallnum].cstat&YAX_NEXTWALLBITS;
-#endif
             handlemed(1, "Flags (hex)", "Flags", &wall[wallnum].cstat,
                       sizeof(wall[wallnum].cstat), 65535, 0);
-#if !defined NEW_MAP_FORMAT
             wall[wallnum].cstat &= ~YAX_NEXTWALLBITS;
             wall[wallnum].cstat |= i;
-#endif
             break;
         case 1:
             handlemed(0, "Shade", "Shade", &wall[wallnum].shade,

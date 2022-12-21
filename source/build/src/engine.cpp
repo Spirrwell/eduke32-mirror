@@ -432,7 +432,6 @@ static int16_t yax_updown[MAXSECTORS][2];
 // drawn sectors
 uint8_t yax_gotsector[(MAXSECTORS+7)>>3];  // engine internal
 
-# if !defined NEW_MAP_FORMAT
 // Game-time YAX data structures, V7-V9 map formats.
 int16_t yax_bunchnum[MAXSECTORS][2];
 int16_t yax_nextwall[MAXWALLS][2];
@@ -453,17 +452,6 @@ int16_t yax_getbunch(int16_t i, int16_t cf)
 
     return (*(&sector[i].ceilingstat + cf) & YAX_BIT) ? YAX_BUNCHNUM(i, cf) : -1;
 }
-# else
-#  define YAX_PTRBUNCHNUM(Ptr, Sect, Cf) (*((Cf) ? &(Ptr)[Sect].floorbunch : &(Ptr)[Sect].ceilingbunch))
-#  define YAX_BUNCHNUM(Sect, Cf) YAX_PTRBUNCHNUM(sector, Sect, Cf)
-
-#  if !defined NEW_MAP_FORMAT
-static FORCE_INLINE int32_t yax_islockededge(int32_t line, int32_t cf)
-{
-    return (yax_getnextwall(line, cf) >= 0);
-}
-#  endif
-# endif
 
 // bunchnum: -1: also clear yax-nextwalls (forward and reverse)
 //           -2: don't clear reverse yax-nextwalls
@@ -472,11 +460,7 @@ void yax_setbunch(int16_t i, int16_t cf, int16_t bunchnum)
 {
     if (editstatus==0)
     {
-#ifdef NEW_MAP_FORMAT
-        YAX_BUNCHNUM(i, cf) = bunchnum;
-#else
         yax_bunchnum[i][cf] = bunchnum;
-#endif
         return;
     }
 
@@ -497,20 +481,15 @@ void yax_setbunch(int16_t i, int16_t cf, int16_t bunchnum)
             }
         }
 
-#if !defined NEW_MAP_FORMAT
         *(&sector[i].ceilingstat + cf) &= ~YAX_BIT;
         // NOTE: Don't reset xpanning-as-index, since we can be called from
         // e.g. Mapster32's "Inner loop made into new sector" functionality.
 //        YAX_BUNCHNUM(i, cf) = 0;
-#else
-        YAX_BUNCHNUM(i, cf) = -1;
-#endif
         return;
     }
 
-#if !defined NEW_MAP_FORMAT
     *(&sector[i].ceilingstat + cf) |= YAX_BIT;
-#endif
+
     YAX_BUNCHNUM(i, cf) = bunchnum;
 }
 
@@ -520,7 +499,6 @@ void yax_setbunches(int16_t i, int16_t cb, int16_t fb)
     yax_setbunch(i, YAX_FLOOR, fb);
 }
 
-# if !defined NEW_MAP_FORMAT
 //// nextwall getters/setters
 int16_t yax_getnextwall(int16_t wal, int16_t cf)
 {
@@ -550,7 +528,6 @@ void yax_setnextwall(int16_t wal, int16_t cf, int16_t thenextwall)
         YAX_NEXTWALL(wal, cf) = YAX_NEXTWALLDEFAULT(cf);
     }
 }
-# endif
 
 // make one step in the vertical direction, and if the wall we arrive at
 // is red, return its nextsector.
@@ -568,10 +545,8 @@ int16_t yax_vnextsec(int16_t line, int16_t cf)
 void yax_update(int32_t resetstat)
 {
     int32_t i;
-#if !defined NEW_MAP_FORMAT
     int32_t j;
     const int32_t oeditstatus=editstatus;
-#endif
     int16_t cb, fb;
 
     if (resetstat != 2)
@@ -579,10 +554,9 @@ void yax_update(int32_t resetstat)
 
     for (i=0; i<MAXSECTORS; i++)
     {
-#if !defined NEW_MAP_FORMAT
         if (resetstat != 2 || i>=numsectors)
             yax_bunchnum[i][0] = yax_bunchnum[i][1] = -1;
-#endif
+
         nextsectbunch[0][i] = nextsectbunch[1][i] = -1;
     }
 
@@ -590,22 +564,19 @@ void yax_update(int32_t resetstat)
 
     for (i=0; i<YAX_MAXBUNCHES; i++)
         headsectbunch[0][i] = headsectbunch[1][i] = -1;
-#if !defined NEW_MAP_FORMAT
+
     for (i=0; i<MAXWALLS; i++)
         if (resetstat != 2 || i>=numwalls)
             yax_nextwall[i][0] = yax_nextwall[i][1] = -1;
-#endif
 
     if (resetstat==1)
         return;
 
     // Constuct singly linked list of sectors-of-bunch.
 
-#if !defined NEW_MAP_FORMAT
     // Read bunchnums directly from the sector struct in yax_[gs]etbunch{es}!
     editstatus = (resetstat==0);
     // NOTE: Use oeditstatus to check for in-gamedness from here on!
-#endif
 
     if (resetstat==0)
     {
@@ -646,22 +617,19 @@ void yax_update(int32_t resetstat)
         }
     }
 
-    // In-struct --> array transfer (resetstat==0 and !defined NEW_MAP_FORMAT)
-    // and list construction.
+    // In-struct --> array transfer (resetstat==0) and list construction.
     for (i=numsectors-1; i>=0; i--)
     {
         yax_getbunches(i, &cb, &fb);
-#if !defined NEW_MAP_FORMAT
+
         if (resetstat==0)
         {
             yax_bunchnum[i][0] = cb;
             yax_bunchnum[i][1] = fb;
         }
-#endif
 
         if (cb >= 0)
         {
-#if !defined NEW_MAP_FORMAT
             if (resetstat==0)
                 for (j=sector[i].wallptr; j<sector[i].wallptr+sector[i].wallnum; j++)
                 {
@@ -672,7 +640,7 @@ void yax_update(int32_t resetstat)
                             YAX_NEXTWALL(j,0) = 0;  // reset lotag!
                     }
                 }
-#endif
+
             if (headsectbunch[0][cb] == -1)
             {
                 headsectbunch[0][cb] = i;
@@ -691,7 +659,6 @@ void yax_update(int32_t resetstat)
 
         if (fb >= 0)
         {
-#if !defined NEW_MAP_FORMAT
             if (resetstat==0)
                 for (j=sector[i].wallptr; j<sector[i].wallptr+sector[i].wallnum; j++)
                 {
@@ -702,7 +669,7 @@ void yax_update(int32_t resetstat)
                             YAX_NEXTWALL(j,1) = -1;  // reset extra!
                     }
                 }
-#endif
+
             if (headsectbunch[1][fb] == -1)
                 headsectbunch[1][fb] = i;
             else
@@ -714,11 +681,7 @@ void yax_update(int32_t resetstat)
         }
     }
 
-#if !defined NEW_MAP_FORMAT
     editstatus = oeditstatus;
-#else
-    mapversion = get_mapversion();
-#endif
 }
 
 int32_t yax_getneighborsect(int32_t x, int32_t y, int32_t sectnum, int32_t cf)
@@ -7145,11 +7108,8 @@ static void renderDrawMaskedWall(int16_t damaskwallcnt)
     else
     {
         if (globalorientation&128)
-#ifdef NEW_MAP_FORMAT
-            setup_blend(wal->blend, globalorientation&512);
-#else
             setup_blend(wallext[thewall[z]].blend, globalorientation&512);
-#endif
+
         transmaskwallscan(xb1[z],xb2[z], 0);
     }
 
@@ -9028,9 +8988,7 @@ static spriteext_t spriteext_s[MAXSPRITES+MAXUNIQHUDID];
 static spritesmooth_t spritesmooth_s[MAXSPRITES+MAXUNIQHUDID];
 static sectortype sector_s[MAXSECTORS + M32_FIXME_SECTORS];
 static walltype wall_s[MAXWALLS + M32_FIXME_WALLS];
-#ifndef NEW_MAP_FORMAT
 static wallext_t wallext_s[MAXWALLS];
-#endif
 static spritetype sprite_s[MAXSPRITES];
 static tspritetype tsprite_s[MAXSPRITESONSCREEN];
 #endif
@@ -9048,9 +9006,7 @@ int32_t enginePreInit(void)
 #if !defined DEBUG_MAIN_ARRAYS
     sector = sector_s;
     wall = wall_s;
-# ifndef NEW_MAP_FORMAT
     wallext = wallext_s;
-# endif
     sprite = sprite_s;
     tsprite = tsprite_s;
     spriteext = spriteext_s;
@@ -10836,9 +10792,7 @@ static int32_t engineFinishLoadBoard(const vec3_t* dapos, int16_t* dacursectnum,
 #endif
     {
         Bmemset(spriteext, 0, sizeof(spriteext_t)*MAXSPRITES);
-#ifndef NEW_MAP_FORMAT
         Bmemset(wallext, 0, sizeof(wallext_t)*MAXWALLS);
-#endif
 
 #ifdef USE_OPENGL
         Bmemset(spritesmooth, 0, sizeof(spritesmooth_t)*(MAXSPRITES+MAXUNIQHUDID));
@@ -10910,11 +10864,6 @@ static void check_sprite(int32_t i)
     }
 }
 
-#ifdef NEW_MAP_FORMAT
-// Returns the number of sprites, or <0 on error.
-int32_t (*loadboard_maptext)(buildvfs_kfd fil, vec3_t *dapos, int16_t *daang, int16_t *dacursectnum);
-#endif
-
 #include "md4.h"
 
 // flags: 1, 2: former parameter "fromwhere"
@@ -10946,27 +10895,15 @@ int32_t engineLoadBoard(const char *filename, char flags, vec3_t *dapos, int16_t
     {
         int32_t ok = 0;
 
-#ifdef NEW_MAP_FORMAT
-        // Check for map-text first.
-        if (!Bmemcmp(&mapversion, "--ED", 4))
-        {
-            mapversion = 10;
-            ok = 1;
-        }
-        else
-#endif
-        {
-            // Not map-text. We expect a little-endian version int now.
-            mapversion = B_LITTLE32(mapversion);
+        mapversion = B_LITTLE32(mapversion);
 #ifdef YAX_ENABLE
-            ok |= (mapversion==9);
+        ok |= (mapversion==9);
 #endif
 #if MAXSECTORS==MAXSECTORSV8
-            // v8 engine
-            ok |= (mapversion==8);
+        // v8 engine
+        ok |= (mapversion==8);
 #endif
-            ok |= (mapversion==7);
-        }
+        ok |= (mapversion==7);
 
         if (!ok)
         {
@@ -10976,25 +10913,6 @@ int32_t engineLoadBoard(const char *filename, char flags, vec3_t *dapos, int16_t
     }
 
     if (enginePrepareLoadBoard(fil, dapos, daang, dacursectnum)) goto error;
-
-#ifdef NEW_MAP_FORMAT
-    if (have_maptext())
-    {
-        int32_t ret = klseek(fil, 0, SEEK_SET);
-
-        if (ret == 0)
-            ret = loadboard_maptext(fil, dapos, daang, dacursectnum);
-
-        if (ret < 0)
-        {
-            kclose(fil);
-            return ret;
-        }
-
-        numsprites = ret;
-        goto skip_reading_mapbin;
-    }
-#endif
 
     ////////// Read sectors //////////
 
@@ -11013,10 +10931,6 @@ int32_t engineLoadBoard(const char *filename, char flags, vec3_t *dapos, int16_t
 
     for (i=numsectors-1; i>=0; i--)
     {
-#ifdef NEW_MAP_FORMAT
-        Bmemmove(&sector[i], &(((sectortypev7 *)sector)[i]), sizeof(sectortypevx));
-        inplace_vx_from_v7_sector(&sector[i]);
-#endif
         sector[i].wallptr       = B_LITTLE16(sector[i].wallptr);
         sector[i].wallnum       = B_LITTLE16(sector[i].wallnum);
         sector[i].ceilingz      = B_LITTLE32(sector[i].ceilingz);
@@ -11030,9 +10944,6 @@ int32_t engineLoadBoard(const char *filename, char flags, vec3_t *dapos, int16_t
         sector[i].lotag         = B_LITTLE16(sector[i].lotag);
         sector[i].hitag         = B_LITTLE16(sector[i].hitag);
         sector[i].extra         = B_LITTLE16(sector[i].extra);
-#ifdef NEW_MAP_FORMAT
-        inplace_vx_tweak_sector(&sector[i], mapversion==9);
-#endif
     }
 
 
@@ -11052,10 +10963,6 @@ int32_t engineLoadBoard(const char *filename, char flags, vec3_t *dapos, int16_t
 
     for (i=numwalls-1; i>=0; i--)
     {
-#ifdef NEW_MAP_FORMAT
-        Bmemmove(&wall[i], &(((walltypev7 *)wall)[i]), sizeof(walltypevx));
-        inplace_vx_from_v7_wall(&wall[i]);
-#endif
         wall[i].x          = B_LITTLE32(wall[i].x);
         wall[i].y          = B_LITTLE32(wall[i].y);
         wall[i].point2     = B_LITTLE16(wall[i].point2);
@@ -11067,9 +10974,6 @@ int32_t engineLoadBoard(const char *filename, char flags, vec3_t *dapos, int16_t
         wall[i].lotag      = B_LITTLE16(wall[i].lotag);
         wall[i].hitag      = B_LITTLE16(wall[i].hitag);
         wall[i].extra      = B_LITTLE16(wall[i].extra);
-#ifdef NEW_MAP_FORMAT
-        inplace_vx_tweak_wall(&wall[i], mapversion==9);
-#endif
     }
 
 
@@ -11085,10 +10989,6 @@ int32_t engineLoadBoard(const char *filename, char flags, vec3_t *dapos, int16_t
 
     if (pos != len)
         LOG_F(WARNING, "Ignoring %d bytes of unknown data appended to map file. Saving changes to this file will result in loss of this data.", len - pos);
-
-#ifdef NEW_MAP_FORMAT
-skip_reading_mapbin:
-#endif
 
     klseek(fil, 0, SEEK_SET);
     int32_t boardsize = kfilelength(fil);
@@ -11430,31 +11330,13 @@ int32_t engineLoadBoardV5V6(const char *filename, char fromwhere, vec3_t *dapos,
     return engineFinishLoadBoard(dapos, dacursectnum, numsprites, 0);
 }
 
-
-#ifdef NEW_MAP_FORMAT
-int32_t (*saveboard_maptext)(const char *filename, const vec3_t *dapos, int16_t daang, int16_t dacursectnum);
-#endif
-
 // Get map version of external map format (<10: old binary format, ==10: new
 // 'VX' map-text format).
 static int32_t get_mapversion(void)
 {
 #ifdef YAX_ENABLE
     if (numyaxbunches > 0)
-# ifdef NEW_MAP_FORMAT
-        return 10;
-# else
         return 9;
-# endif
-#endif
-
-#ifdef NEW_MAP_FORMAT
-    {
-        int32_t i;
-        for (i=0; i<numwalls; i++)
-            if (wall[i].blend != 0)
-                return 10;
-    }
 #endif
     if (numsectors > MAXSECTORSV7 || numwalls > MAXWALLSV7 || Numsprites > MAXSPRITESV7)
         return 8;
@@ -11503,15 +11385,6 @@ int32_t saveboard(const char *filename, const vec3_t *dapos, int16_t daang, int1
     // Determine the map version.
     mapversion = get_mapversion();
 
-#ifdef NEW_MAP_FORMAT
-    if (mapversion == 10)
-    {
-        initprintf("Saving of TROR maps not yet accessible in the Lunatic preview build\n");
-        return -1;
-//        return saveboard_maptext(filename, dapos, daang, dacursectnum);
-    }
-#endif
-
     buildvfs_fd fil = buildvfs_open_write(filename);
 
     if (fil == buildvfs_fd_invalid)
@@ -11535,12 +11408,7 @@ int32_t saveboard(const char *filename, const vec3_t *dapos, int16_t daang, int1
         usectortypev7 *const tsect = (usectortypev7 *)Xmalloc(sizeof(usectortypev7) * numsectors);
         uwalltypev7 *twall;
 
-#ifdef NEW_MAP_FORMAT
-        for (i=0; i<numsectors; i++)
-            copy_v7_from_vx_sector(&tsect[i], &sector[i]);
-#else
         Bmemcpy(tsect, sector, sizeof(sectortypev7)*numsectors);
-#endif
 
         for (i=0; i<numsectors; i++)
         {
@@ -11580,12 +11448,7 @@ int32_t saveboard(const char *filename, const vec3_t *dapos, int16_t daang, int1
 
         twall = (uwalltypev7 *)Xmalloc(sizeof(uwalltypev7) * numwalls);
 
-#ifdef NEW_MAP_FORMAT
-        for (i=0; i<numwalls; i++)
-            copy_v7_from_vx_wall(&twall[i], &wall[i]);
-#else
         Bmemcpy(twall, wall, sizeof(walltypev7)*numwalls);
-#endif
 
         for (i=0; i<numwalls; i++)
         {
@@ -14016,10 +13879,9 @@ int32_t sectorofwall(int16_t wallNum)
     if (EDUKE32_PREDICT_FALSE((unsigned)wallNum >= (unsigned)numwalls))
         return -1;
 
-#if !defined NEW_MAP_FORMAT
     if (!editstatus)
         return wallsect[wallNum];
-#endif
+
     native_t const w = wall[wallNum].nextwall;
     return ((unsigned)w < (unsigned)numwalls) ? wall[w].nextsector : sectorofwall_internal(wallNum);
 }

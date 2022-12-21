@@ -85,18 +85,14 @@ typedef struct {
     spriteext_t spriteext[MAXSPRITES];
     uspritetype sprite[MAXSPRITES];
     uwalltype wall[MAXWALLS];
-#ifndef NEW_MAP_FORMAT
     wallext_t wallext[MAXWALLS];
-#endif
     intptr_t *vars[MAXGAMEVARS];
     intptr_t *arrays[MAXGAMEARRAYS];
     int32_t arraysiz[MAXGAMEARRAYS];
 #ifdef YAX_ENABLE
     int32_t numyaxbunches;
-# if !defined NEW_MAP_FORMAT
     int16_t yax_bunchnum[MAXSECTORS][2];
     int16_t yax_nextwall[MAXWALLS][2];
-# endif
 #endif
 } mapstate_t;
 
