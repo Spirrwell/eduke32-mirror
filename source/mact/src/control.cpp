@@ -38,10 +38,11 @@ uint64_t CONTROL_ButtonHeldState = 0;
 
 LastSeenInput CONTROL_LastSeenInput;
 
-float CONTROL_MouseAxesSensitivity[2] = { DEFAULTMOUSESENSITIVITY, DEFAULTMOUSESENSITIVITY };
-float CONTROL_MouseSensitivity     = DEFAULTMOUSESENSITIVITY;
-float CONTROL_MouseSensitivityUnit = DEFAULTMOUSEUNIT;
-float CONTROL_JoySensitivityUnit   = DEFAULTJOYUNIT;
+float   CONTROL_MouseAxesSensitivity[2] = { DEFAULTMOUSESENSITIVITY, DEFAULTMOUSESENSITIVITY };
+float   CONTROL_MouseSensitivity        = DEFAULTMOUSESENSITIVITY;
+float   CONTROL_MouseSensitivityUnit    = DEFAULTMOUSEUNIT;
+float   CONTROL_JoySensitivityUnit      = DEFAULTJOYUNIT;
+int32_t CONTROL_MouseVertWalk           = DEFAULTMOUSEVERTWALK;
 
 static int32_t CONTROL_NumMouseButtons  = 0;
 static int32_t CONTROL_NumJoyButtons    = 0;
@@ -374,6 +375,8 @@ void CONTROL_ClearAssignments(void)
 
     for (auto & i : joyAxes)
         i.sensitivity = DEFAULTAXISSENSITIVITY;
+
+    CONTROL_MouseVertWalk = DEFAULTMOUSEVERTWALK;
 }
 
 static int controlHandleClickStates(int32_t bits, int32_t tm, int32_t NumButtons, ControlButtonState_t *const b)
@@ -729,6 +732,7 @@ bool CONTROL_Startup(controltype which, int32_t(*TimeFunction)(void), int32_t ti
         { "in_mousexsens", "horizontal mouse sensitivity multiplier", (void *)&CONTROL_MouseAxesSensitivity[0], CVAR_FLOAT, 0, 100 },
         { "in_mouseysens", "vertical mouse sensitivity multiplier",   (void *)&CONTROL_MouseAxesSensitivity[1], CVAR_FLOAT, 0, 100 },
         { "in_mouseunit",  "base mouse input unit",                   (void *)&CONTROL_MouseSensitivityUnit,    CVAR_FLOAT, 0, 1 },
+        { "in_mouseywalk", "vertical mouse axis can move player",     (void *)&CONTROL_MouseVertWalk,           CVAR_INT,   0, 1 },
         { "in_joyunit",    "base controller input unit",              (void *)&CONTROL_JoySensitivityUnit,      CVAR_FLOAT, 0, 1 },
         { "sensitivity",   "master mouse sensitivity multiplier",     (void *)&CONTROL_MouseSensitivity,        CVAR_FLOAT, 0, 100 },
     };
