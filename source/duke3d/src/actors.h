@@ -35,6 +35,7 @@ extern "C" {
 #define MAXSLEEPDIST        16384
 #define SLEEPTIME           1536
 #define AC_FZOFFSET(t) (((int32_t) actor[t].floorzoffset + 1) << 8)
+#define MAXSLOPEZDIFF       (8192)
 
 #define ZOFFSET2            (16<<8)
 #define ZOFFSET3            (8<<8)
