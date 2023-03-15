@@ -4992,11 +4992,6 @@ static void calc_ypanning(int32_t refposz, float ryp0, float ryp1,
     int i = (1<<(picsiz[globalpicnum]>>4));
     if (i < tilesiz[globalpicnum].y) i <<= 1;
 
-#ifdef NEW_MAP_FORMAT
-    if (g_loadedMapVersion >= 10)
-        i = tilesiz[globalpicnum].y;
-    else
-#endif
     if (picanm[globalpicnum].tileflags & TILEFLAGS_TRUENPOT)
     {
         i = tilesiz[globalpicnum].y;
@@ -7224,11 +7219,8 @@ static void polymost_drawmaskwallinternal(int32_t wallIndex)
     if (wal->cstat & 128)
         method = DAMETH_WALL | (((wal->cstat & 512)) ? DAMETH_TRANS2 : DAMETH_TRANS1);
 
-#ifdef NEW_MAP_FORMAT
-    uint8_t const blend = wal->blend;
-#else
     uint8_t const blend = wallext[wallIndex].blend;
-#endif
+
     handle_blend(!!(wal->cstat & 128), blend, !!(wal->cstat & 512));
 
     drawpoly_alpha = 0.f;

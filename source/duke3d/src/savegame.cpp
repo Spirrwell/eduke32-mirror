@@ -517,8 +517,7 @@ int32_t G_LoadPlayer(savebrief_t & sv)
             {
                 usermaphack_t* mhkInfo = NULL;
                 if (sv_loadBoardMD4(currentboardfilename) == 0)
-                    mhkInfo = (usermaphack_t *)bsearch(&g_loadedMapHack, usermaphacks, num_usermaphacks,
-                                 sizeof(usermaphack_t), compare_usermaphacks);
+                    mhkInfo = find_usermaphack();
 
                 sv_loadMapart(mhkInfo, currentboardfilename);
                 sv_loadMhk(mhkInfo, currentboardfilename);
@@ -720,8 +719,7 @@ int32_t G_LoadPlayer(savebrief_t & sv)
     {
         usermaphack_t* mhkInfo = NULL;
         if (sv_loadBoardMD4(currentboardfilename) == 0)
-            mhkInfo = (usermaphack_t *)bsearch(&g_loadedMapHack, usermaphacks, num_usermaphacks,
-                                 sizeof(usermaphack_t), compare_usermaphacks);
+            mhkInfo = find_usermaphack();
 
         sv_loadMapart(mhkInfo, currentboardfilename);
         sv_loadMhk(mhkInfo, currentboardfilename);
@@ -1496,10 +1494,8 @@ static const dataspec_t svgm_secwsp[] =
     { DS_MAINAR, &sprite, sizeof(spritetype), MAXSPRITES },
 #ifdef YAX_ENABLE
     { DS_NOCHK, &numyaxbunches, sizeof(numyaxbunches), 1 },
-# if !defined NEW_MAP_FORMAT
     { DS_CNT(numsectors), yax_bunchnum, sizeof(yax_bunchnum[0]), (intptr_t)&numsectors },
     { DS_CNT(numwalls), yax_nextwall, sizeof(yax_nextwall[0]), (intptr_t)&numwalls },
-# endif
     { DS_LOADFN|DS_PROTECTFN, (void *)&sv_postyaxload, 0, 1 },
 #endif
     { 0, &Numsprites, sizeof(Numsprites), 1 },
@@ -1514,9 +1510,7 @@ static const dataspec_t svgm_secwsp[] =
     { DS_SAVEFN, (void *)&sv_prespriteextsave, 0, 1 },
 #endif
     { DS_MAINAR, &spriteext, sizeof(spriteext_t), MAXSPRITES+MAXUNIQHUDID },
-#ifndef NEW_MAP_FORMAT
     { DS_MAINAR, &wallext, sizeof(wallext_t), MAXWALLS },
-#endif
 #ifdef USE_OPENGL
     { DS_SAVEFN|DS_LOADFN, (void *)&sv_postspriteext, 0, 1 },
 #endif

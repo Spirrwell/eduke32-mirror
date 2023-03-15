@@ -432,7 +432,6 @@ static int16_t yax_updown[MAXSECTORS][2];
 // drawn sectors
 uint8_t yax_gotsector[(MAXSECTORS+7)>>3];  // engine internal
 
-# if !defined NEW_MAP_FORMAT
 // Game-time YAX data structures, V7-V9 map formats.
 int16_t yax_bunchnum[MAXSECTORS][2];
 int16_t yax_nextwall[MAXWALLS][2];
@@ -453,17 +452,6 @@ int16_t yax_getbunch(int16_t i, int16_t cf)
 
     return (*(&sector[i].ceilingstat + cf) & YAX_BIT) ? YAX_BUNCHNUM(i, cf) : -1;
 }
-# else
-#  define YAX_PTRBUNCHNUM(Ptr, Sect, Cf) (*((Cf) ? &(Ptr)[Sect].floorbunch : &(Ptr)[Sect].ceilingbunch))
-#  define YAX_BUNCHNUM(Sect, Cf) YAX_PTRBUNCHNUM(sector, Sect, Cf)
-
-#  if !defined NEW_MAP_FORMAT
-static FORCE_INLINE int32_t yax_islockededge(int32_t line, int32_t cf)
-{
-    return (yax_getnextwall(line, cf) >= 0);
-}
-#  endif
-# endif
 
 // bunchnum: -1: also clear yax-nextwalls (forward and reverse)
 //           -2: don't clear reverse yax-nextwalls
@@ -472,11 +460,7 @@ void yax_setbunch(int16_t i, int16_t cf, int16_t bunchnum)
 {
     if (editstatus==0)
     {
-#ifdef NEW_MAP_FORMAT
-        YAX_BUNCHNUM(i, cf) = bunchnum;
-#else
         yax_bunchnum[i][cf] = bunchnum;
-#endif
         return;
     }
 
@@ -497,20 +481,15 @@ void yax_setbunch(int16_t i, int16_t cf, int16_t bunchnum)
             }
         }
 
-#if !defined NEW_MAP_FORMAT
         *(&sector[i].ceilingstat + cf) &= ~YAX_BIT;
         // NOTE: Don't reset xpanning-as-index, since we can be called from
         // e.g. Mapster32's "Inner loop made into new sector" functionality.
 //        YAX_BUNCHNUM(i, cf) = 0;
-#else
-        YAX_BUNCHNUM(i, cf) = -1;
-#endif
         return;
     }
 
-#if !defined NEW_MAP_FORMAT
     *(&sector[i].ceilingstat + cf) |= YAX_BIT;
-#endif
+
     YAX_BUNCHNUM(i, cf) = bunchnum;
 }
 
@@ -520,7 +499,6 @@ void yax_setbunches(int16_t i, int16_t cb, int16_t fb)
     yax_setbunch(i, YAX_FLOOR, fb);
 }
 
-# if !defined NEW_MAP_FORMAT
 //// nextwall getters/setters
 int16_t yax_getnextwall(int16_t wal, int16_t cf)
 {
@@ -550,7 +528,6 @@ void yax_setnextwall(int16_t wal, int16_t cf, int16_t thenextwall)
         YAX_NEXTWALL(wal, cf) = YAX_NEXTWALLDEFAULT(cf);
     }
 }
-# endif
 
 // make one step in the vertical direction, and if the wall we arrive at
 // is red, return its nextsector.
@@ -568,10 +545,8 @@ int16_t yax_vnextsec(int16_t line, int16_t cf)
 void yax_update(int32_t resetstat)
 {
     int32_t i;
-#if !defined NEW_MAP_FORMAT
     int32_t j;
     const int32_t oeditstatus=editstatus;
-#endif
     int16_t cb, fb;
 
     if (resetstat != 2)
@@ -579,10 +554,9 @@ void yax_update(int32_t resetstat)
 
     for (i=0; i<MAXSECTORS; i++)
     {
-#if !defined NEW_MAP_FORMAT
         if (resetstat != 2 || i>=numsectors)
             yax_bunchnum[i][0] = yax_bunchnum[i][1] = -1;
-#endif
+
         nextsectbunch[0][i] = nextsectbunch[1][i] = -1;
     }
 
@@ -590,22 +564,19 @@ void yax_update(int32_t resetstat)
 
     for (i=0; i<YAX_MAXBUNCHES; i++)
         headsectbunch[0][i] = headsectbunch[1][i] = -1;
-#if !defined NEW_MAP_FORMAT
+
     for (i=0; i<MAXWALLS; i++)
         if (resetstat != 2 || i>=numwalls)
             yax_nextwall[i][0] = yax_nextwall[i][1] = -1;
-#endif
 
     if (resetstat==1)
         return;
 
     // Constuct singly linked list of sectors-of-bunch.
 
-#if !defined NEW_MAP_FORMAT
     // Read bunchnums directly from the sector struct in yax_[gs]etbunch{es}!
     editstatus = (resetstat==0);
     // NOTE: Use oeditstatus to check for in-gamedness from here on!
-#endif
 
     if (resetstat==0)
     {
@@ -646,22 +617,19 @@ void yax_update(int32_t resetstat)
         }
     }
 
-    // In-struct --> array transfer (resetstat==0 and !defined NEW_MAP_FORMAT)
-    // and list construction.
+    // In-struct --> array transfer (resetstat==0) and list construction.
     for (i=numsectors-1; i>=0; i--)
     {
         yax_getbunches(i, &cb, &fb);
-#if !defined NEW_MAP_FORMAT
+
         if (resetstat==0)
         {
             yax_bunchnum[i][0] = cb;
             yax_bunchnum[i][1] = fb;
         }
-#endif
 
         if (cb >= 0)
         {
-#if !defined NEW_MAP_FORMAT
             if (resetstat==0)
                 for (j=sector[i].wallptr; j<sector[i].wallptr+sector[i].wallnum; j++)
                 {
@@ -672,7 +640,7 @@ void yax_update(int32_t resetstat)
                             YAX_NEXTWALL(j,0) = 0;  // reset lotag!
                     }
                 }
-#endif
+
             if (headsectbunch[0][cb] == -1)
             {
                 headsectbunch[0][cb] = i;
@@ -691,7 +659,6 @@ void yax_update(int32_t resetstat)
 
         if (fb >= 0)
         {
-#if !defined NEW_MAP_FORMAT
             if (resetstat==0)
                 for (j=sector[i].wallptr; j<sector[i].wallptr+sector[i].wallnum; j++)
                 {
@@ -702,7 +669,7 @@ void yax_update(int32_t resetstat)
                             YAX_NEXTWALL(j,1) = -1;  // reset extra!
                     }
                 }
-#endif
+
             if (headsectbunch[1][fb] == -1)
                 headsectbunch[1][fb] = i;
             else
@@ -714,11 +681,7 @@ void yax_update(int32_t resetstat)
         }
     }
 
-#if !defined NEW_MAP_FORMAT
     editstatus = oeditstatus;
-#else
-    mapversion = get_mapversion();
-#endif
 }
 
 int32_t yax_getneighborsect(int32_t x, int32_t y, int32_t sectnum, int32_t cf)
@@ -1461,7 +1424,7 @@ static int32_t smoststart[MAXWALLSB];
 static char smostwalltype[MAXWALLSB];
 static int32_t smostwall[MAXWALLSB], smostwallcnt = -1;
 
-static vec3_t spritesxyz[MAXSPRITESONSCREEN+1];
+static vec3_t spritesxyz[MAXSPRITESONSCREEN + 1];
 
 int32_t xdimen = -1, xdimenrecip, halfxdimen, xdimenscale, xdimscale;
 float fxdimen = -1.f;
@@ -1554,8 +1517,8 @@ uint8_t vgapal16[4*256] =
 };
 
 int16_t searchit;
-int32_t searchx = -1, searchy;                          //search input
-int16_t searchsector, searchwall, searchstat;     //search output
+int32_t searchx = -1, searchy;                 // search input
+int16_t searchsector, searchwall, searchstat;  // search output
 
 // SEARCHBOTTOMWALL:
 //   When aiming at a the bottom part of a 2-sided wall whose bottom part
@@ -7145,11 +7108,8 @@ static void renderDrawMaskedWall(int16_t damaskwallcnt)
     else
     {
         if (globalorientation&128)
-#ifdef NEW_MAP_FORMAT
-            setup_blend(wal->blend, globalorientation&512);
-#else
             setup_blend(wallext[thewall[z]].blend, globalorientation&512);
-#endif
+
         transmaskwallscan(xb1[z],xb2[z], 0);
     }
 
@@ -9028,9 +8988,7 @@ static spriteext_t spriteext_s[MAXSPRITES+MAXUNIQHUDID];
 static spritesmooth_t spritesmooth_s[MAXSPRITES+MAXUNIQHUDID];
 static sectortype sector_s[MAXSECTORS + M32_FIXME_SECTORS];
 static walltype wall_s[MAXWALLS + M32_FIXME_WALLS];
-#ifndef NEW_MAP_FORMAT
 static wallext_t wallext_s[MAXWALLS];
-#endif
 static spritetype sprite_s[MAXSPRITES];
 static tspritetype tsprite_s[MAXSPRITESONSCREEN];
 #endif
@@ -9048,9 +9006,7 @@ int32_t enginePreInit(void)
 #if !defined DEBUG_MAIN_ARRAYS
     sector = sector_s;
     wall = wall_s;
-# ifndef NEW_MAP_FORMAT
     wallext = wallext_s;
-# endif
     sprite = sprite_s;
     tsprite = tsprite_s;
     spriteext = spriteext_s;
@@ -9737,7 +9693,7 @@ static inline void    drawmaskleaf(_maskleaf* wall)
 }
 #endif
 
-static inline int32_t         sameside(const _equation *eq, const vec2f_t *p1, const vec2f_t *p2)
+static inline bool sameside(const _equation *eq, const vec2f_t *p1, const vec2f_t *p2)
 {
     const float sign1 = (eq->a * p1->x) + (eq->b * p1->y) + eq->c;
     const float sign2 = (eq->a * p2->x) + (eq->b * p2->y) + eq->c;
@@ -9747,103 +9703,291 @@ static inline int32_t         sameside(const _equation *eq, const vec2f_t *p1, c
 // x1, y1: in/out
 // rest x/y: out
 
-
-
 #ifdef DEBUG_MASK_DRAWING
 int32_t g_maskDrawMode = 0;
 #endif
 
 static inline int comparetsprites(int const k, int const l)
 {
+    auto const *const kspr = tspriteptr[k];
+    auto const *const lspr = tspriteptr[l];
+
 #ifdef USE_OPENGL
     if (videoGetRenderMode() == REND_POLYMOST)
     {
-        if ((tspriteptr[k]->cstat & 48) != (tspriteptr[l]->cstat & 48))
-            return (tspriteptr[k]->cstat & 48) - (tspriteptr[l]->cstat & 48);
+        if ((kspr->cstat & 48) != (lspr->cstat & 48))
+            return (kspr->cstat & 48) - (lspr->cstat & 48);
 
-        if ((tspriteptr[k]->cstat & 48) == 16 && tspriteptr[k]->ang != tspriteptr[l]->ang)
-            return tspriteptr[k]->ang - tspriteptr[l]->ang;
+        if ((kspr->cstat & 48) == 16 && kspr->ang != lspr->ang)
+            return kspr->ang - lspr->ang;
     }
 #endif
-    if (tspriteptr[k]->statnum != tspriteptr[l]->statnum)
-        return tspriteptr[k]->statnum - tspriteptr[l]->statnum;
+    if (kspr->statnum != lspr->statnum)
+        return kspr->statnum - lspr->statnum;
 
-    if (tspriteptr[k]->x == tspriteptr[l]->x &&
-        tspriteptr[k]->y == tspriteptr[l]->y &&
-        tspriteptr[k]->z == tspriteptr[l]->z &&
-        (tspriteptr[k]->cstat & 48) == (tspriteptr[l]->cstat & 48) &&
-        tspriteptr[k]->owner != tspriteptr[l]->owner)
-        return tspriteptr[k]->owner - tspriteptr[l]->owner;
+    if (kspr->x == lspr->x &&
+        kspr->y == lspr->y &&
+        kspr->z == lspr->z &&
+        (kspr->cstat & 48) == (lspr->cstat & 48) &&
+        kspr->owner != lspr->owner)
+        return kspr->owner - lspr->owner;
 
-    if (klabs(spritesxyz[k].z-globalposz) != klabs(spritesxyz[l].z-globalposz))
-        return klabs(spritesxyz[k].z-globalposz)-klabs(spritesxyz[l].z-globalposz);
+    if (klabs(spritesxyz[k].z - globalposz) != klabs(spritesxyz[l].z - globalposz))
+        return klabs(spritesxyz[k].z - globalposz) - klabs(spritesxyz[l].z - globalposz);
 
     return 0;
 }
 
 static void sortsprites(int const start, int const end)
 {
-    int32_t i, gap, y, ys;
-
     if (start >= end)
         return;
 
-    gap = 1; while (gap < end - start) gap = (gap<<1)+1;
-    for (gap>>=1; gap>0; gap>>=1)   //Sort sprite list
-        for (i=start; i<end-gap; i++)
-            for (bssize_t l=i; l>=start; l-=gap)
+    int32_t gap = 1;
+    while (gap < end - start) gap = (gap << 1) + 1;
+
+    // Sort sprite list
+    for (gap >>= 1; gap > 0; gap >>= 1)
+        for (int32_t i = start; i < end - gap; i++)
+            for (bssize_t l = i; l >= start; l -= gap)
             {
-                if (spritesxyz[l].y <= spritesxyz[l+gap].y) break;
-                swapptr(&tspriteptr[l],&tspriteptr[l+gap]);
-                swaplong(&spritesxyz[l].x,&spritesxyz[l+gap].x);
-                swaplong(&spritesxyz[l].y,&spritesxyz[l+gap].y);
+                if (spritesxyz[l].y <= spritesxyz[l + gap].y)
+                    break;
+
+                swapptr(&tspriteptr[l], &tspriteptr[l + gap]);
+                swaplong(&spritesxyz[l].x, &spritesxyz[l + gap].x);
+                swaplong(&spritesxyz[l].y, &spritesxyz[l + gap].y);
             }
 
-    ys = spritesxyz[start].y; i = start;
-    for (bssize_t j=start+1; j<=end; j++)
+    int32_t ys = spritesxyz[start].y;
+    int32_t i = start;
+
+    for (bssize_t j = start + 1; j <= end; j++)
     {
         if (j < end)
         {
-            y = spritesxyz[j].y;
+            int32_t y = spritesxyz[j].y;
             if (y == ys)
                 continue;
 
             ys = y;
         }
 
-        if (j > i+1)
+        if (j > i + 1)
         {
-            for (bssize_t k=i; k<j; k++)
+            for (bssize_t k = i; k < j; k++)
             {
                 auto const s = tspriteptr[k];
+                int32_t z = s->z;
 
-                spritesxyz[k].z = s->z;
-                if ((s->cstat&48) != 32)
+                if ((s->cstat & 48) != 32)
                 {
-                    int32_t yoff = picanm[s->picnum].yofs + s->yoffset;
-                    int32_t yspan = (tilesiz[s->picnum].y*s->yrepeat<<2);
+                    int32_t const yoff  = picanm[s->picnum].yofs + s->yoffset;
+                    int32_t const yspan = (tilesiz[s->picnum].y * s->yrepeat << 2);
 
-                    spritesxyz[k].z -= (yoff*s->yrepeat)<<2;
+                    z -= (yoff * s->yrepeat) << 2;
 
-                    if (!(s->cstat&128))
-                        spritesxyz[k].z -= (yspan>>1);
-                    if (klabs(spritesxyz[k].z-globalposz) < (yspan>>1))
-                        spritesxyz[k].z = globalposz;
+                    if (!(s->cstat & 128))
+                        z -= (yspan >> 1);
+
+                    if (klabs(z - globalposz) < (yspan >> 1))
+                        z = globalposz;
                 }
+
+                spritesxyz[k].z = z;
             }
 
-            for (bssize_t k=i+1; k<j; k++)
-                for (bssize_t l=i; l<k; l++)
+            for (bssize_t k = i + 1; k < j; k++)
+                for (bssize_t l = i; l < k; l++)
                     if (comparetsprites(k, l) < 0)
                     {
-                        swapptr(&tspriteptr[k],&tspriteptr[l]);
-                        vec3_t tv3 = spritesxyz[k];
+                        swapptr(&tspriteptr[k], &tspriteptr[l]);
+                        vec3_t tv3    = spritesxyz[k];
                         spritesxyz[k] = spritesxyz[l];
                         spritesxyz[l] = tv3;
                     }
         }
+
         i = j;
     }
+}
+
+static void PolymostPrepareMasks()
+{
+#ifdef USE_OPENGL
+    int32_t i = spritesortcnt - 1;
+    int32_t back = i;
+
+    spritesortcnt = 0;
+
+    for (; i >= 0; --i)
+    {
+        if (polymost_spriteHasTranslucency(&tsprite[i]))
+        {
+            tspriteptr[spritesortcnt] = &tsprite[i];
+            ++spritesortcnt;
+        }
+        else
+        {
+            tspriteptr[back] = &tsprite[i];
+            --back;
+        }
+    }
+#endif
+}
+
+static void PolymostDrawMasks(int32_t numSprites)
+{
+#ifdef USE_OPENGL
+    polymost_setClamp(1 + 2);
+
+    if (spritesortcnt < numSprites)
+    {
+        for (bssize_t i = numSprites - 1; i >= spritesortcnt; /* 'i' set at and of loop */)
+        {
+            int32_t const py = spritesxyz[i].y;
+            int32_t const pcstat = tspriteptr[i]->cstat & 48;
+            int32_t const pangle = tspriteptr[i]->ang;
+            int j = i - 1;
+
+            if (!polymost_spriteIsModelOrVoxel(tspriteptr[i]))
+            {
+                while (j >= spritesortcnt && py == spritesxyz[j].y && pcstat == (tspriteptr[j]->cstat & 48) && (pcstat != 16 || pangle == tspriteptr[j]->ang)
+                    && !polymost_spriteIsModelOrVoxel(tspriteptr[j]))
+                {
+                    j--;
+                }
+            }
+
+            if (i - j == 1)
+            {
+//                debugmask_add(i | 32768, tspriteptr[i]->owner);
+                renderDrawSprite(i);
+                tspriteptr[i] = NULL;
+            }
+            else
+            {
+                glDepthMask(GL_FALSE);
+
+                for (bssize_t k = i; k > j; k--)
+                {
+//                    debugmask_add(k | 32768, tspriteptr[k]->owner);
+                    renderDrawSprite(k);
+                }
+
+                glDepthMask(GL_TRUE);
+
+                glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+
+                for (bssize_t k = i; k > j; k--)
+                {
+                    renderDrawSprite(k);
+                    tspriteptr[k] = NULL;
+                }
+
+                glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+            }
+
+            i = j;
+        }
+    }
+
+    polymost_setClamp(0);
+
+    int32_t numMaskWalls = maskwallcnt;
+    maskwallcnt = 0;
+
+    for (int32_t i = 0; i < numMaskWalls; i++)
+    {
+        if (polymost_maskWallHasTranslucency((uwalltype *) &wall[thewall[maskwall[i]]]))
+        {
+            maskwall[maskwallcnt] = maskwall[i];
+            maskwallcnt++;
+        }
+        else
+            renderDrawMaskedWall(i);
+    }
+
+    glDepthMask(GL_FALSE);
+#endif
+}
+
+static void DrawDebugSpriteMarkers()
+{
+#if 0
+    for (int32_t i = spritesortcnt - 1; i >= 0; i--)
+    {
+        double  xs = tspriteptr[i]->x - globalposx;
+        double  ys = tspriteptr[i]->y - globalposy;
+        int32_t zs = tspriteptr[i]->z - globalposz;
+
+        int32_t xp = ys * cosglobalang - xs * singlobalang;
+        int32_t yp = (zs << 1);
+        int32_t zp = xs * cosglobalang + ys * singlobalang;
+
+        xs = ((double)xp * (halfxdimen << 12) / zp) + ((halfxdimen + windowxy1.x) << 12);
+        ys = ((double)yp * (xdimenscale << 12) / zp) + ((globalhoriz + windowxy1.y) << 12);
+
+        if (xs >= INT32_MIN && xs <= INT32_MAX && ys >= INT32_MIN && ys <= INT32_MAX)
+        {
+            renderDrawLine(xs - 65536, ys - 65536, xs + 65536, ys + 65536, 31);
+            renderDrawLine(xs + 65536, ys - 65536, xs - 65536, ys + 65536, 31);
+        }
+    }
+#endif
+}
+
+enum class Sides
+{
+    none  = 0,
+    left  = 1,
+    right = 2,
+    both  = left | right,
+};
+
+static vec2_t GetCenterPoint(tspriteptr_t tspr) {
+    switch (tspr->cstat & CSTAT_SPRITE_ALIGNMENT) {
+    case CSTAT_SPRITE_ALIGNMENT_WALL:
+        return get_wallspr_center(tspr);
+    case CSTAT_SPRITE_ALIGNMENT_FLOOR:
+        return get_floorspr_center(tspr, false);
+    case CSTAT_SPRITE_ALIGNMENT_SLOPE:
+        return get_floorspr_center(tspr, true);
+    case CSTAT_SPRITE_ALIGNMENT_FACING:
+        // TODO: implement?
+        return tspr->xy;
+    }
+
+    EDUKE32_UNREACHABLE_SECTION(abort());
+}
+
+static int32_t GetCornerPoints(tspriteptr_t tspr, int32_t (&xx)[4], int32_t (&yy)[4])
+{
+    bool const isOnFloor = (tspr->cstat & 32) != 0;
+
+    if (isOnFloor)
+    {
+        get_floorspr_points(tspr, 0, 0,
+                            &xx[0], &xx[1], &xx[2], &xx[3],
+                            &yy[0], &yy[1], &yy[2], &yy[3],
+                            tspriteGetSlope(tspr));
+    }
+    else
+    {
+        const int32_t oang = tspr->ang;
+
+        // Consider face sprites as wall sprites with camera ang.
+        // XXX: factor 4/5 needed?
+        if ((tspr->cstat & 48) != 16)
+            tspr->ang = globalang;
+
+        get_wallspr_points(tspr, &xx[0], &xx[1], &yy[0], &yy[1]);
+
+        if ((tspr->cstat & 48) != 16)
+            tspr->ang = oang;
+    }
+
+    return isOnFloor ? 4 : 2;
 }
 
 //
@@ -9853,16 +9997,18 @@ void renderDrawMasks(void)
 {
     MICROPROFILE_SCOPEI("Engine", EDUKE32_FUNCTION, MP_AUTO);
 
-#ifdef DEBUG_MASK_DRAWING
-        static struct {
-            int16_t di;  // &32768: &32767 is tspriteptr[], else thewall[] index
-            int16_t i;   // sprite[] or wall[] index
-        } debugmask[MAXWALLSB + MAXSPRITESONSCREEN + 1];
+    bool const isPolymost = (videoGetRenderMode() == REND_POLYMOST);
 
-        int32_t dmasknum = 0;
+#ifdef DEBUG_MASK_DRAWING
+    static struct {
+        int16_t di;  // &32768: &32767 is tspriteptr[], else thewall[] index
+        int16_t i;   // sprite[] or wall[] index
+    } debugmask[MAXWALLSB + MAXSPRITESONSCREEN + 1];
+
+    int32_t dmasknum = 0;
 
 # define debugmask_add(dispidx, idx) do { \
-        if (g_maskDrawMode && videoGetRenderMode()==REND_CLASSIC) { \
+        if (g_maskDrawMode && videoGetRenderMode() == REND_CLASSIC) { \
             debugmask[dmasknum].di = dispidx; \
             debugmask[dmasknum++].i = idx; \
         } \
@@ -9870,53 +10016,34 @@ void renderDrawMasks(void)
 #else
 # define debugmask_add(dispidx, idx) do {} while (0)
 #endif
-    int32_t i = spritesortcnt-1;
     int32_t numSprites = spritesortcnt;
 
-#ifdef USE_OPENGL
-    if (videoGetRenderMode() == REND_POLYMOST)
+    if (isPolymost)
+        PolymostPrepareMasks();
+    else
     {
-        spritesortcnt = 0;
-        int32_t back = i;
-        for (; i >= 0; --i)
-        {
-            if (polymost_spriteHasTranslucency(&tsprite[i]))
-            {
-                tspriteptr[spritesortcnt] = &tsprite[i];
-                ++spritesortcnt;
-            } else
-            {
-                tspriteptr[back] = &tsprite[i];
-                --back;
-            }
-        }
-    } else
-#endif
-    {
-        for (; i >= 0; --i)
-        {
+        for (int32_t i = spritesortcnt - 1; i >= 0; --i)
             tspriteptr[i] = &tsprite[i];
-        }
     }
 
-    for (i=numSprites-1; i>=0; --i)
+    for (int32_t i = numSprites - 1; i >= 0; --i)
     {
-        const int32_t xs = tspriteptr[i]->x-globalposx, ys = tspriteptr[i]->y-globalposy;
-        const int32_t yp = dmulscale6(xs,cosviewingrangeglobalang,ys,sinviewingrangeglobalang);
+        const int32_t xs = tspriteptr[i]->x - globalposx, ys = tspriteptr[i]->y - globalposy;
+        const int32_t yp = dmulscale6(xs, cosviewingrangeglobalang, ys, sinviewingrangeglobalang);
 #ifdef USE_OPENGL
         const int32_t modelp = polymost_spriteIsModelOrVoxel(tspriteptr[i]);
 #endif
 
-        if (yp > (4<<8))
+        if (yp > (4 << 8))
         {
-            const int32_t xp = dmulscale6(ys,cosglobalang,-xs,singlobalang);
+            const int32_t xp = dmulscale6(ys, cosglobalang, -xs, singlobalang);
 
-            if (mulscale24(labs(xp+yp),xdimen) >= yp)
+            if (mulscale24(labs(xp + yp), xdimen) >= yp)
                 goto killsprite;
 
-            spritesxyz[i].x = scale(xp+yp,xdimen<<7,yp);
+            spritesxyz[i].x = scale(xp + yp, xdimen << 7, yp);
         }
-        else if ((tspriteptr[i]->cstat&48) == 0)
+        else if ((tspriteptr[i]->cstat & 48) == 0)
         {
 killsprite:
 #ifdef USE_OPENGL
@@ -9927,6 +10054,7 @@ killsprite:
                 if (i >= spritesortcnt)
                 {
                     --numSprites;
+
                     if (i != numSprites)
                     {
                         tspriteptr[i] = tspriteptr[numSprites];
@@ -9938,6 +10066,7 @@ killsprite:
                 {
                     --numSprites;
                     --spritesortcnt;
+
                     if (i != numSprites)
                     {
                         tspriteptr[i] = tspriteptr[spritesortcnt];
@@ -9948,9 +10077,11 @@ killsprite:
                         spritesxyz[spritesortcnt].y = spritesxyz[numSprites].y;
                     }
                 }
+
                 continue;
             }
         }
+
         spritesxyz[i].y = yp;
     }
 
@@ -9959,99 +10090,10 @@ killsprite:
 
     videoBeginDrawing(); //{{{
 
-#ifdef USE_OPENGL
-    if (videoGetRenderMode() == REND_POLYMOST)
-    {
-        polymost_setClamp(1+2);
+    if (isPolymost)
+        PolymostDrawMasks(numSprites);
 
-        if (spritesortcnt < numSprites)
-        {
-            for (bssize_t i = numSprites-1; i >= spritesortcnt;)
-            {
-                int32_t py = spritesxyz[i].y;
-                int32_t pcstat = tspriteptr[i]->cstat & 48;
-                int32_t pangle = tspriteptr[i]->ang;
-                int j = i - 1;
-                if (!polymost_spriteIsModelOrVoxel(tspriteptr[i]))
-                {
-                    while (j >= spritesortcnt && py == spritesxyz[j].y && pcstat == (tspriteptr[j]->cstat & 48) && (pcstat != 16 || pangle == tspriteptr[j]->ang)
-                        && !polymost_spriteIsModelOrVoxel(tspriteptr[j]))
-                    {
-                        j--;
-                    }
-                }
-                if (i - j == 1)
-                {
-                    debugmask_add(i | 32768, tspriteptr[i]->owner);
-                    renderDrawSprite(i);
-                    tspriteptr[i] = NULL;
-                }
-                else
-                {
-                    glDepthMask(GL_FALSE);
-
-                    for (bssize_t k = i; k > j; k--)
-                    {
-                        debugmask_add(k | 32768, tspriteptr[k]->owner);
-                        renderDrawSprite(k);
-                    }
-
-                    glDepthMask(GL_TRUE);
-
-                    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-                    
-                    for (bssize_t k = i; k > j; k--)
-                    {
-                        renderDrawSprite(k);
-                        tspriteptr[k] = NULL;
-                    }
-
-                    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-
-                }
-                i = j;
-            }
-        }
-
-        polymost_setClamp(0);
-        int32_t numMaskWalls = maskwallcnt;
-        maskwallcnt = 0;
-        for (i = 0; i < numMaskWalls; i++)
-        {
-            if (polymost_maskWallHasTranslucency((uwalltype *) &wall[thewall[maskwall[i]]]))
-            {
-                maskwall[maskwallcnt] = maskwall[i];
-                maskwallcnt++;
-            }
-            else
-                renderDrawMaskedWall(i);
-        }
-
-        glDepthMask(GL_FALSE);
-    }
-#endif
-
-#if 0
-        for (i=spritesortcnt-1; i>=0; i--)
-        {
-            double xs = tspriteptr[i]->x-globalposx;
-            double ys = tspriteptr[i]->y-globalposy;
-            int32_t zs = tspriteptr[i]->z-globalposz;
-
-            int32_t xp = ys*cosglobalang-xs*singlobalang;
-            int32_t yp = (zs<<1);
-            int32_t zp = xs*cosglobalang+ys*singlobalang;
-
-            xs = ((double)xp*(halfxdimen<<12)/zp)+((halfxdimen+windowxy1.x)<<12);
-            ys = ((double)yp*(xdimenscale<<12)/zp)+((globalhoriz+windowxy1.y)<<12);
-
-            if (xs >= INT32_MIN && xs <= INT32_MAX && ys >= INT32_MIN && ys <= INT32_MAX)
-            {
-                drawline256(xs-65536,ys-65536,xs+65536,ys+65536,31);
-                drawline256(xs+65536,ys-65536,xs-65536,ys+65536,31);
-            }
-        }
-#endif
+    DrawDebugSpriteMarkers();
 
     vec2f_t pos;
 
@@ -10063,94 +10105,84 @@ killsprite:
     while (maskwallcnt)
     {
         // PLAG: sorting stuff
-        const int32_t w = (videoGetRenderMode()==REND_POLYMER) ?
+        const int32_t w = (videoGetRenderMode() == REND_POLYMER) ?
             maskwall[maskwallcnt-1] : thewall[maskwall[maskwallcnt-1]];
 
         maskwallcnt--;
 
-        vec2f_t dot    = { (float)wall[w].x, (float)wall[w].y };
-        vec2f_t dot2   = { (float)wall[wall[w].point2].x, (float)wall[wall[w].point2].y };
-        vec2f_t middle = { (dot.x + dot2.x) * .5f, (dot.y + dot2.y) * .5f };
+        vec2f_t const dot    = { (float)wall[w].x, (float)wall[w].y };
+        vec2f_t const dot2   = { (float)wall[wall[w].point2].x, (float)wall[wall[w].point2].y };
+        vec2f_t const middle = { (dot.x + dot2.x) * .5f, (dot.y + dot2.y) * .5f };
 
-        _equation maskeq = equation(dot.x, dot.y, dot2.x, dot2.y);
-        _equation p1eq   = equation(pos.x, pos.y, dot.x, dot.y);
-        _equation p2eq   = equation(pos.x, pos.y, dot2.x, dot2.y);
+        _equation const maskeq = equation(dot.x, dot.y, dot2.x, dot2.y);
+        _equation const p1eq   = equation(pos.x, pos.y, dot.x, dot.y);
+        _equation const p2eq   = equation(pos.x, pos.y, dot2.x, dot2.y);
+
+        auto maskwall_separates = [&](vec2f_t const &spr)
+        {
+            // Does the maskwall separate the sprite from camera?
+            return !sameside(&maskeq, &spr, &pos);
+        };
+
+        auto wall_cone_sides = [&](vec2f_t const &spr)
+        {
+            // For each of the two rays from the camera to the two wall-points:
+            // does position 'spr' fall into the inside of the so-defined "cone"?
+            const bool inleft = sameside(&p1eq, &middle, &spr);
+            const bool inright = sameside(&p2eq, &middle, &spr);
+
+            static_assert((int)Sides::left == 1 && (int)Sides::right == 2, "");
+
+            return static_cast<Sides>(inleft | (inright << 1));
+        };
 
 #ifdef USE_OPENGL
-        if (videoGetRenderMode() == REND_POLYMOST)
-            polymost_setClamp(1+2);
+        if (isPolymost)
+            polymost_setClamp(1 + 2);
 #endif
+        int32_t i = spritesortcnt;
 
-        i = spritesortcnt;
         while (i)
         {
             i--;
+
             if (tspriteptr[i] != NULL)
             {
-                vec2f_t spr;
                 auto const tspr = tspriteptr[i];
+                vec2_t const cen = GetCenterPoint(tspr);
+                vec2f_t spr{(float)cen.x, (float)cen.y};
 
-                spr.x = (float)tspr->x;
-                spr.y = (float)tspr->y;
-
-                if (!sameside(&maskeq, &spr, &pos))
+                if (maskwall_separates(spr))
                 {
-                    // Sprite and camera are on different sides of the
-                    // masked wall.
+                    // Sprite and camera are on different sides of the masked wall. Check:
+                    // is that particular maskwall relevant for this sprite, i.e. does the
+                    // former obstruct the latter? If yes, we want to draw the sprite first.
 
-                    // Check if the sprite is inside the 'cone' given by
-                    // the rays from the camera to the two wall-points.
-                    const int32_t inleft = sameside(&p1eq, &middle, &spr);
-                    const int32_t inright = sameside(&p2eq, &middle, &spr);
-
-                    int32_t ok = (inleft && inright);
+                    auto const sides = wall_cone_sides(spr);
+                    bool ok = (sides == Sides::both);
 
                     if (!ok)
                     {
-                        // If not, check if any of the border points are...
+                        // No, considering the sprite's center point alone. But maybe if its
+                        // border points are taken into account?
                         int32_t xx[4] = { tspr->x };
                         int32_t yy[4] = { tspr->y };
-                        int32_t numpts, jj;
 
-                        const _equation pineq = inleft ? p1eq : p2eq;
+                        int32_t const otherSide = (int)Sides::both - (int)sides;
+                        int32_t const numpts    = GetCornerPoints(tspr, xx, yy);
 
-                        if ((tspr->cstat & 48) == 32)
+                        for (int32_t jj = 0; jj < numpts; jj++)
                         {
-                            numpts = 4;
-                            get_floorspr_points(tspr, 0, 0,
-                                                &xx[0], &xx[1], &xx[2], &xx[3],
-                                                &yy[0], &yy[1], &yy[2], &yy[3],
-                                                tspriteGetSlope(tspr));
-                        }
-                        else
-                        {
-                            const int32_t oang = tspr->ang;
-                            numpts = 2;
+                            spr = {(float)xx[jj], (float)yy[jj]};
 
-                            // Consider face sprites as wall sprites with camera ang.
-                            // XXX: factor 4/5 needed?
-                            if ((tspr->cstat & 48) != 16)
-                                tspriteptr[i]->ang = globalang;
-
-                            get_wallspr_points(tspr, &xx[0], &xx[1], &yy[0], &yy[1]);
-
-                            if ((tspr->cstat & 48) != 16)
-                                tspriteptr[i]->ang = oang;
-                        }
-
-                        for (jj=0; jj<numpts; jj++)
-                        {
-                            spr.x = (float)xx[jj];
-                            spr.y = (float)yy[jj];
-
-                            if (!sameside(&maskeq, &spr, &pos))  // behind the maskwall,
-                                if ((sameside(&p1eq, &middle, &spr) &&  // inside the 'cone',
-                                        sameside(&p2eq, &middle, &spr))
-                                        || !sameside(&pineq, &middle, &spr))  // or on the other outside.
-                                {
-                                    ok = 1;
-                                    break;
-                                }
+                            // Relative to the sprite center: is the border point still on the
+                            // same side of the masked wall but now on the other side of the
+                            // wall-cone ray which gave rise to the "outside" status?
+                            if (maskwall_separates(spr) && ((int)wall_cone_sides(spr) & otherSide) != 0)
+                            {
+                                ok = true;
+                                break;
+                            }
                         }
                     }
 
@@ -10165,30 +10197,30 @@ killsprite:
             }
         }
 
-        debugmask_add(maskwall[maskwallcnt], thewall[maskwall[maskwallcnt]]);
 #ifdef USE_OPENGL
-        if (videoGetRenderMode() == REND_POLYMOST)
+        if (isPolymost)
             polymost_setClamp(0);
 #endif
+        debugmask_add(maskwall[maskwallcnt], thewall[maskwall[maskwallcnt]]);
         renderDrawMaskedWall(maskwallcnt);
     }
 
 #ifdef USE_OPENGL
-    if (videoGetRenderMode() == REND_POLYMOST)
-        polymost_setClamp(1+2);
+    if (isPolymost)
+        polymost_setClamp(1 + 2);
 #endif
     while (spritesortcnt)
     {
         --spritesortcnt;
         if (tspriteptr[spritesortcnt] != NULL)
         {
-            debugmask_add(i | 32768, tspriteptr[i]->owner);
+            debugmask_add(spritesortcnt | 32768, tspriteptr[spritesortcnt]->owner);
             renderDrawSprite(spritesortcnt);
             tspriteptr[spritesortcnt] = NULL;
         }
     }
 #ifdef USE_OPENGL
-    if (videoGetRenderMode() == REND_POLYMOST)
+    if (isPolymost)
     {
         glDepthMask(GL_TRUE);
         polymost_setClamp(0);
@@ -10202,7 +10234,7 @@ killsprite:
 #ifdef DEBUG_MASK_DRAWING
     if (g_maskDrawMode && videoGetRenderMode() == REND_CLASSIC)
     {
-        for (i=0; i<dmasknum; i++)
+        for (int32_t i = 0; i < dmasknum; i++)
         {
             EDUKE32_STATIC_ASSERT(MAXWALLS <= 32768 && MAXSPRITES <= 32768);
             int32_t spritep = !!(debugmask[i].di & 32768);
@@ -10775,9 +10807,7 @@ static int32_t engineFinishLoadBoard(const vec3_t* dapos, int16_t* dacursectnum,
 #endif
     {
         Bmemset(spriteext, 0, sizeof(spriteext_t)*MAXSPRITES);
-#ifndef NEW_MAP_FORMAT
         Bmemset(wallext, 0, sizeof(wallext_t)*MAXWALLS);
-#endif
 
 #ifdef USE_OPENGL
         Bmemset(spritesmooth, 0, sizeof(spritesmooth_t)*(MAXSPRITES+MAXUNIQHUDID));
@@ -10849,11 +10879,6 @@ static void check_sprite(int32_t i)
     }
 }
 
-#ifdef NEW_MAP_FORMAT
-// Returns the number of sprites, or <0 on error.
-int32_t (*loadboard_maptext)(buildvfs_kfd fil, vec3_t *dapos, int16_t *daang, int16_t *dacursectnum);
-#endif
-
 #include "md4.h"
 
 // flags: 1, 2: former parameter "fromwhere"
@@ -10885,27 +10910,15 @@ int32_t engineLoadBoard(const char *filename, char flags, vec3_t *dapos, int16_t
     {
         int32_t ok = 0;
 
-#ifdef NEW_MAP_FORMAT
-        // Check for map-text first.
-        if (!Bmemcmp(&mapversion, "--ED", 4))
-        {
-            mapversion = 10;
-            ok = 1;
-        }
-        else
-#endif
-        {
-            // Not map-text. We expect a little-endian version int now.
-            mapversion = B_LITTLE32(mapversion);
+        mapversion = B_LITTLE32(mapversion);
 #ifdef YAX_ENABLE
-            ok |= (mapversion==9);
+        ok |= (mapversion==9);
 #endif
 #if MAXSECTORS==MAXSECTORSV8
-            // v8 engine
-            ok |= (mapversion==8);
+        // v8 engine
+        ok |= (mapversion==8);
 #endif
-            ok |= (mapversion==7);
-        }
+        ok |= (mapversion==7);
 
         if (!ok)
         {
@@ -10915,25 +10928,6 @@ int32_t engineLoadBoard(const char *filename, char flags, vec3_t *dapos, int16_t
     }
 
     if (enginePrepareLoadBoard(fil, dapos, daang, dacursectnum)) goto error;
-
-#ifdef NEW_MAP_FORMAT
-    if (have_maptext())
-    {
-        int32_t ret = klseek(fil, 0, SEEK_SET);
-
-        if (ret == 0)
-            ret = loadboard_maptext(fil, dapos, daang, dacursectnum);
-
-        if (ret < 0)
-        {
-            kclose(fil);
-            return ret;
-        }
-
-        numsprites = ret;
-        goto skip_reading_mapbin;
-    }
-#endif
 
     ////////// Read sectors //////////
 
@@ -10952,10 +10946,6 @@ int32_t engineLoadBoard(const char *filename, char flags, vec3_t *dapos, int16_t
 
     for (i=numsectors-1; i>=0; i--)
     {
-#ifdef NEW_MAP_FORMAT
-        Bmemmove(&sector[i], &(((sectortypev7 *)sector)[i]), sizeof(sectortypevx));
-        inplace_vx_from_v7_sector(&sector[i]);
-#endif
         sector[i].wallptr       = B_LITTLE16(sector[i].wallptr);
         sector[i].wallnum       = B_LITTLE16(sector[i].wallnum);
         sector[i].ceilingz      = B_LITTLE32(sector[i].ceilingz);
@@ -10969,9 +10959,6 @@ int32_t engineLoadBoard(const char *filename, char flags, vec3_t *dapos, int16_t
         sector[i].lotag         = B_LITTLE16(sector[i].lotag);
         sector[i].hitag         = B_LITTLE16(sector[i].hitag);
         sector[i].extra         = B_LITTLE16(sector[i].extra);
-#ifdef NEW_MAP_FORMAT
-        inplace_vx_tweak_sector(&sector[i], mapversion==9);
-#endif
     }
 
 
@@ -10991,10 +10978,6 @@ int32_t engineLoadBoard(const char *filename, char flags, vec3_t *dapos, int16_t
 
     for (i=numwalls-1; i>=0; i--)
     {
-#ifdef NEW_MAP_FORMAT
-        Bmemmove(&wall[i], &(((walltypev7 *)wall)[i]), sizeof(walltypevx));
-        inplace_vx_from_v7_wall(&wall[i]);
-#endif
         wall[i].x          = B_LITTLE32(wall[i].x);
         wall[i].y          = B_LITTLE32(wall[i].y);
         wall[i].point2     = B_LITTLE16(wall[i].point2);
@@ -11006,9 +10989,6 @@ int32_t engineLoadBoard(const char *filename, char flags, vec3_t *dapos, int16_t
         wall[i].lotag      = B_LITTLE16(wall[i].lotag);
         wall[i].hitag      = B_LITTLE16(wall[i].hitag);
         wall[i].extra      = B_LITTLE16(wall[i].extra);
-#ifdef NEW_MAP_FORMAT
-        inplace_vx_tweak_wall(&wall[i], mapversion==9);
-#endif
     }
 
 
@@ -11024,10 +11004,6 @@ int32_t engineLoadBoard(const char *filename, char flags, vec3_t *dapos, int16_t
 
     if (pos != len)
         LOG_F(WARNING, "Ignoring %d bytes of unknown data appended to map file. Saving changes to this file will result in loss of this data.", len - pos);
-
-#ifdef NEW_MAP_FORMAT
-skip_reading_mapbin:
-#endif
 
     klseek(fil, 0, SEEK_SET);
     int32_t boardsize = kfilelength(fil);
@@ -11087,8 +11063,7 @@ skip_reading_mapbin:
 
         system_getcvars();
 
-        auto mapInfo = (usermaphack_t *)bsearch(&g_loadedMapHack, usermaphacks, num_usermaphacks,
-                                            sizeof(usermaphack_t), compare_usermaphacks);
+        auto mapInfo = find_usermaphack();
 
         // Per-map ART
         if (mapInfo && mapInfo->mapart)
@@ -11370,31 +11345,13 @@ int32_t engineLoadBoardV5V6(const char *filename, char fromwhere, vec3_t *dapos,
     return engineFinishLoadBoard(dapos, dacursectnum, numsprites, 0);
 }
 
-
-#ifdef NEW_MAP_FORMAT
-int32_t (*saveboard_maptext)(const char *filename, const vec3_t *dapos, int16_t daang, int16_t dacursectnum);
-#endif
-
 // Get map version of external map format (<10: old binary format, ==10: new
 // 'VX' map-text format).
 static int32_t get_mapversion(void)
 {
 #ifdef YAX_ENABLE
     if (numyaxbunches > 0)
-# ifdef NEW_MAP_FORMAT
-        return 10;
-# else
         return 9;
-# endif
-#endif
-
-#ifdef NEW_MAP_FORMAT
-    {
-        int32_t i;
-        for (i=0; i<numwalls; i++)
-            if (wall[i].blend != 0)
-                return 10;
-    }
 #endif
     if (numsectors > MAXSECTORSV7 || numwalls > MAXWALLSV7 || Numsprites > MAXSPRITESV7)
         return 8;
@@ -11443,15 +11400,6 @@ int32_t saveboard(const char *filename, const vec3_t *dapos, int16_t daang, int1
     // Determine the map version.
     mapversion = get_mapversion();
 
-#ifdef NEW_MAP_FORMAT
-    if (mapversion == 10)
-    {
-        initprintf("Saving of TROR maps not yet accessible in the Lunatic preview build\n");
-        return -1;
-//        return saveboard_maptext(filename, dapos, daang, dacursectnum);
-    }
-#endif
-
     buildvfs_fd fil = buildvfs_open_write(filename);
 
     if (fil == buildvfs_fd_invalid)
@@ -11475,12 +11423,7 @@ int32_t saveboard(const char *filename, const vec3_t *dapos, int16_t daang, int1
         usectortypev7 *const tsect = (usectortypev7 *)Xmalloc(sizeof(usectortypev7) * numsectors);
         uwalltypev7 *twall;
 
-#ifdef NEW_MAP_FORMAT
-        for (i=0; i<numsectors; i++)
-            copy_v7_from_vx_sector(&tsect[i], &sector[i]);
-#else
         Bmemcpy(tsect, sector, sizeof(sectortypev7)*numsectors);
-#endif
 
         for (i=0; i<numsectors; i++)
         {
@@ -11520,12 +11463,7 @@ int32_t saveboard(const char *filename, const vec3_t *dapos, int16_t daang, int1
 
         twall = (uwalltypev7 *)Xmalloc(sizeof(uwalltypev7) * numwalls);
 
-#ifdef NEW_MAP_FORMAT
-        for (i=0; i<numwalls; i++)
-            copy_v7_from_vx_wall(&twall[i], &wall[i]);
-#else
         Bmemcpy(twall, wall, sizeof(walltypev7)*numwalls);
-#endif
 
         for (i=0; i<numwalls; i++)
         {
@@ -13956,10 +13894,9 @@ int32_t sectorofwall(int16_t wallNum)
     if (EDUKE32_PREDICT_FALSE((unsigned)wallNum >= (unsigned)numwalls))
         return -1;
 
-#if !defined NEW_MAP_FORMAT
     if (!editstatus)
         return wallsect[wallNum];
-#endif
+
     native_t const w = wall[wallNum].nextwall;
     return ((unsigned)w < (unsigned)numwalls) ? wall[w].nextsector : sectorofwall_internal(wallNum);
 }

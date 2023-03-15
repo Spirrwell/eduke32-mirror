@@ -1493,11 +1493,7 @@ void                polymer_drawmaskwall(int32_t damaskwallcnt)
         polymer_drawsearchplane(&w->mask, oldcolor, 0x04, (GLubyte const *)&wallnum);
     } else {
         calc_and_apply_fog(fogshade(wal->shade, wal->pal), sec->visibility, get_floor_fogpal(sec));
-#ifdef NEW_MAP_FORMAT
-        uint8_t const blend = wal->blend;
-#else
         uint8_t const blend = wallext[wallnum].blend;
-#endif
         handle_blend(!!(wal->cstat & CSTAT_WALL_TRANSLUCENT), blend, !!(wal->cstat & CSTAT_WALL_TRANS_FLIP));
         polymer_drawplane(&w->mask);
     }
@@ -3179,27 +3175,21 @@ static int32_t      polymer_initwall(int16_t wallnum)
 
 static float calc_ypancoef(char curypanning, int16_t curpicnum, int32_t dopancor)
 {
-#ifdef NEW_MAP_FORMAT
-    if (g_loadedMapVersion >= 10)
-        return curypanning / 256.0f;
-#endif
+    float ypancoef = (float)(pow2long[picsiz[curpicnum] >> 4]);
+
+    if (ypancoef < tilesiz[curpicnum].y)
+        ypancoef *= 2;
+
+    if (dopancor)
     {
-        float ypancoef = (float)(pow2long[picsiz[curpicnum] >> 4]);
-
-        if (ypancoef < tilesiz[curpicnum].y)
-            ypancoef *= 2;
-
-        if (dopancor)
-        {
-            int32_t yoffs = Blrintf((ypancoef - tilesiz[curpicnum].y) * (255.0f / ypancoef));
-            if (curypanning > 256 - yoffs)
-                curypanning -= yoffs;
-        }
-
-        ypancoef *= (float)curypanning / (256.0f * (float)tilesiz[curpicnum].y);
-
-        return ypancoef;
+        int32_t yoffs = Blrintf((ypancoef - tilesiz[curpicnum].y) * (255.0f / ypancoef));
+        if (curypanning > 256 - yoffs)
+            curypanning -= yoffs;
     }
+
+    ypancoef *= (float)curypanning / (256.0f * (float)tilesiz[curpicnum].y);
+
+    return ypancoef;
 }
 
 #define NBYTES_WALL_CSTAT_THROUGH_YPANNING \

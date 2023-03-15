@@ -207,9 +207,6 @@ static FORCE_INLINE int polymost_is_npotmode(void)
         // because in calc_ypanning(), the repeat would be multiplied by a
         // factor even if no modified texture were loaded.
         !usehightile &&
-#ifdef NEW_MAP_FORMAT
-        g_loadedMapVersion < 10 &&
-#endif
         r_npotwallmode == 1;
 }
 

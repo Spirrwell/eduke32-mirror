@@ -6833,9 +6833,7 @@ void G_SaveMapState(void)
         LOG_F(ERROR, "CON_SAVEMAPSTATE called from EVENT_ANIMATESPRITES. WHY?");
 
     Bmemcpy(&save->spriteext[0],&spriteext[0],sizeof(spriteext_t)*MAXSPRITES);
-#ifndef NEW_MAP_FORMAT
     Bmemcpy(&save->wallext[0],&wallext[0],sizeof(wallext_t)*MAXWALLS);
-#endif
 
     save->numsprites = Numsprites;
     save->tailspritefree = tailspritefree;
@@ -6847,10 +6845,8 @@ void G_SaveMapState(void)
     Bmemcpy(&save->nextspritestat[0],&nextspritestat[0],sizeof(nextspritestat));
 #ifdef YAX_ENABLE
     save->numyaxbunches = numyaxbunches;
-# if !defined NEW_MAP_FORMAT
     Bmemcpy(save->yax_bunchnum, yax_bunchnum, sizeof(yax_bunchnum));
     Bmemcpy(save->yax_nextwall, yax_nextwall, sizeof(yax_nextwall));
-# endif
 #endif
     Bmemcpy(&save->actor[0],&actor[0],sizeof(actor_t)*MAXSPRITES);
 
@@ -6943,9 +6939,8 @@ void G_RestoreMapState(void)
 
         numwalls = pSavedState->numwalls;
         Bmemcpy(&wall[0],&pSavedState->wall[0],sizeof(walltype)*MAXWALLS);
-#ifndef NEW_MAP_FORMAT
         Bmemcpy(&wallext[0],&pSavedState->wallext[0],sizeof(wallext_t)*MAXWALLS);
-#endif
+
         numsectors = pSavedState->numsectors;
         Bmemcpy(&sector[0],&pSavedState->sector[0],sizeof(sectortype)*MAXSECTORS);
         Bmemcpy(&sprite[0],&pSavedState->sprite[0],sizeof(spritetype)*MAXSPRITES);
@@ -6969,10 +6964,8 @@ void G_RestoreMapState(void)
         Bmemcpy(&nextspritestat[0],&pSavedState->nextspritestat[0],sizeof(nextspritestat));
 #ifdef YAX_ENABLE
         numyaxbunches = pSavedState->numyaxbunches;
-# if !defined NEW_MAP_FORMAT
         Bmemcpy(yax_bunchnum, pSavedState->yax_bunchnum, sizeof(yax_bunchnum));
         Bmemcpy(yax_nextwall, pSavedState->yax_nextwall, sizeof(yax_nextwall));
-# endif
 #endif
         Bmemcpy(&actor[0],&pSavedState->actor[0],sizeof(actor_t)*MAXSPRITES);
 

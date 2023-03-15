@@ -420,11 +420,7 @@ static void yax_resetbunchnums(void)
 // attach points to, etc...
 static int32_t yax_islockedwall(int16_t line)
 {
-#ifdef NEW_MAP_FORMAT
-    return (wall[line].upwall>=0 || wall[line].dnwall>=0);
-#else
     return !!(wall[line].cstat&YAX_NEXTWALLBITS);
-#endif
 }
 
 # define DEFAULT_YAX_HEIGHT (2048<<4)
@@ -956,7 +952,7 @@ CANCEL:
             {
                 keystatus[sc_Y] = keystatus[sc_Enter] = 0;
 
-                SaveBoard(NULL, M32_SB_ASKOV);
+                SaveBoard(NULL, 0);
 
                 break;
             }
@@ -1911,18 +1907,11 @@ static int32_t backup_highlighted_map(mapinfofull_t *mapinfo)
                 {
                     // A bunch was discarded.
                     auto const sec = &mapinfo->sector[i];
-# if !defined NEW_MAP_FORMAT
                     uint16_t *const cs = j==YAX_CEILING ? &sec->ceilingstat : &sec->floorstat;
                     uint8_t *const xp = j==YAX_CEILING ? &sec->ceilingxpanning : &sec->floorxpanning;
 
                     *cs &= ~YAX_BIT;
                     *xp = 0;
-# else
-                    if (j == YAX_CEILING)
-                        sec->ceilingbunch = -1;
-                    else
-                        sec->floorbunch = -1;
-# endif
                 }
             }
         }
@@ -2050,13 +2039,9 @@ static int32_t restore_highlighted_map(mapinfofull_t *mapinfo, int32_t forreal)
             }
             else
             {
-# if !defined NEW_MAP_FORMAT
                 // XXX: When copying a TROR portion into a non-TROR map (e.g. a
                 // new one), tags denoting ynextwalls are left in place.
                 wall[i].cstat &= ~YAX_NEXTWALLBIT(j);  // CLEAR_YNEXTWALLS
-# else
-                yax_setnextwall(i, j, -1);
-# endif
             }
         }
 #endif
@@ -8502,7 +8487,7 @@ CANCEL:
                         int32_t corrupt = CheckMapCorruption(4, 0);
 
                         if (ask_if_sure(corrupt<4?"Save changes?":"Map corrupt. Save changes?", 2+(corrupt>=4)))
-                            SaveBoard(NULL, M32_SB_ASKOV);
+                            SaveBoard(NULL, 0);
 
                         while (keystatus[sc_Escape] || keystatus[sc_C])
                         {
@@ -8656,7 +8641,7 @@ static void SaveBoardAndPrintMessage(const char *fn)
     _printmessage16("Saving board...");
     videoShowFrame(1);
 
-    f = SaveBoard(fn, M32_SB_ASKOV);
+    f = SaveBoard(fn, 0);
 
     if (f)
     {
@@ -8701,25 +8686,6 @@ const char *SaveBoard(const char *fn, uint32_t flags)
     const char *f = GetSaveBoardFilename(fn);
 
     saveboard_canceled = 0;
-#ifdef NEW_MAP_FORMAT
-    if ((flags&M32_SB_ASKOV) && mapversion>=10 &&
-            g_loadedMapVersion != -1 && g_loadedMapVersion < mapversion)
-    {
-        char question[128];
-        // XXX: This message is potentially confusing if the user is "Saving
-        // As" to a new file name.
-        Bsnprintf(question, sizeof(question), "Are you sure to overwrite a version "
-                  "V%d map with a V%d map-text one?", g_loadedMapVersion, mapversion);
-
-        if (AskIfSure(question))
-        {
-            message("Cancelled saving board");
-            saveboard_canceled = 1;
-            return NULL;
-        }
-    }
-#endif
-
     saveboard_savedtags = 0;
     saveboard_fixedsprites = editorEventPreSaveMap();
 
