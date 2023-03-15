@@ -3042,7 +3042,9 @@ void P_UpdateAngles(int const playerNum, input_t &input)
 
     thisPlayer.lastViewUpdate = currentHiTicks;
 
-    auto scaleToInterval = [=](double x) { return x * REALGAMETICSPERSEC / (1000.0 / min(elapsedInputTicks, 1000.0)); };
+    auto scaleToIntervalWithTicks = [](double x, double elapsedTicks) { return x * REALGAMETICSPERSEC / (1000.0 / min(elapsedTicks, 1000.0)); };
+    auto scaleToInterval = [=](double x) { return scaleToIntervalWithTicks(x, elapsedInputTicks); };
+    auto scaleToIntervalDelayed = [=](double x) { return scaleToIntervalWithTicks(x, elapsedInputTicks - static_cast<double>(REALGAMETICSPERSEC)/10.0); };
 
     int const movementLocked = P_CheckLockedMovement(playerNum);
 
@@ -3092,7 +3094,14 @@ void P_UpdateAngles(int const playerNum, input_t &input)
         {
             int const slopeZ = yax_getflorzofslope(pPlayer->cursectnum, adjustedPosition);
             if ((pPlayer->cursectnum == currentSector) || (klabs(yax_getflorzofslope(currentSector, adjustedPosition) - slopeZ) <= ZOFFSET6))
-                pPlayer->q16horizoff = fix16_sadd(pPlayer->q16horizoff, fix16_from_float(scaleToInterval(mulscale16(pPlayer->truefz - slopeZ, 160))));
+            {
+                const auto zdiff = pPlayer->truefz - slopeZ;
+                if (abs(zdiff) < MAXSLOPEZDIFF)
+                {
+                    const auto mulscaleRes = mulscale16(zdiff, 160);
+                    pPlayer->q16horizoff = fix16_sadd(pPlayer->q16horizoff, fix16_from_float(scaleToIntervalDelayed(mulscaleRes)));
+                }
+            }
         }
     }
 
