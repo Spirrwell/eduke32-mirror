@@ -55,6 +55,7 @@ extern "C" {
 #define DEFAULTMOUSESENSITIVITY  (25.f)
 #define DEFAULTMOUSEUNIT (.031337f)
 #define DEFAULTJOYUNIT (.2f)
+#define DEFAULTMOUSEVERTWALK (1)
 
 #define INSTANT_ONOFF       0
 #define TOGGLE_ONOFF        1
