@@ -2077,188 +2077,168 @@ void ExtShowSpriteData(int16_t spritenum)   //F6
 // If standing in sector with SE43 or SE45
 // then draw viewing to SE40 and lower all =hi SE42 floors.
 
-static int32_t fofsizex = -1;
-static int32_t fofsizey = -1;
-#if 0
-static void ResetFOFSize(void)
+static int32_t drawing_ror = 0;
+static int32_t ror_sprite = -1;
+
+static int editorFindMatchingSE40(uspriteptr_t sp)
 {
-    if (fofsizex != -1) tilesizx[FOF] = fofsizex;
-    if (fofsizey != -1) tilesizy[FOF] = fofsizey;
+    for (int spriteNum = 0; spriteNum < Numsprites; spriteNum++)
+        if (sprite[spriteNum].picnum == SECTOREFFECTOR && (uspriteptr_t)&sprite[spriteNum] != sp && (sprite[spriteNum].lotag == 40 || sprite[spriteNum].lotag == 41) && sprite[spriteNum].hitag == sp->hitag)
+            return spriteNum;
+
+    return -1;
 }
-#endif
-static void ExtSE40Draw(int32_t spnum,int32_t x,int32_t y,int32_t z,int16_t a,int16_t h)
+
+static void G_OROR_DupeSprites(uspriteptr_t sp)
 {
-    static int32_t tempsectorz[MAXSECTORS];
-    static int32_t tempsectorpicnum[MAXSECTORS];
+    // dupe the sprites touching the portal to the other sector
+    int32_t sprite2 = editorFindMatchingSE40(sp);
 
-    int32_t j=0,k=0;
-    int32_t floor1 = 0, floor2 = 0, fofmode = 0, draw_both = 0;
-    int32_t offx,offy,offz;
-
-    if (sprite[spnum].ang!=512) return;
-
-    // Things are a little different now, as we allow for masked transparent
-    // floors and ceilings. So the FOF textures is no longer required
-    //	if (!bitmap_test(gotpic, FOF))
-    //		return;
-    //	bitmap_clear(gotpic, FOF);
-
-    if (tilesiz[562].x)
+    if ((unsigned)sprite2 >= MAXSPRITES)
     {
-        fofsizex = tilesiz[562].x;
-        tilesiz[562].x = 0;
-    }
-    if (tilesiz[562].y)
-    {
-        fofsizey = tilesiz[562].y;
-        tilesiz[562].y = 0;
+        OSD_Printf("G_OROR_DupeSprites: no matching SE40/41 found\n");
+        return;
     }
 
-    floor1=spnum;
+    auto refsp = (uspriteptr_t)&sprite[sprite2];
 
-    if (sprite[spnum].lotag==42) fofmode=40;
-    if (sprite[spnum].lotag==43) fofmode=41;
-    if (sprite[spnum].lotag==44) fofmode=40;
-    if (sprite[spnum].lotag==45) fofmode=41;
-
-    // fofmode=sprite[spnum].lotag-2;
-
-    // sectnum=sprite[j].sectnum;
-    // sectnum=cursectnum;
-
-    /*  recursive?
-    for(j=0;j<MAXSPRITES;j++)
+    for (int SPRITES_OF_SECT(sp->sectnum, k))
     {
-    if(
-    sprite[j].sectnum==sectnum &&
-    sprite[j].picnum==1 &&
-    sprite[j].lotag==110
-    ) { DrawFloorOverFloor(j); break;}
-    }
-    */
-
-    for (j=0; j<MAXSPRITES; j++)
-    {
-        if (sprite[j].picnum==1 && sprite[j].lotag==fofmode && sprite[j].hitag==sprite[floor1].hitag)
-        {
-            floor1=j;
-            fofmode=sprite[j].lotag;
+        if (spritesortcnt >= maxspritesonscreen)
             break;
+
+        if (sprite[k].picnum != SECTOREFFECTOR && sprite[k].z >= sp->z)
+        {
+            tspriteptr_t tsp = renderAddTSpriteFromSprite(k);
+            Duke_ApplySpritePropertiesToTSprite(tsp, (uspriteptr_t)&sprite[k]);
+
+            tsp->x += (refsp->x - sp->x);
+            tsp->y += (refsp->y - sp->y);
+            tsp->z += -sp->z + getflorzofslope(sp->sectnum, sp->x, sp->y);
+            tsp->sectnum = refsp->sectnum;
+
+            //            OSD_Printf("duped sprite of pic %d at %d %d %d\n",tsp->picnum,tsp->x,tsp->y,tsp->z);
         }
     }
+}
 
-    if (fofmode==40) k=41;
-    else k=40;
 
-    for (j=0; j<MAXSPRITES; j++)
+static int16_t SE40backupStat[MAXSECTORS];
+static int32_t SE40backupZ[MAXSECTORS];
+
+static void editorDrawSE40(void)
+{
+    if ((unsigned)ror_sprite < MAXSPRITES)
     {
-        if (sprite[j].picnum==1 && sprite[j].lotag==k && sprite[j].hitag==sprite[floor1].hitag)
+        int32_t x, y, z;
+        int16_t sect;
+        int32_t level = 0;
+        auto const sp = (uspriteptr_t)&sprite[ror_sprite];
+        int32_t sprite2 = editorFindMatchingSE40(sp);
+
+        if ((unsigned)sprite2 >= MAXSPRITES)
+            return;
+
+        if (klabs(sector[sp->sectnum].floorz - sp->z) < klabs(sector[sprite[sprite2].sectnum].floorz - sprite[sprite2].z))
+            level = 1;
+
+        x = pos.x - sp->x;
+        y = pos.y - sp->y;
+        z = pos.z - (level ? sector[sp->sectnum].floorz : sector[sp->sectnum].ceilingz);
+
+        sect = sprite[sprite2].sectnum;
+        updatesector(sprite[sprite2].x + x, sprite[sprite2].y + y, &sect);
+
+        if (sect != -1)
         {
-            floor2=j;
-            break;
-        }
-    }
+            int32_t renderz, picnum;
+            // XXX: PK: too large stack allocation for my taste
+            int32_t i;
+            int32_t pix_diff, newz;
+            //                initprintf("drawing ror\n");
 
-//    i=floor1;
-    offx=sprite[floor2].x-sprite[floor1].x;
-    offy=sprite[floor2].y-sprite[floor1].y;
-    offz=0;
-
-    if (sprite[floor2].ang >= 1024)
-        offz = sprite[floor2].z;
-    else if (fofmode==41)
-        offz = SPRITESEC(floor2).floorz;
-    else
-        offz = SPRITESEC(floor2).ceilingz;
-
-    if (sprite[floor1].ang >= 1024)
-        offz -= sprite[floor1].z;
-    else if (fofmode==40)
-        offz -= SPRITESEC(floor1).floorz;
-    else
-        offz -= SPRITESEC(floor1).ceilingz;
-
-    for (j=0; j<MAXSPRITES; j++) // raise ceiling or floor
-    {
-        if (sprite[j].picnum==1 && sprite[j].lotag==k+2 && sprite[j].hitag==sprite[floor1].hitag)
-        {
-            if (k==40)
+            if (level)
             {
-                tempsectorz[sprite[j].sectnum] = SPRITESEC(j).floorz;
-                SPRITESEC(j).floorz += (((z-SPRITESEC(j).floorz)/32768)+1)*32768;
-                tempsectorpicnum[sprite[j].sectnum] = SPRITESEC(j).floorpicnum;
-                SPRITESEC(j).floorpicnum = 562;
+                // renderz = sector[sprite[sprite2].sectnum].ceilingz;
+                renderz = sprite[sprite2].z - (sprite[sprite2].yrepeat * tilesiz[sprite[sprite2].picnum].y<<1);
+                picnum = sector[sprite[sprite2].sectnum].ceilingpicnum;
+                sector[sprite[sprite2].sectnum].ceilingpicnum = 562;
+                tilesiz[562].x = tilesiz[562].y = 0;
+
+                pix_diff = klabs(z) >> 8;
+                newz = - ((pix_diff / 128) + 1) * (128<<8);
+
+                for (i = 0; i < numsectors; i++)
+                {
+                    SE40backupStat[i] = sector[i].ceilingstat;
+                    SE40backupZ[i] = sector[i].ceilingz;
+                    if (sp->lotag == 41)
+                    {
+                        sector[i].ceilingstat = 1;
+                        sector[i].ceilingz += newz;
+                    }
+                }
             }
             else
             {
-                tempsectorz[sprite[j].sectnum] = SPRITESEC(j).ceilingz;
-                SPRITESEC(j).ceilingz += (((z-SPRITESEC(j).ceilingz)/32768)-1)*32768;
-                tempsectorpicnum[sprite[j].sectnum] = SPRITESEC(j).ceilingpicnum;
-                SPRITESEC(j).ceilingpicnum = 562;
+                // renderz = sector[sprite[sprite2].sectnum].floorz;
+                renderz = sprite[sprite2].z;
+                picnum = sector[sprite[sprite2].sectnum].floorpicnum;
+                sector[sprite[sprite2].sectnum].floorpicnum = 562;
+                tilesiz[562].x = tilesiz[562].y = 0;
+
+                pix_diff = klabs(z) >> 8;
+                newz = ((pix_diff / 128) + 1) * (128<<8);
+
+                for (i = 0; i < numsectors; i++)
+                {
+                    SE40backupStat[i] = sector[i].floorstat;
+                    SE40backupZ[i] = sector[i].floorz;
+                    if (sp->lotag == 41)
+                    {
+                        sector[i].floorstat = 1;
+                        sector[i].floorz = +newz;
+                    }
+                }
             }
-            draw_both = 1;
-        }
-    }
 
-    drawrooms(x+offx,y+offy,z+offz,a,h,sprite[floor2].sectnum);
-    ExtAnalyzeSprites(0,0,0,0,0);
-    renderDrawMasks();
-    M32_ResetFakeRORTiles();
+#ifdef POLYMER
+            if (videoGetRenderMode() == REND_POLYMER)
+                polymer_setanimatesprites(ExtAnalyzeSprites, pos.x, pos.y, pos.z, ang, 0);
+#endif
+            renderDrawRoomsQ16(sprite[sprite2].x + x, sprite[sprite2].y + y,
+                z + renderz, fix16_from_int(ang), fix16_from_int(horiz), sect);
+            drawing_ror = 1 + level;
 
-    if (draw_both)
-    {
-        for (j=0; j<MAXSPRITES; j++) // restore ceiling or floor for the draw both sectors
-        {
-            if (sprite[j].picnum==SECTOREFFECTOR &&
-                    sprite[j].lotag==k+2 && sprite[j].hitag==sprite[floor1].hitag)
+            if (drawing_ror == 2) // viewing from top
+                G_OROR_DupeSprites(sp);
+
+            ExtAnalyzeSprites(pos.x, pos.y, pos.z, ang, 0);
+            renderDrawMasks();
+
+            if (level)
             {
-                if (k==40)
+                sector[sprite[sprite2].sectnum].ceilingpicnum = picnum;
+                for (i = 0; i < numsectors; i++)
                 {
-                    SPRITESEC(j).floorz = tempsectorz[sprite[j].sectnum];
-                    SPRITESEC(j).floorpicnum = tempsectorpicnum[sprite[j].sectnum];
+                    sector[i].ceilingstat = SE40backupStat[i];
+                    sector[i].ceilingz = SE40backupZ[i];
                 }
-                else
+            }
+            else
+            {
+                sector[sprite[sprite2].sectnum].floorpicnum = picnum;
+
+                for (i = 0; i < numsectors; i++)
                 {
-                    SPRITESEC(j).ceilingz = tempsectorz[sprite[j].sectnum];
-                    SPRITESEC(j).ceilingpicnum = tempsectorpicnum[sprite[j].sectnum];
+                    sector[i].floorstat = SE40backupStat[i];
+                    sector[i].floorz = SE40backupZ[i];
                 }
-            }// end if
-        }// end for
-
-        // Now re-draw
-        drawrooms(x+offx,y+offy,z+offz,a,h,sprite[floor2].sectnum);
-        ExtAnalyzeSprites(0,0,0,0,0);
-        renderDrawMasks();
-        M32_ResetFakeRORTiles();
-    }
-
-} // end SE40
-
-static void SE40Code(int32_t x,int32_t y,int32_t z,int32_t a,int32_t h)
-{
-    int32_t i;
-
-    i = 0;
-    while (i<MAXSPRITES)
-    {
-        int32_t t = sprite[i].lotag;
-        switch (t)
-        {
-            //            case 40:
-            //            case 41:
-            //                ExtSE40Draw(i,x,y,z,a,h);
-            //                break;
-        case 42:
-        case 43:
-        case 44:
-        case 45:
-            if (cursectnum == sprite[i].sectnum)
-                ExtSE40Draw(i,x,y,z,a,h);
-            break;
+            }
         }
-        i++;
     }
 }
+
 
 void ExtEditSectorData(int16_t sectnum)    //F7
 {
@@ -10554,6 +10534,11 @@ void ExtPreCheckKeys(void) // just before drawrooms
     videoEndDrawing();  //}}}
 }
 
+void ExtPreDraw3dScreen(void)
+{
+    if (floor_over_floor) editorDrawSE40();
+}
+
 void ExtAnalyzeSprites(int32_t ourx, int32_t oury, int32_t ourz, int32_t oura, int32_t smoothr)
 {
     int32_t i, k;
@@ -10565,6 +10550,24 @@ void ExtAnalyzeSprites(int32_t ourx, int32_t oury, int32_t ourz, int32_t oura, i
     UNREFERENCED_PARAMETER(ourz);
     UNREFERENCED_PARAMETER(oura);
     UNREFERENCED_PARAMETER(smoothr);
+
+    if (floor_over_floor && (unsigned)ror_sprite < MAXSPRITES && drawing_ror == 1)  // viewing from bottom
+        G_OROR_DupeSprites((uspriteptr_t)&sprite[ror_sprite]);
+
+    ror_sprite = -1;
+
+    for (i=spritesortcnt-1; i>=0; i--)
+    {
+        auto const t = &tsprite[i];
+        auto const s = &sprite[t->owner];
+        if (s->picnum == SECTOREFFECTOR && (s->lotag == 40 || s->lotag == 41))
+        {
+            ror_sprite = t->owner;
+            break;
+        }
+    }
+
+    drawing_ror = 0;
 
     for (i=0,tspr=&tsprite[0]; i<spritesortcnt; i++,tspr++)
     {

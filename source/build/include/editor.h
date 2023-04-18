@@ -225,6 +225,7 @@ extern int32_t ExtPostStartupWindow(void);
 extern void ExtPostInit(void);
 extern void ExtUnInit(void);
 extern void ExtPreCheckKeys(void);
+extern void ExtPreDraw3dScreen(void);
 extern void ExtAnalyzeSprites(int32_t, int32_t, int32_t, int32_t, int32_t);
 extern void ExtCheckKeys(void);
 extern void ExtPreLoadMap(void);

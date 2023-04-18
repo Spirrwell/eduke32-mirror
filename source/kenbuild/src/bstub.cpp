@@ -274,6 +274,10 @@ void ExtPreCheckKeys(void)
 #endif
 }
 
+void ExtPreDraw3dScreen(void)
+{
+}
+
 void ExtAnalyzeSprites(int32_t ourx, int32_t oury, int32_t ourz, int32_t oura, int32_t smoothr)
 {
     int i, *longptr;

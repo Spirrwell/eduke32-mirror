@@ -30,6 +30,7 @@ char levelname[BMAX_PATH] = {0};
 
 static char kensig[64];
 
+static void    editorEventPreDraw3dScreen(void);
 static void    editorEventAnalyzeSprites(int32_t, int32_t, int32_t, int32_t, int32_t);
 static void    editorEventPreLoadMap(void);
 static void    editorSetupMapFilename(const char *mapname);
@@ -500,7 +501,7 @@ void M32_DrawRoomsAndMasks(void)
         videoSetCorrectedAspect();
     }
 
-    VM_OnEvent(EVENT_PREDRAW3DSCREEN, -1);
+    editorEventPreDraw3dScreen();
 
     yax_preparedrawrooms();
     drawrooms(pos.x,pos.y,pos.z,ang,horiz,cursectnum);
@@ -11341,6 +11342,12 @@ void app_crashhandler(void)
         append_ext_UNSAFE(levelname, "_crash.map");
         SaveBoard(levelname, M32_SB_NOEXT);
     }
+}
+
+static void editorEventPreDraw3dScreen(void)
+{
+    ExtPreDraw3dScreen();
+    VM_OnEvent(EVENT_PREDRAW3DSCREEN, -1);
 }
 
 static void editorEventAnalyzeSprites(int32_t ourx, int32_t oury, int32_t ourz, int32_t oura, int32_t smoothr)
