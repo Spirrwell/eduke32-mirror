@@ -2240,6 +2240,41 @@ static void editorDrawSE40(void)
 }
 
 
+static void editorMultiDrawPass(int16_t mdscale, int16_t mdc, int16_t mda, int32_t a, int32_t h)
+{
+    if ((unsigned)mdc >= MAXSPRITES || (unsigned)mda >= MAXSPRITES)
+        return;
+
+    int32_t offx = sprite[mdc].x - ((sprite[mda].x - pos.x) >> mdscale);
+    int32_t offy = sprite[mdc].y - ((sprite[mda].y - pos.y) >> mdscale);
+    int32_t offz = sprite[mdc].z - ((sprite[mda].z - pos.z) >> mdscale);
+    int16_t mdcs = sprite[mdc].sectnum;
+    a = a << 16;
+    h = h << 16;
+
+    const int32_t tmpyx=yxaspect, tmpvr=viewingrange;
+
+    if (r_usenewaspect)
+    {
+        newaspect_enable = 1;
+        videoSetCorrectedAspect();
+    }
+
+    yax_preparedrawrooms();
+    renderDrawRoomsQ16(offx, offy, offz, a, h, mdcs);
+    yax_drawrooms(ExtAnalyzeSprites, mdcs, 0, 0);
+    renderDrawMasks();
+
+    if (r_usenewaspect)
+    {
+        newaspect_enable = 0;
+        renderSetAspect(tmpvr, tmpyx);
+    }
+
+    mdcamera = -1;
+    mdanchor = -1;
+}
+
 void ExtEditSectorData(int16_t sectnum)    //F7
 {
     if (in3dmode())
@@ -4560,6 +4595,12 @@ static void Keys3d(void)
         floor_over_floor = !floor_over_floor;
         //        if (!floor_over_floor) ResetFOFSize();
         message("Floor-over-floor display %s",floor_over_floor?"enabled":"disabled");
+    }
+
+    if (PRESSED_KEYSC(4))  /* 4 (toggle multidraw) */
+    {
+        multidraw = !multidraw;
+        message("Multiple draw pass %s",multidraw?"enabled":"disabled");
     }
 
     if (PRESSED_KEYSC(F3) && !m32_is2d3dmode())
@@ -10349,7 +10390,6 @@ void ExtPreCheckKeys(void) // just before drawrooms
             }
         }
 
-        if (floor_over_floor) SE40Code(pos.x,pos.y,pos.z,ang,horiz);
         if (purpleon) videoClearViewableArea(255);
 
         return;
@@ -10536,6 +10576,7 @@ void ExtPreCheckKeys(void) // just before drawrooms
 
 void ExtPreDraw3dScreen(void)
 {
+    if (multidraw) editorMultiDrawPass(mdscale,mdcamera,mdanchor,ang,horiz);
     if (floor_over_floor) editorDrawSE40();
 }
 

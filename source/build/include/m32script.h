@@ -188,6 +188,9 @@ extern hashtable_t h_gamefuncs;
 extern int32_t mousxplc;
 extern int32_t mousyplc;
 
+// Multidraw
+extern int32_t multidraw;
+extern int16_t mdscale, mdcamera, mdanchor;
 
 // gamevar bytecode format:
 

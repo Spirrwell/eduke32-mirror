@@ -39,6 +39,10 @@ int32_t getmessagetimeoff; //, charsperline;
 int32_t mousxplc, mousyplc;
 int32_t mouseaction;
 
+//Multidraw
+int32_t multidraw;
+int16_t mdscale, mdcamera = -1, mdanchor = -1;
+
 char *scripthist[SCRIPTHISTSIZ];
 int32_t scripthistend;
 

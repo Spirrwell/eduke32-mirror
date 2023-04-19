@@ -614,6 +614,12 @@ static void Gv_AddSystemVars(void)
     Gv_NewVar("tempblend",(intptr_t)&tempblend, GAMEVAR_INTPTR|GAMEVAR_SYSTEM|GAMEVAR_READONLY);
     Gv_NewVar("tempsectornum",(intptr_t)&tempsectornum, GAMEVAR_INTPTR|GAMEVAR_SYSTEM|GAMEVAR_READONLY);
 
+    // Multidraw
+    Gv_NewVar("mdstatus",(intptr_t)&multidraw, GAMEVAR_INTPTR|GAMEVAR_SYSTEM);
+    Gv_NewVar("mdscale",(intptr_t)&mdscale, GAMEVAR_SHORTPTR|GAMEVAR_SYSTEM);
+    Gv_NewVar("mdcamera",(intptr_t)&mdcamera, GAMEVAR_SHORTPTR|GAMEVAR_SYSTEM);
+    Gv_NewVar("mdanchor",(intptr_t)&mdanchor, GAMEVAR_SHORTPTR|GAMEVAR_SYSTEM);
+
     // starting position
     Gv_NewVar("startposx",(intptr_t)&startpos.x, GAMEVAR_INTPTR | GAMEVAR_SYSTEM);
     Gv_NewVar("startposy",(intptr_t)&startpos.y, GAMEVAR_INTPTR | GAMEVAR_SYSTEM);
