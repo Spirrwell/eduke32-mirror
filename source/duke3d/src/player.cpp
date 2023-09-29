@@ -3203,6 +3203,7 @@ void P_GetInput(int const playerNum)
         localInput = {};
         localInput.bits    = (((int32_t)g_gameQuit) << SK_GAMEQUIT);
         localInput.extbits |= BIT(EK_CHAT_MODE);
+        localInput.extbits |= (g_myAimMode << SK_AIMMODE);
 
         return;
     }
