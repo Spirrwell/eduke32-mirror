@@ -1720,7 +1720,7 @@ void G_ClearFIFO(void)
     CONTROL_GetInput(&blackHole);
 
     g_lastInputTicks = 0;
-    localInput = {};
+    localInput = pendingInput = {};
     Bmemset(&inputfifo, 0, sizeof(input_t) * MOVEFIFOSIZ * MAXPLAYERS);
 
     for (int p = 0; p < MAXPLAYERS; ++p)

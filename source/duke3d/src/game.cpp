@@ -6516,7 +6516,7 @@ void dukeFillInputForTic(void)
     // this is where we fill the input_t struct that is actually processed by P_ProcessInput()
     auto const pPlayer = g_player[myconnectindex].ps;
     auto const q16ang  = fix16_to_int(pPlayer->q16ang);
-    auto& input   = inputfifo[0][myconnectindex];
+    auto& input   = pendingInput;
 
     input = localInput;
     input.fvel = mulscale9(localInput.fvel, sintable[(q16ang + 2560) & 2047]) +
@@ -7117,6 +7117,7 @@ MAIN_LOOP_RESTART:
                         break;
 
                     ototalclock += TICSPERFRAME;
+                    inputfifo[0][myconnectindex] = pendingInput;
 
                     if (((ud.show_help == 0 && (myplayer.gm & MODE_MENU) != MODE_MENU) || ud.recstat == 2 || (g_netServer || ud.multimode > 1))
                         && (myplayer.gm & MODE_GAME))
