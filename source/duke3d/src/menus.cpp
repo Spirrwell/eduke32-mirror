@@ -7685,7 +7685,8 @@ static void Menu_RunInput(Menu_t *cm)
 
                 S_PlaySound(EXITMENUSOUND);
             }
-            else if (I_AdvanceTrigger() || KB_KeyPressed(sc_Y) || Menu_RunInput_MouseAdvance())
+            else if (I_AdvanceTrigger() || KB_KeyPressed(sc_Y)
+                || (!FURY && Menu_RunInput_MouseAdvance()))
             {
                 auto verify = (MenuVerify_t*)cm->object;
 
