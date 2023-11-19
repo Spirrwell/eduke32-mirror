@@ -49,6 +49,10 @@ ifndef SUBPLATFORM
     endif
 endif
 
+ifndef MACHINE
+    MACHINE := $(strip $(shell uname -m))
+endif
+
 ifeq ($(HOSTPLATFORM),DARWIN)
     DARWINVERSION := $(word 1,$(subst ., ,$(strip $(shell uname -r))))
 
@@ -589,9 +593,15 @@ ifeq ($(PACKAGE_REPOSITORY),0)
     COMMONFLAGS += -O$(OPTLEVEL) $(OPTOPT)
 endif
 
-define LF
--save-temps=obj -dumpdir $1
-endef
+ifeq ($(MACHINE),e2k)
+    define LF
+    -save-temps=obj
+    endef
+else
+    define LF
+    -save-temps=obj -dumpdir $1
+    endef
+endif
 
 ifneq (0,$(LTO))
     COMPILERFLAGS += -DUSING_LTO
@@ -677,7 +687,9 @@ endif
 ifneq (0,$(GCC_PREREQ_4))
     F_NO_STACK_PROTECTOR := -fno-stack-protector
     ifeq (0,$(CLANG))
-        F_JUMP_TABLES := -fjump-tables
+        ifneq ($(MACHINE),e2k)
+            F_JUMP_TABLES := -fjump-tables
+        endif
     endif
 endif
 
@@ -694,7 +706,9 @@ ifeq (0,$(RELEASE))
     F_NO_STACK_PROTECTOR :=
 else
     ifeq (0,$(CLANG))
-        COMMONFLAGS += -funswitch-loops
+        ifneq ($(MACHINE),e2k)
+            COMMONFLAGS += -funswitch-loops
+        endif
     endif
 
     ifeq (0,$(FORCEDEBUG))
@@ -731,7 +745,9 @@ W_GCC_4_5 := -Wlogical-op -Wcast-qual
 W_GCC_6 := -Wduplicated-cond -Wnull-dereference
 W_GCC_7 := -Wduplicated-branches
 W_GCC_8 := -Warray-bounds=2
-W_GCC_9 := -Wmultistatement-macros
+ifneq ($(MACHINE),e2k)
+    W_GCC_9 := -Wmultistatement-macros
+endif
 W_CLANG := -Wno-unused-value -Wno-parentheses -Wno-unknown-warning-option -Wno-unused-function
 
 ifeq (0,$(CLANG))
