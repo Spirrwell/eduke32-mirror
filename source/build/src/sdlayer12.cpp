@@ -360,7 +360,11 @@ int32_t videoSetMode(int32_t x, int32_t y, int32_t c, int32_t fs)
             return -1;
         }
 
+#ifdef __APPLE__
+        gladLoadGL();
+#else
         gladLoadGLLoader(SDL_GL_GetProcAddress);
+#endif
     }
     else
 #endif  // defined USE_OPENGL
