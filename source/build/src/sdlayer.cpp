@@ -688,6 +688,28 @@ int32_t sdlayer_checkversion(void)
     return 0;
 }
 
+#ifdef USE_OPENGL
+static void loadgllibrary()
+{
+    char const * const gllibs[] =
+    {
+        nullptr,
+    };
+
+    for (char const * const so : gllibs)
+    {
+        if (SDL_GL_LoadLibrary(so))
+        {
+            LOG_F(INFO, "Successfully loaded OpenGL driver: %s", so);
+            return;
+        }
+    }
+
+    LOG_F(ERROR, "Failed loading OpenGL driver: %s; all OpenGL modes are unavailable.", SDL_GetError());
+    nogl = 1;
+}
+#endif
+
 //
 // initsystem() -- init SDL systems
 //
@@ -733,11 +755,7 @@ int32_t initsystem(void)
     if (!novideo)
     {
 #ifdef USE_OPENGL
-        if (SDL_GL_LoadLibrary(0))
-        {
-            LOG_F(ERROR, "Failed loading OpenGL driver: %s; all OpenGL modes are unavailable.", SDL_GetError());
-            nogl = 1;
-        }
+        loadgllibrary();
 #endif
 
 #ifndef _WIN32
