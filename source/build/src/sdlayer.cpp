@@ -1857,6 +1857,10 @@ int32_t videoSetMode(int32_t x, int32_t y, int32_t c, int32_t fs)
 #ifdef EDUKE32_GLES
               { SDL_GL_CONTEXT_MAJOR_VERSION, 1 },
               { SDL_GL_CONTEXT_MINOR_VERSION, 1 },
+#elif 1
+              { SDL_GL_CONTEXT_MAJOR_VERSION, 3 },
+              { SDL_GL_CONTEXT_MINOR_VERSION, 0 },
+              { SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY },
 #endif
               { SDL_GL_CONTEXT_FLAGS,
 #ifndef NDEBUG
