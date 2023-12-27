@@ -1867,7 +1867,11 @@ int32_t videoSetMode(int32_t x, int32_t y, int32_t c, int32_t fs)
 #ifndef NDEBUG
               SDL_GL_CONTEXT_DEBUG_FLAG |
 #endif
+#if 0
               SDL_GL_CONTEXT_ROBUST_ACCESS_FLAG },
+#else
+              0 },
+#endif
               { SDL_GL_CONTEXT_RESET_NOTIFICATION, SDL_GL_CONTEXT_RESET_LOSE_CONTEXT },
               { SDL_GL_DOUBLEBUFFER, 1 },
 
@@ -1915,7 +1919,7 @@ int32_t videoSetMode(int32_t x, int32_t y, int32_t c, int32_t fs)
         SDL_GL_SetSwapInterval(sdlayer_getswapinterval(vsync_renderlayer));
         vsync_renderlayer = sdlayer_checkvsync(vsync_renderlayer);
 
-        engineSetupImGui();
+        // engineSetupImGui();
     }
     else
 #endif  // defined USE_OPENGL
