@@ -693,6 +693,7 @@ static void loadgllibrary()
 {
     char const * const gllibs[] =
     {
+        // put more absolute paths here
         "/opt/homebrew/lib/libGL.1.dylib",
         "/opt/homebrew/lib/libGL.dylib",
         "/usr/X11R6/lib/libGL.1.dylib",
