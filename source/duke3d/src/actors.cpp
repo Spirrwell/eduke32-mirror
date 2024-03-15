@@ -4243,7 +4243,8 @@ ACTOR_STATIC void G_MoveActors(void)
 
         int switchPic;
 
-        if (pSprite->xrepeat == 0 || sectNum < 0 || sectNum >= MAXSECTORS)
+        if ((pSprite->xrepeat == 0 && PLUTOPAK)
+            || sectNum < 0 || sectNum >= MAXSECTORS)
             DELETE_SPRITE_AND_CONTINUE(spriteNum);
 
         switchPic = pSprite->picnum;
@@ -5648,7 +5649,7 @@ ACTOR_STATIC void G_MoveMisc(void)  // STATNUM 5
         int        sectNum = pSprite->sectnum;  // XXX: not const
         int        switchPic;
 
-        if (sectNum < 0 || pSprite->xrepeat == 0)
+        if (sectNum < 0 || (pSprite->xrepeat == 0 && PLUTOPAK))
             DELETE_SPRITE_AND_CONTINUE(spriteNum);
 
         switchPic = pSprite->picnum;
