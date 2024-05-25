@@ -24,6 +24,7 @@ o := o
 ### Directories
 source := source
 obj := obj
+override obj := $(obj)/$(call lowercase,$(PLATFORM))-$(IMPLICIT_ARCH)
 
 ### Functions
 # Some of this still needs work--"getfiltered" takes a list of files and strips the paths off of them,
