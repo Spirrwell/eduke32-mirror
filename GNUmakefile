@@ -952,8 +952,8 @@ clean: cleanduke3d cleansw cleantools
 
 install: $(duke3d_editor) $(duke3d_game)
 	install -d $(DESTDIR)$(PREFIX)/bin
-	install -m 644 $(duke3d_editor) $(duke3d_game) $(DESTDIR)$(PREFIX)/bin
-
+	install -m 777 $(duke3d_editor) $(duke3d_game) $(DESTDIR)$(PREFIX)/bin
+	
 printtools:
 	echo "$(addsuffix $(EXESUFFIX),$(tools_targets))"
 
