@@ -14,6 +14,16 @@ ifeq ($(FURY),1)
     SDL_STATIC := 1
 endif
 
+# PREFIX is environment variable, but if it is not set, then set default value
+ifeq ($(PREFIX),)
+    PREFIX := /usr/local
+endif
+
+ifeq ($(RELEASE),)
+    RELEASE := 0
+endif
+
+
 ### Platform and Toolchain Configuration
 include Common.mak
 
@@ -738,6 +748,7 @@ endif
     all \
     clang-tools \
     clean \
+    install \
     printtools \
     printutils \
     rev \
@@ -938,6 +949,10 @@ clean: cleanduke3d cleansw cleantools
 	-$(call RMDIR,$(obj))
 	-$(call RM,$(ebacktrace_dll))
 	-$(call RM,$(voidwrap_lib))
+
+install: $(duke3d_editor) $(duke3d_game)
+	install -d $(DESTDIR)$(PREFIX)/bin
+	install -m 644 $(duke3d_editor) $(duke3d_game) $(DESTDIR)$(PREFIX)/bin
 
 printtools:
 	echo "$(addsuffix $(EXESUFFIX),$(tools_targets))"
