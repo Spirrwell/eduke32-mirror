@@ -87,3 +87,7 @@ project.xcworkspace/
 .DS_Store
 ._*
 /source/voidwrap/sdk/
+
+
+backup-*
+*.deb
