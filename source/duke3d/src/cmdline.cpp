@@ -722,7 +722,7 @@ void G_CheckCommandLine(int32_t argc, char const * const * argv)
                     {
                         
                         // Only accept numbers from 0 to 9
-                        while ((*c >= '0') && (*c <= '9'))
+                        while ((*c >= '0') && (*c <= '9') && j < MAX_WEAPONS && j < 10)
                         {
                             g_player[0].wchoice[j] = *c - '0';
                             ud.wchoice[j] = *c;

@@ -1530,7 +1530,7 @@ static int osdcmd_cvar_set_game(osdcmdptr_t parm)
                     int j = 0;
 
                     // Only accept numbers from 0 to 9
-                    while ((*c >= '0') && (*c <= '9') && j < 10)
+                    while ((*c >= '0') && (*c <= '9') && j < MAX_WEAPONS && j < 10)
                     {
                         g_player[myconnectindex].wchoice[j] = *c - '0';
                         c++;
