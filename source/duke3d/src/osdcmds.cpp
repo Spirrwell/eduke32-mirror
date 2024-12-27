@@ -1530,17 +1530,17 @@ static int osdcmd_cvar_set_game(osdcmdptr_t parm)
                     int j = 0;
 
                     // Only accept numbers from 0 to 9
-                    while ((*c >= '0') && (*c <= '9') && j < MAX_WEAPONS && j < 10)
+                    while ((*c >= '0') && (*c <= '9') && j < min<int>(MAX_WEAPONS, 10))
                     {
                         g_player[myconnectindex].wchoice[j] = *c - '0';
                         c++;
                         j++;
                     }
 
-                    //Apply weapon priority if a valid value is given
-                    if (j > 0) 
+                    // Apply weapon priority if a valid value is given
+                    if (j > 0)
                     {
-                        //Pad value when not all weapons are given
+                        // Pad value when not all weapons are given
                         while (j < 10)
                         {
                             if (j == 9)
@@ -1550,7 +1550,8 @@ static int osdcmd_cvar_set_game(osdcmdptr_t parm)
 
                             j++;
                         }
-                        /*    Net_SendClientInfo();*/
+
+                        // Net_SendClientInfo();
                     }
                 }
             }
