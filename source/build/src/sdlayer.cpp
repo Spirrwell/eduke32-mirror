@@ -1511,35 +1511,6 @@ char const *videoGetDisplayName(int display)
 #endif
 }
 
-static void destroy_window_resources()
-{
-/* We should NOT destroy the window surface. This is done automatically
-   when SDL_DestroyWindow or SDL_SetVideoMode is called.             */
-
-#if MICROPROFILE_ENABLED != 0
-    MicroProfileGpuShutdown();
-#endif
-
-#if SDL_MAJOR_VERSION >= 2
-    if (g_ImGui_IO)
-    {
-#ifdef USE_OPENGL
-        ImGui_ImplOpenGL3_Shutdown();
-#endif
-        ImGui_ImplSDL2_Shutdown();
-        ImGui::DestroyContext();
-        g_ImGui_IO = NULL;
-    }
-
-    if (sdl_context)
-        SDL_GL_DeleteContext(sdl_context);
-    sdl_context = NULL;
-    if (sdl_window)
-        SDL_DestroyWindow(sdl_window);
-    sdl_window = NULL;
-#endif
-}
-
 bool g_ImGuiFrameActive;
 
 void engineBeginImGuiFrame(void)
@@ -1599,6 +1570,107 @@ void engineSetupImGui(void)
     //IM_ASSERT(font != NULL);
 #endif
 }
+
+void engineDestroyImGui(void)
+{
+#if SDL_MAJOR_VERSION >= 2
+    if (g_ImGui_IO)
+    {
+#ifdef USE_OPENGL
+        ImGui_ImplOpenGL3_Shutdown();
+#endif
+        ImGui_ImplSDL2_Shutdown();
+        ImGui::DestroyContext();
+        g_ImGui_IO = NULL;
+    }
+#endif
+}
+
+static void destroy_window_resources()
+{
+/* We should NOT destroy the window surface. This is done automatically
+   when SDL_DestroyWindow or SDL_SetVideoMode is called.             */
+
+#if MICROPROFILE_ENABLED != 0
+    MicroProfileGpuShutdown();
+#endif
+
+#if SDL_MAJOR_VERSION >= 2
+    engineDestroyImGui();
+
+    if (sdl_context)
+        SDL_GL_DeleteContext(sdl_context);
+    sdl_context = NULL;
+    if (sdl_window)
+        SDL_DestroyWindow(sdl_window);
+    sdl_window = NULL;
+#endif
+}
+
+#if SDL_MAJOR_VERSION >= 2
+struct glattribs
+{
+    SDL_GLattr attr;
+    int32_t value;
+} sdlayer_gl_attributes[] =
+{
+    { SDL_GL_CONTEXT_FLAGS,
+#ifndef NDEBUG
+    SDL_GL_CONTEXT_DEBUG_FLAG |
+#endif
+    SDL_GL_CONTEXT_ROBUST_ACCESS_FLAG },
+    { SDL_GL_CONTEXT_RESET_NOTIFICATION, SDL_GL_CONTEXT_RESET_LOSE_CONTEXT },
+    { SDL_GL_DOUBLEBUFFER, 1 },
+
+    { SDL_GL_STENCIL_SIZE, 1 },
+    { SDL_GL_ACCELERATED_VISUAL, 1 },
+    { SDL_GL_DEPTH_SIZE, 24 },
+};
+
+SDL_Window *sdl_init_window(int32_t w, int32_t h) {
+    int32_t i = 0;
+    SDL_GL_ATTRIBUTES(i, sdlayer_gl_attributes);
+
+    sdl_window = SDL_CreateWindow("", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, w, h,
+                                  SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+
+    if (sdl_window)
+        sdl_context = SDL_GL_CreateContext(sdl_window);
+
+    if (!sdl_window || !sdl_context)
+    {
+        LOG_F(ERROR, "Unable to set video mode: %s failed: %s.", sdl_window ? "SDL_GL_CreateContext" : "SDL_GL_CreateWindow",  SDL_GetError());
+        nogl = 1;
+    }
+
+#ifndef EDUKE32_GLES
+    gladLoadGLLoader(SDL_GL_GetProcAddress);
+#else
+    gladLoadGLES2Loader(SDL_GL_GetProcAddress);
+#endif
+    if (GLVersion.major < 2)
+    {
+        LOG_F(ERROR, "Video driver does not support OpenGL version 2 or greater; all OpenGL modes are unavailable.");
+        nogl = 1;
+    }
+
+    if (nogl)
+    {
+        destroy_window_resources();
+        return NULL;
+    }
+
+    return sdl_window;
+}
+
+SDL_Window *sdl_get_window() {
+    if (sdl_window == NULL) {
+        sdl_init_window(640, 480);
+    }
+
+    return sdl_window;
+}
+#endif
 
 #ifdef USE_OPENGL
 void sdlayer_setvideomode_opengl(void)
@@ -1844,60 +1916,13 @@ int32_t videoSetMode(int32_t x, int32_t y, int32_t c, int32_t fs)
         if (nogl)
             return -1;
 
-        struct glattribs
-        {
-            SDL_GLattr attr;
-            int32_t value;
-        } sdlayer_gl_attributes[] =
-        {
-              { SDL_GL_CONTEXT_FLAGS,
-#ifndef NDEBUG
-              SDL_GL_CONTEXT_DEBUG_FLAG |
-#endif
-              SDL_GL_CONTEXT_ROBUST_ACCESS_FLAG },
-              { SDL_GL_CONTEXT_RESET_NOTIFICATION, SDL_GL_CONTEXT_RESET_LOSE_CONTEXT },
-              { SDL_GL_DOUBLEBUFFER, 1 },
-
-              { SDL_GL_STENCIL_SIZE, 1 },
-              { SDL_GL_ACCELERATED_VISUAL, 1 },
-              { SDL_GL_DEPTH_SIZE, 24 },
-          };
-
-        SDL_GL_ATTRIBUTES(i, sdlayer_gl_attributes);
-
-        /* HACK: changing SDL GL attribs only works before surface creation,
-            so we have to create a new surface in a different format first
-            to force the surface we WANT to be recreated instead of reused. */
-
-        sdl_window = SDL_CreateWindow("", g_windowPosValid ? g_windowPos.x : (int)SDL_WINDOWPOS_CENTERED_DISPLAY(display),
-                                          g_windowPosValid ? g_windowPos.y : (int)SDL_WINDOWPOS_CENTERED_DISPLAY(display), x, y,
-                                        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | borderless);
-
-        if (sdl_window)
-            sdl_context = SDL_GL_CreateContext(sdl_window);
-
-        if (!sdl_window || !sdl_context)
-        {
-            LOG_F(ERROR, "Unable to set video mode: %s failed: %s.", sdl_window ? "SDL_GL_CreateContext" : "SDL_GL_CreateWindow",  SDL_GetError());
-            nogl = 1;
-        }
-
-#ifndef EDUKE32_GLES
-        gladLoadGLLoader(SDL_GL_GetProcAddress);
-#else
-        gladLoadGLES2Loader(SDL_GL_GetProcAddress);
-#endif
-        if (GLVersion.major < 2)
-        {
-            LOG_F(ERROR, "Video driver does not support OpenGL version 2 or greater; all OpenGL modes are unavailable.");
-            nogl = 1;
-        }
-
-        if (nogl)
-        {
-            destroy_window_resources();
-            // If c == 8, retry without hardware accelaration
-            return videoSetMode(x, y, c, fs);
+        if (sdl_window) {
+            SDL_SetWindowSize(sdl_window, x, y);
+            engineSetupImGui();
+        } else {
+            if (sdl_init_window(x, y) == NULL) {
+                return videoSetMode(x, y, c, fs);
+            }
         }
 
         SDL_GL_SetSwapInterval(sdlayer_getswapinterval(vsync_renderlayer));
