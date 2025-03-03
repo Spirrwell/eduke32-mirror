@@ -1419,6 +1419,11 @@ enum ScriptKeywords_t
 #undef ENUM_TRANSFORM
 #undef COMMA
 
+#ifndef NDEBUG
+extern struct _CON_NONDEBUG_LINES *debugLines;
+extern int32_t num_debugLines;
+#endif
+
 #ifdef __cplusplus
 }
 #endif

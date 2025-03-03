@@ -125,6 +125,28 @@ int G_StartTrack(int levelNum);
 void VM_UpdateAnim(int const spriteNum, int32_t * const pData);
 void VM_GetZRange(int const spriteNum, int32_t * const ceilhit, int32_t * const florhit, int const wallDist);
 
+#ifndef NDEBUG
+#define MAX_CON_DEBUG_LINES 128
+struct _CON_DEBUG_LINES
+{
+    int32_t line;
+    intptr_t offset;
+};
+struct _CON_NONDEBUG_LINES
+{
+    int32_t line;
+    char filename[256];
+};
+extern struct _CON_DEBUG_LINES con_debug_lines[MAX_CON_DEBUG_LINES];
+extern uint8_t con_debug_num_lines;
+extern bool con_debug_line_by_line;
+extern bool vm_sandBox;
+bool VM_CONSetDebugLine(int32_t line, const char* filename);
+bool VM_CONUnsetDebugLine(int32_t line, const char* filename);
+void VM_DebugSandBox(intptr_t const *inst);
+bool VM_CONCheckDebugLine(int32_t line, const char *filename);
+#endif
+
 #ifdef __cplusplus
 }
 #endif
