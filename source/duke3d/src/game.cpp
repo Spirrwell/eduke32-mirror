@@ -6619,7 +6619,6 @@ int app_main(int argc, char const* const* argv)
         Xfree(homedir);
     }
 #endif
-    OSD_CleanLogDir(APPBASENAME, logDir);
 
 #ifndef NETCODE_DISABLE
     if (enet_initialize() != 0)
@@ -6920,6 +6919,9 @@ int app_main(int argc, char const* const* argv)
     CONFIG_SetDefaultKeys(keydefaults, true);
 
     system_getcvars();
+
+    // must be called only after settings are loaded
+    OSD_CleanLogDir(APPBASENAME, logDir);
 
     if (quitevent) app_exit(4);
 
