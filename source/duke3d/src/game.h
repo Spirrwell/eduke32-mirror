@@ -185,6 +185,11 @@ typedef struct {
     int32_t music_episode, music_level, skill_voice;
     int32_t m_newgamecustom, m_newgamecustomsub, m_newgamecustoml3;
 
+    //Custom episode (CEP) variables
+    int32_t cep_level, cep, cep_file_path;
+    //User map music
+    int32_t um_music;
+
     int32_t playerbest;
 
     int32_t configversion, bgstretch, frameperiod;
@@ -282,10 +287,54 @@ extern user_defs ud;
 
 #ifndef ONLY_USERDEFS
 
+//Struct for User Sound Replacements for CEP
+typedef struct USERSNDRPC
+{
+    int32_t id;
+    char file[BMAX_PATH];
+    vec2_t pitch;
+    int32_t priority;
+    int32_t flags;
+    int32_t vol;
+    char* ptr;
+} userSndRpc;
+
+extern userSndRpc* usndrpcs;
+extern int32_t num_usndrpcs;
+
 // this is checked against http://eduke32.com/VERSION
 extern const char *s_buildDate;
 
 extern char boardfilename[BMAX_PATH], currentboardfilename[BMAX_PATH];
+//CEP
+extern char cep_list[BMAX_PATH];
+//Current CEP directory
+extern char current_ep_dir[BMAX_PATH];
+//CEP name
+extern char cep_name[32];
+//CEP maps
+extern char cep_maps[32][BMAX_PATH];
+//CEP music
+extern char user_mus[BMAX_PATH];
+//User map name for CEP
+extern char cep_map_name[32];
+//CEP author
+extern char cep_author[32];
+//CEP date of creation
+extern char cep_date[24];
+//CEP description lines - 64 characters MAX
+extern char cep_descr00[64];
+extern char cep_descr01[64];
+extern char cep_descr02[64];
+extern char cep_descr03[64];
+
+int load_custom_episode(const char* fileName);
+int reloadBackupSounds();
+
+//Sound replacements for CEP
+extern userSndRpc* usndrpcs;
+extern int32_t num_usndrpcs;
+
 #define USERMAPMUSICFAKEVOLUME MAXVOLUMES
 #define USERMAPMUSICFAKELEVEL (MAXLEVELS-1)
 #define USERMAPMUSICFAKESLOT ((USERMAPMUSICFAKEVOLUME * MAXLEVELS) + USERMAPMUSICFAKELEVEL)

@@ -43,6 +43,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "savegame.h"
 #include "sbar.h"
 #include "screens.h"
+#include "sounds.h"
 
 #ifdef __ANDROID__
 #include "android.h"
@@ -82,6 +83,32 @@ static int32_t g_quickExit;
 
 char boardfilename[BMAX_PATH] = {0};
 char currentboardfilename[BMAX_PATH] = {0};
+
+//CEP
+char cep_list[BMAX_PATH] = {0};
+//Current CEP directory
+char current_ep_dir[BMAX_PATH] = {0};
+//CEP name
+char cep_name[32] = { 0 };
+//CEP maps
+char cep_maps[32][BMAX_PATH] = { {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0} };
+//CEP music
+char user_mus[BMAX_PATH] = {0};
+//User map name for CEP
+char cep_map_name[32] = { 0 };
+//CEP author
+char cep_author[32] = { 0 };
+//CEP date of creation
+char cep_date[24] = { 0 };
+//CEP description lines - 64 characters MAX
+char cep_descr00[64] = { 0 };
+char cep_descr01[64] = { 0 };
+char cep_descr02[64] = { 0 };
+char cep_descr03[64] = { 0 };
+
+//Sound replacements for CEP
+userSndRpc* usndrpcs = nullptr;
+int32_t num_usndrpcs =0;
 
 int32_t voting = -1;
 int32_t vote_map = -1, vote_episode = -1;
@@ -5392,6 +5419,363 @@ static void newgamechoices_recursive_free(MenuGameplayEntry* parent)
     DO_FREE_AND_NULL(parent->subentries);
 }
 
+//Unload the replacement sounds and reload the original ones
+int reloadBackupSounds()
+{
+    int redefinedSnds = 0;
+
+    if (usndrpcs && num_usndrpcs > 0)
+    {
+        for (int i = 0; i < num_usndrpcs; i++)
+        {
+            //Check if ID is valid
+            if (usndrpcs[i].id < 0 || usndrpcs[i].id > MAXSOUNDS)
+                continue;
+
+            if (usndrpcs[i].file[0] == '\0')
+                continue;
+
+            if (g_sounds[usndrpcs[i].id]->ptr != nullptr)
+            {
+                g_sounds[usndrpcs[i].id]->lock = CACHE1D_UNLOCKED;
+                g_cache.ageBlocks();
+                g_sounds[usndrpcs[i].id]->ptr = nullptr;
+            }
+
+            S_DefineSound(usndrpcs[i].id, usndrpcs[i].file, usndrpcs[i].pitch.x, usndrpcs[i].pitch.y, usndrpcs[i].priority, usndrpcs[i].flags, usndrpcs[i].vol, 1.0);
+            g_sounds[usndrpcs[i].id]->ptr = usndrpcs[i].ptr;
+
+            usndrpcs[i].file[0] = '\0';
+            usndrpcs[i].ptr = nullptr;
+
+            redefinedSnds++;
+        }
+    }
+    else
+        return 1; //Tried reloading what does not exist
+
+    return 0;
+}
+
+//Parse the Custom Episode file
+static int parse_cepfile(scriptfile* pScript)
+{
+    int token;
+    char* pToken;
+    int i = 0, found = 0;
+    char* uString;
+
+    cep_author[0] = '\0';
+    cep_date[0] = '\0';
+    cep_descr00[0] = '\0';
+    cep_descr01[0] = '\0';
+    cep_descr02[0] = '\0';
+    cep_descr03[0] = '\0';
+    cep_map_name[0] = '\0';
+    user_mus[0] = '\0';
+
+    //Check if any sound replacements were loaded, reload the old files and free the memory
+    if (num_usndrpcs > 0)
+    {
+        if (usndrpcs)
+        {
+            if (reloadBackupSounds())
+                LOG_F(ERROR, "Tried reloading the sounds but nothing was found");
+
+            Xfree(usndrpcs);
+            usndrpcs = nullptr;
+        }
+
+        num_usndrpcs = 0;
+    }
+
+    static const tokenlist tokens[] =
+    {
+        { "epname", 0 },
+        { "map", 1 },
+        { "author", 2 },
+        { "date", 3 },
+        { "description00", 4 },
+        { "description01", 5 },
+        { "description02", 6 },
+        { "description03", 7 },
+        { "sound", 8 },
+        { "description", 9 }
+    };
+
+    static const tokenlist mapTokens[] =
+    {
+        { "file", 60 },
+        { "music", 61 },
+        { "name", 62 },
+    };
+
+    static const tokenlist sndTokens[] =
+    {
+        { "id", 70 },
+        { "snd", 71 },
+        { "minpitch", 72 },
+        { "maxpitch", 73 },
+        { "priority", 74 },
+        { "flags", 75 },
+        { "volume", 76 },
+    };
+
+    do
+    {
+        token = getatoken(pScript, tokens, ARRAY_SIZE(tokens));
+
+        switch (token)
+        {
+            case 0:
+                char* epName;
+
+                if (!scriptfile_getstring(pScript, &epName))
+                {
+                    Bstrcpy(cep_name, epName);
+                    LOG_F(INFO, "ep: %s", cep_name);
+                }
+
+                break;
+
+            case 1:
+                char* fileName;
+                char* musicFileName;
+                char* mapName;
+                char* mapEnd;
+
+                if (i == ud.cep_level)
+                {
+                    if (scriptfile_getbraces(pScript, &mapEnd))
+                        break;
+
+                    while (pScript->textptr < mapEnd)
+                    {
+
+                        switch (getatoken(pScript, mapTokens, ARRAY_SIZE(mapTokens)))
+                        {
+                            case 60:
+                                if (!scriptfile_getstring(pScript, &fileName))
+                                {
+                                    Bstrcpy(boardfilename, current_ep_dir[0] ? current_ep_dir : "/");
+                                    Bstrcat(boardfilename, fileName);
+                                    LOG_F(INFO, "map: %s", boardfilename);
+                                    found++;
+                                }
+                                break;
+
+                            case 61:
+                                if (!scriptfile_getstring(pScript, &musicFileName))
+                                {
+                                    Bstrcpy(user_mus, current_ep_dir[0] ? current_ep_dir : "/");
+                                    Bstrcat(user_mus, musicFileName);
+                                    LOG_F(INFO, "mus: %s", user_mus);
+                                    ud.um_music = 9000;
+                                }
+                                else
+                                {
+                                    if (ud.um_music == 9000)
+                                        ud.um_music = 0;
+                                }
+                                break;
+
+                            case 62:
+                                if (!scriptfile_getstring(pScript, &mapName))
+                                {
+                                    Bstrcpy(cep_map_name, mapName);
+                                    LOG_F(INFO, "mapname: %s", cep_map_name);
+                                }
+                                break;
+                        }
+                    }
+                }
+
+                if(found == 0)
+                    i++;
+
+                break;
+
+            case 2: 
+                if (!scriptfile_getstring(pScript, &uString))
+                    Bstrncpy(cep_author, uString, 32);
+
+                break;
+
+            case 3:
+                if (!scriptfile_getstring(pScript, &uString))
+                    Bstrncpy(cep_date, uString, 24);
+
+                break;
+
+            case 4:
+                if (!scriptfile_getstring(pScript, &uString))
+                    Bstrncpy(cep_descr00, uString, 64);
+
+                break;
+
+            case 5:
+                if (!scriptfile_getstring(pScript, &uString))
+                    Bstrncpy(cep_descr01, uString, 64);
+
+                break;
+
+            case 6:
+                if (!scriptfile_getstring(pScript, &uString))
+                    Bstrncpy(cep_descr02, uString, 64);
+
+                break;
+
+            case 7:
+                if (!scriptfile_getstring(pScript, &uString))
+                    Bstrncpy(cep_descr03, uString, 64);
+
+                break;
+
+            case 8:
+                char* sndname;
+                userSndRpc snd;
+                int breakloop;
+                char* sndEnd;
+
+                snd = { -1, { 0 }, { 0, 0 }, 0, 0, 0, nullptr };
+                breakloop = 0;
+
+                if (scriptfile_getbraces(pScript, &sndEnd))
+                    break;
+
+                while (pScript->textptr < sndEnd)
+                {
+                    switch (getatoken(pScript, sndTokens, ARRAY_SIZE(sndTokens)))
+                    {
+                        case 70:
+                            scriptfile_getnumber(pScript, &snd.id);
+                            break;
+
+                        case 71:
+                            if (!scriptfile_getstring(pScript, &sndname))
+                            {
+                                Bstrcpy(snd.file, current_ep_dir[0] ? current_ep_dir : "/");
+                                Bstrcat(snd.file, sndname);
+
+                                if (check_file_exist(snd.file))
+                                {
+                                    LOG_F(ERROR, "Sound file does not exist: %s at %d", snd.file, scriptfile_getlinum(pScript, pScript->ltextptr));
+                                    breakloop++; //don't bother to continue loading;
+                                }
+                                    
+                            }
+                            break;
+
+                        case 72:
+                            scriptfile_getnumber(pScript, &snd.pitch.x);
+                            break;
+
+                        case 73:
+                            scriptfile_getnumber(pScript, &snd.pitch.y);
+                            break;
+
+                        case 74:
+                            scriptfile_getnumber(pScript, &snd.priority);
+                            break;
+
+                        case 75:
+                            scriptfile_getnumber(pScript, &snd.flags);
+                            break;
+
+                        case 76:
+                            scriptfile_getnumber(pScript, &snd.vol);
+                            break;
+                    }
+
+                    if (breakloop)
+                        break;
+                }
+
+                //Check if the sound replacement is valid (the important bits at least)
+                if (snd.id > 0 && snd.id < MAXSOUNDS && snd.file[0] != '\0')
+                {
+                    //New sound!!
+                    if (snd.id > g_highestSoundIdx)
+                    {
+                        S_DefineSound(snd.id, snd.file, snd.pitch.x, snd.pitch.y, snd.priority, snd.flags, snd.vol, 1.0);
+                        //cacheAllSounds();
+                        S_LoadSound(snd.id);
+                        LOG_F(INFO, "Custom episode defined a new sound: %s", snd.file);
+                        break;
+                    }
+
+                    if (!num_usndrpcs)
+                        usndrpcs = (userSndRpc*)Xmalloc(sizeof(userSndRpc));
+                    else
+                        usndrpcs = (userSndRpc*)Xrealloc(usndrpcs, (num_usndrpcs + 1) * sizeof(userSndRpc));
+
+                    if (!usndrpcs)
+                    {
+                        LOG_F(ERROR, "Could not allocate space for sound replacement: file %s ID %d", snd.file, snd.id);
+                        num_usndrpcs = 0;
+                        break;
+                    }
+
+                    //Save the current defined sound
+                    usndrpcs[num_usndrpcs].id = snd.id;
+
+                    Bstrcpy(usndrpcs[num_usndrpcs].file, g_sounds[snd.id]->filename);
+
+                    usndrpcs[num_usndrpcs].pitch.x = g_sounds[snd.id]->minpitch;
+                    usndrpcs[num_usndrpcs].pitch.y = g_sounds[snd.id]->maxpitch;
+                    usndrpcs[num_usndrpcs].priority = g_sounds[snd.id]->priority;
+                    usndrpcs[num_usndrpcs].flags = g_sounds[snd.id]->flags;
+                    usndrpcs[num_usndrpcs].vol = g_sounds[snd.id]->distOffset;
+
+                    if (g_sounds[snd.id]->ptr)
+                        usndrpcs[num_usndrpcs].ptr = g_sounds[snd.id]->ptr;
+
+                    //Now REPLACE IT
+                    if (S_DefineSound(snd.id, snd.file, snd.pitch.x, snd.pitch.y, snd.priority, snd.flags, snd.vol, 1.0) == 0)
+                    {
+                        g_sounds[snd.id]->ptr = nullptr;
+
+                        cacheAllSounds();
+
+                        LOG_F(INFO, "Sound replacement for ID:%d defined with: %s", snd.id, snd.file);
+
+                        num_usndrpcs++;
+                    }
+                    else
+                    {
+                        //If failed, give the heap back
+                        usndrpcs[num_usndrpcs].ptr = nullptr;
+
+                        if (num_usndrpcs == 0)
+                            Xfree(usndrpcs);
+                        else
+                            usndrpcs = (userSndRpc*)Xrealloc(usndrpcs, num_usndrpcs * sizeof(userSndRpc));
+
+                        LOG_F(ERROR, "Sound replacement failed to define sound ID: %d, with file: %s", snd.id, snd.file);
+                    }
+                }
+
+                break;
+
+            case T_EOF:
+                if (found == 0)
+                    return 1;
+                else
+                    return 0;
+            default: break;
+        }
+
+        if (found == 1)
+            break;
+
+    } while (1);
+
+    if (found == 0)
+        return 1;
+
+    return 0;
+}
+
 static int parsedefinitions_game(scriptfile *pScript, int firstPass)
 {
     int   token;
@@ -5913,6 +6297,23 @@ int loaddefinitions_game(const char *fileName, int32_t firstPass)
     return 0;
 }
 
+//Load the custom episode file
+int load_custom_episode(const char* fileName)
+{
+    scriptfile* pScript = scriptfile_fromfile(fileName);
+    int parseReturn = 0;
+
+    if (pScript)
+    {
+        parseReturn = parse_cepfile(pScript);
+        scriptfile_close(pScript);
+    }
+
+    scriptfile_clearsymbols();
+
+    return parseReturn;
+}
+
 void G_UpdateAppTitle(char const * const name /*= nullptr*/)
 {
     Bsprintf(tempbuf, APPNAME " %s", s_buildRev);
@@ -6369,12 +6770,28 @@ static int G_EndOfLevel(void)
             G_UpdateScreenArea();
             ud.screen_size = ssize;
             G_BonusScreen(0);
+
+            if (ud.cep)
+            {
+                ud.cep_level++;
+                if (!load_custom_episode(cep_list))
+                {
+                    ud.level_number = 7;
+                    ud.volume_number = 0;
+                }
+                else
+                {
+                    ud.eog = 1;
+                    ud.cep = 0;
+                    boardfilename[0] = 0;
+                }
+            }
         }
 
         // Clear potentially loaded per-map ART only after the bonus screens.
         artClearMapArt();
 
-        if (ud.eog || G_HaveUserMap())
+        if ((ud.eog || G_HaveUserMap() || (ud.level_number == 8 && ud.volume_number == 0 && ud.user_map == 1)) && !ud.cep)
         {
             ud.eog = 0;
             if ((!g_netServer && ud.multimode < 2))
@@ -6401,6 +6818,16 @@ static int G_EndOfLevel(void)
 
     if (numplayers > 1)
         p.gm = MODE_GAME;
+
+    /*if (ud.cep)
+    {
+        ud.cep = 2;
+        p.gm = 0;
+        G_UpdateScreenArea();
+        Menu_Open(myconnectindex);
+        Menu_Change(MENU_UMLE);
+        return 1;
+    }*/
 
     if (G_EnterLevel(p.gm))
     {
@@ -7003,6 +7430,7 @@ MAIN_LOOP_RESTART:
     totalclock = 0;
     ototalclock = 0;
     lockclock = 0;
+    ud.cep = ud.cep_level = 0;
 
     myplayer.fta = 0;
     for (int32_t & q : user_quote_time)

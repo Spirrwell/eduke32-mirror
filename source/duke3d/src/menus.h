@@ -54,6 +54,9 @@ enum MenuIndex_t {
     MENU_NEWGAMECUSTOM  = 102,
     MENU_NEWGAMECUSTOMSUB = 103,
     MENU_NEWGAMECUSTOML3 = 104,
+    MENU_USERCONTENT    = 105,
+    MENU_USEREPISODE    = 106,
+    MENU_USERMUSIC      = 107,
     MENU_SKILL          = 110,
     MENU_GAMESETUP      = 200,
     MENU_OPTIONS        = 202,
@@ -123,6 +126,7 @@ enum MenuIndex_t {
     MENU_NETOPTIONS     = 20011,
     MENU_NETUSERMAP     = 20012,
     MENU_NETJOIN        = 20020,
+    MENU_USERCONTENTSETUP   = 30000,
 };
 
 

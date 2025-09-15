@@ -32,7 +32,7 @@ extern "C" {
 #endif
 
 #define SV_MAJOR_VER 1
-#define SV_MINOR_VER 7
+#define SV_MINOR_VER 8
 
 #define MAXSAVEGAMENAMESTRUCT 32
 #define MAXSAVEGAMENAME (MAXSAVEGAMENAMESTRUCT-1)
