@@ -12,10 +12,13 @@
 
 author "Merlijn v. Oostrum"
 date "12 November, 2021"
-description00 "5 epic maps filled with intense battles,"
-description01 "destructive earthquakes, a post-apocalyptic" 
-description02 "atmosphere and an evolving storyline. Also contains"
-description03 "a custom soundtrack especially written for this episode."
+
+description { 
+"5 epic maps filled with intense battles,
+destructive earthquakes, a post-apocalyptic
+atmosphere and an evolving storyline. Also contains
+a custom soundtrack especially written for this episode."
+}
 
 epname "Shaky Grounds"
 sound { id 325 snd "snd/sg_snd00.voc" flags 4 }

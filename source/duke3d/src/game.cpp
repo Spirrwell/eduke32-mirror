@@ -5461,7 +5461,6 @@ int reloadBackupSounds()
 static int parse_cepfile(scriptfile* pScript)
 {
     int token;
-    char* pToken;
     int i = 0, found = 0;
     char* uString;
 
@@ -5631,6 +5630,32 @@ static int parse_cepfile(scriptfile* pScript)
 
                 break;
 
+            case 9:
+                char* descEnd;
+                int descLines;
+                char* descs[4];
+
+                descs[0] = cep_descr00;
+                descs[1] = cep_descr01;
+                descs[2] = cep_descr02;
+                descs[3] = cep_descr03;
+
+                descLines = 0;
+
+                if (scriptfile_getbraces(pScript, &descEnd))
+                    break;
+
+                while (pScript->textptr < descEnd - 1 && descLines < 4)
+                {
+                    if (!scriptfile_getstring(pScript, &uString))
+                        Bstrncpy(descs[descLines], uString, 64);
+                    else break;
+
+                    descLines++;
+                }
+
+                break;
+
             case 8:
                 char* sndname;
                 userSndRpc snd;
@@ -5762,6 +5787,7 @@ static int parse_cepfile(scriptfile* pScript)
                     return 1;
                 else
                     return 0;
+
             default: break;
         }
 
