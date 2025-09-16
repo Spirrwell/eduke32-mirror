@@ -3643,41 +3643,41 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
         {
             if (cep_author[0] != '\0')
             {
-                mgametext(origin.x + M_USERCNTSETUP.format->pos.x, (145) << 16, "Author: ");
-                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), 146 << 16, cep_author, 4);
-                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), 145 << 16, cep_author, 23);
+                mgametext(origin.x + M_USERCNTSETUP.format->pos.x, (125) << 16, "Author: ");
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), 126 << 16, cep_author, 4);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), 125 << 16, cep_author, 23);
             }
 
             if (cep_date[0] != '\0')
             {
-                mgametext(origin.x + M_USERCNTSETUP.format->pos.x, (145 + 10) << 16, "Date: ");
-                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), (146 + 10) << 16, cep_date, 4);
-                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), (145 + 10) << 16, cep_date, 23);
+                mgametext(origin.x + M_USERCNTSETUP.format->pos.x, (125 + 10) << 16, "Date: ");
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), (126 + 10) << 16, cep_date, 4);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), (125 + 10) << 16, cep_date, 23);
             }
 
             if (cep_descr00[0] != '\0')
             {
-                mgametext(origin.x + M_USERCNTSETUP.format->pos.x, (145 + 20) << 16, "About: ");
-                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), (146 + 20) << 16, cep_descr00, 4);
-                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), (145 + 20) << 16, cep_descr00, 23);
+                mgametext(origin.x + M_USERCNTSETUP.format->pos.x, (125 + 20) << 16, "About: ");
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), (126 + 20) << 16, cep_descr00, 4);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), (125 + 20) << 16, cep_descr00, 23);
             }
 
             if (cep_descr01[0] != '\0')
             {
-                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), (146 + 27) << 16, cep_descr01, 4);
-                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), (145 + 27) << 16, cep_descr01, 23);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), (126 + 27) << 16, cep_descr01, 4);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), (125 + 27) << 16, cep_descr01, 23);
             }
 
             if (cep_descr02[0] != '\0')
             {
-                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), (146 + 34) << 16, cep_descr02, 4);
-                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), (145 + 34) << 16, cep_descr02, 23);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), (126 + 34) << 16, cep_descr02, 4);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), (125 + 34) << 16, cep_descr02, 23);
             }
 
             if (cep_descr03[0] != '\0')
             {
-                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), (146 + 41) << 16, cep_descr03, 4);
-                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), (145 + 41) << 16, cep_descr03, 23);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), (126 + 41) << 16, cep_descr03, 4);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), (125 + 41) << 16, cep_descr03, 23);
             }
         }
 
