@@ -101,10 +101,7 @@ char cep_author[32] = { 0 };
 //CEP date of creation
 char cep_date[24] = { 0 };
 //CEP description lines - 64 characters MAX
-char cep_descr00[64] = { 0 };
-char cep_descr01[64] = { 0 };
-char cep_descr02[64] = { 0 };
-char cep_descr03[64] = { 0 };
+char cep_descr[4][64] = { { 0 }, { 0 }, { 0 }, { 0 } };
 
 //Sound replacements for CEP
 userSndRpc* usndrpcs = nullptr;
@@ -5466,10 +5463,10 @@ static int parse_cepfile(scriptfile* pScript)
 
     cep_author[0] = '\0';
     cep_date[0] = '\0';
-    cep_descr00[0] = '\0';
-    cep_descr01[0] = '\0';
-    cep_descr02[0] = '\0';
-    cep_descr03[0] = '\0';
+    cep_descr[0][0] = '\0';
+    cep_descr[1][0] = '\0';
+    cep_descr[2][0] = '\0';
+    cep_descr[3][0] = '\0';
     cep_map_name[0] = '\0';
     user_mus[0] = '\0';
 
@@ -5608,48 +5605,65 @@ static int parse_cepfile(scriptfile* pScript)
 
             case 4:
                 if (!scriptfile_getstring(pScript, &uString))
-                    Bstrncpy(cep_descr00, uString, 64);
+                    Bstrncpy(cep_descr[0], uString, 64);
 
                 break;
 
             case 5:
                 if (!scriptfile_getstring(pScript, &uString))
-                    Bstrncpy(cep_descr01, uString, 64);
+                    Bstrncpy(cep_descr[1], uString, 64);
 
                 break;
 
             case 6:
                 if (!scriptfile_getstring(pScript, &uString))
-                    Bstrncpy(cep_descr02, uString, 64);
+                    Bstrncpy(cep_descr[2], uString, 64);
 
                 break;
 
             case 7:
                 if (!scriptfile_getstring(pScript, &uString))
-                    Bstrncpy(cep_descr03, uString, 64);
+                    Bstrncpy(cep_descr[3], uString, 64);
 
                 break;
 
             case 9:
                 char* descEnd;
                 int descLines;
-                char* descs[4];
-
-                descs[0] = cep_descr00;
-                descs[1] = cep_descr01;
-                descs[2] = cep_descr02;
-                descs[3] = cep_descr03;
+                int len;
+                char* lastRem;
 
                 descLines = 0;
+                lastRem = NULL;
 
                 if (scriptfile_getbraces(pScript, &descEnd))
                     break;
 
                 while (pScript->textptr < descEnd - 1 && descLines < 4)
                 {
-                    if (!scriptfile_getstring(pScript, &uString))
-                        Bstrncpy(descs[descLines], uString, 64);
-                    else break;
+                    if (lastRem) {
+                        len = Bstrlen(lastRem);
+                        LOG_F(INFO, "Line: %d", descLines);
+                        Bstrncpy(cep_descr[descLines], lastRem, 60);
+                        if (len > 60)
+                            lastRem += 60;
+                        else lastRem = NULL;
+
+                        if (len >= 60) {
+                            descLines++;
+                            continue;
+                        }
+                    }
+
+                    if (!scriptfile_getstring(pScript, &uString)) {
+                        len = Bstrlen(uString);
+                        Bstrncpy(cep_descr[descLines], uString, 60);
+                        if (len > 60) {
+                            lastRem = uString + 60;
+                            if (pScript->textptr >= descEnd - 1)
+                                pScript->textptr = descEnd - 2;
+                        }
+                    } else break;
 
                     descLines++;
                 }
@@ -6845,15 +6859,15 @@ static int G_EndOfLevel(void)
     if (numplayers > 1)
         p.gm = MODE_GAME;
 
-    /*if (ud.cep)
+    if (ud.cep)
     {
         ud.cep = 2;
         p.gm = 0;
         G_UpdateScreenArea();
         Menu_Open(myconnectindex);
-        Menu_Change(MENU_UMLE);
+        Menu_Change(MENU_USERCONTENTSETUPINGAME);
         return 1;
-    }*/
+    }
 
     if (G_EnterLevel(p.gm))
     {

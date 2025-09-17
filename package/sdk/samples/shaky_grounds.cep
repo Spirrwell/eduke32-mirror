@@ -6,7 +6,7 @@
 //"sound" - defines a sound replacement for this episode
 //"author" - Author name
 //"date" - Release date
-//"description00 - 02" - 3 lines for description text (72 characters max)
+//"description" - 4 lines of description text (60 characters max per line)
 //Always keep the .CEP file in the same folder as the maps
 //You can put as many maps as you want in the custom episode system
 
@@ -15,9 +15,9 @@ date "12 November, 2021"
 
 description { 
 "5 epic maps filled with intense battles,
-destructive earthquakes, a post-apocalyptic
-atmosphere and an evolving storyline. Also contains
-a custom soundtrack especially written for this episode."
+destructive earthquakes, a post-apocalyptic atmosphere
+and an evolving storyline. Also contains a custom
+soundtrack especially written for this episode."
 }
 
 epname "Shaky Grounds"

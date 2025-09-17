@@ -323,10 +323,7 @@ extern char cep_author[32];
 //CEP date of creation
 extern char cep_date[24];
 //CEP description lines - 64 characters MAX
-extern char cep_descr00[64];
-extern char cep_descr01[64];
-extern char cep_descr02[64];
-extern char cep_descr03[64];
+extern char cep_descr[4][64];
 
 int load_custom_episode(const char* fileName);
 int reloadBackupSounds();

@@ -1557,6 +1557,7 @@ static MenuMenu_t M_NEWGAMECUSTOMSUB = MAKE_MENUMENU( s_NewGame, &MMF_Top_NewGam
 static MenuMenu_t M_NEWGAMECUSTOML3 = MAKE_MENUMENU( s_NewGame, &MMF_Top_NewGameCustomL3, MEL_NEWGAMECUSTOML3 );
 static MenuMenu_t M_USERCNT = MAKE_MENUMENU("User Content", &MMF_Top_Options, MEL_USERCNT );
 static MenuMenu_t M_USERCNTSETUP = MAKE_MENUMENU("Content Setup", &MMF_SmallOptions, MEL_UCS );
+static MenuMenu_t M_USERCNTSETUPINGAME = MAKE_MENUMENU("Next Map setup", &MMF_SmallOptions, MEL_UCS);
 #ifndef EDUKE32_RETAIL_MENU
 static MenuMenu_t M_GAMESETUP = MAKE_MENUMENU( "Game Setup", &MMF_BigOptions, MEL_GAMESETUP );
 #endif
@@ -1753,6 +1754,7 @@ static Menu_t Menus[] = {
     { &M_USERMAP, MENU_NETUSERMAP, MENU_NETOPTIONS, MA_Return, FileSelect },
     { &M_NETJOIN, MENU_NETJOIN, MENU_NETWORK, MA_Return, Menu },
     { &M_USERCNTSETUP, MENU_USERCONTENTSETUP, MENU_EPISODE, MA_Return, Menu },
+    { &M_USERCNTSETUPINGAME, MENU_USERCONTENTSETUPINGAME, MENU_QUITTOTITLE, MA_Return, Menu },
 };
 
 static CONSTEXPR const uint16_t numMenus = ARRAY_SIZE(Menus);
@@ -2921,12 +2923,6 @@ static void Menu_Pre(MenuID_t cm)
         ud.m_newgamecustoml3 = M_NEWGAMECUSTOML3.currentEntry;
         break;
 
-    case MENU_USERCONTENTSETUP:
-        if (ud.cep == 2)
-            m_currentMenu->parentID = MENU_QUITTOTITLE;
-
-        break;
-
     default:
         break;
     }
@@ -3626,6 +3622,7 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
         break;
 
     case MENU_USERCONTENTSETUP:
+    case MENU_USERCONTENTSETUPINGAME:
         if (user_mus[0] == '\0')
             Bstrcpy(user_music_title, "none");
         else
@@ -3641,44 +3638,48 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
 
         if (ud.cep == 1)
         {
+            int bZoom = MF_Minifont.zoom;
+            MF_Minifont.zoom = 54000;
             if (cep_author[0] != '\0')
             {
                 mgametext(origin.x + M_USERCNTSETUP.format->pos.x, (125) << 16, "Author: ");
-                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), 126 << 16, cep_author, 4);
-                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), 125 << 16, cep_author, 23);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), 128 << 16, cep_author, 4);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), 127 << 16, cep_author, 23);
             }
 
             if (cep_date[0] != '\0')
             {
                 mgametext(origin.x + M_USERCNTSETUP.format->pos.x, (125 + 10) << 16, "Date: ");
-                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), (126 + 10) << 16, cep_date, 4);
-                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), (125 + 10) << 16, cep_date, 23);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), (128 + 10) << 16, cep_date, 4);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), (127 + 10) << 16, cep_date, 23);
             }
 
-            if (cep_descr00[0] != '\0')
+            if (cep_descr[0][0] != '\0')
             {
                 mgametext(origin.x + M_USERCNTSETUP.format->pos.x, (125 + 20) << 16, "About: ");
-                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), (126 + 20) << 16, cep_descr00, 4);
-                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), (125 + 20) << 16, cep_descr00, 23);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), (128 + 20) << 16, cep_descr[0], 4);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), (127 + 20) << 16, cep_descr[0], 23);
             }
 
-            if (cep_descr01[0] != '\0')
+            if (cep_descr[1][0] != '\0')
             {
-                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), (126 + 27) << 16, cep_descr01, 4);
-                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), (125 + 27) << 16, cep_descr01, 23);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), (128 + 27) << 16, cep_descr[1], 4);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), (127 + 27) << 16, cep_descr[1], 23);
             }
 
-            if (cep_descr02[0] != '\0')
+            if (cep_descr[2][0] != '\0')
             {
-                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), (126 + 34) << 16, cep_descr02, 4);
-                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), (125 + 34) << 16, cep_descr02, 23);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), (128 + 34) << 16, cep_descr[2], 4);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), (127 + 34) << 16, cep_descr[2], 23);
             }
 
-            if (cep_descr03[0] != '\0')
+            if (cep_descr[3][0] != '\0')
             {
-                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), (126 + 41) << 16, cep_descr03, 4);
-                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), (125 + 41) << 16, cep_descr03, 23);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), (128 + 41) << 16, cep_descr[3], 4);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), (127 + 41) << 16, cep_descr[3], 23);
             }
+
+            MF_Minifont.zoom = bZoom;
         }
 
         break;
@@ -4082,6 +4083,7 @@ static void Menu_EntryLinkActivate(MenuEntry_t *entry)
     }
 
     case MENU_USERCONTENTSETUP:
+    case MENU_USERCONTENTSETUPINGAME:
     {
         if (entry == &ME_UCS_CUSTOMMUSIC)
         {
@@ -5042,8 +5044,11 @@ static void Menu_FileSelect(int32_t input)
         break;
 
     case MENU_USERMUSIC:
-        if (input)
-            Menu_AnimateChange(MENU_USERCONTENTSETUP, MA_Advance);
+        if (input) {
+            if(ud.cep == 2)
+                Menu_AnimateChange(MENU_USERCONTENTSETUPINGAME, MA_Advance);
+            else Menu_AnimateChange(MENU_USERCONTENTSETUP, MA_Advance);
+        }
         break;
     default:
         break;
@@ -5297,6 +5302,14 @@ static void Menu_AboutToStartDisplaying(Menu_t * m)
 
     case MENU_NEWGAMECUSTOML3:
         Menu_PopulateNewGameCustomL3(M_NEWGAMECUSTOM.currentEntry, M_NEWGAMECUSTOMSUB.currentEntry);
+        break;
+
+    case MENU_USERCONTENTSETUP:
+        if (ud.cep > 0)
+            M_USERCNTSETUP.title = cep_name;
+        else
+            M_USERCNTSETUP.title = { "Usermap Options" };
+
         break;
 
     case MENU_LOAD:
@@ -7862,7 +7875,11 @@ static void Menu_RunInput(Menu_t *cm)
 
                 Menu_Verify(0);
 
-                Menu_AnimateChange(cm->parentID, cm->parentAnimation);
+                /*if (g_currentMenu == MENU_QUITTOTITLE && ud.cep == 2)
+                    Menu_AnimateChange(MENU_USERCONTENTSETUP, MA_Advance);
+                else if (g_currentMenu == MENU_USERCONTENTSETUP && ud.cep == 2)
+                    Menu_AnimateChange(MENU_QUITTOTITLE, MA_Advance);
+                else*/ Menu_AnimateChange(cm->parentID, cm->parentAnimation);
 
                 S_PlaySound(EXITMENUSOUND);
             }
@@ -8372,6 +8389,7 @@ void M_DisplayMenus(void)
             else if (m_parentMenu->menuID == MENU_NEWGAMECUSTOML3)
                 ud.returnvar[3] = M_NEWGAMECUSTOMSUB.currentEntry;
         }
+
         VM_OnEventWithReturn(EVENT_DISPLAYINACTIVEMENU, g_player[screenpeek].ps->i, screenpeek, m_parentMenu->menuID);
         origin.x = ud.returnvar[0];
         origin.y = ud.returnvar[1];
@@ -8410,6 +8428,10 @@ void M_DisplayMenus(void)
         else if (g_currentMenu == MENU_NEWGAMECUSTOML3)
             ud.returnvar[3] = M_NEWGAMECUSTOMSUB.currentEntry;
     }
+
+    if ((m_currentMenu->menuID == MENU_USERCONTENTSETUPINGAME || m_currentMenu->menuID == MENU_QUITTOTITLE) && ud.cep == 2)
+        rotatesprite_fs(origin.x + (MENU_MARGIN_CENTER << 16), origin.y + (100 << 16), 65536L, 0, MENUSCREEN, 16, 3, 10 + 64);
+
     VM_OnEventWithReturn(EVENT_DISPLAYMENU, g_player[screenpeek].ps->i, screenpeek, g_currentMenu);
     origin.x = ud.returnvar[0];
     origin.y = ud.returnvar[1];
