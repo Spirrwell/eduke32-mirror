@@ -3668,6 +3668,22 @@ breakfor:
                     dispatch();
                 }
 
+            vInstruction(CON_FADEMUSICVOLUME):
+                insptr++;
+                {
+                    int const volumePercentage = Gv_GetVar(*insptr++);
+                    int const fadeTime = Gv_GetVar(*insptr++); // 100ms per unit
+                    VM_ABORT_IF(((unsigned) volumePercentage) > MAXVOLUMEPERCENTAGE, "music fade volume (%d) must be in range [0, %d]", volumePercentage, MAXVOLUMEPERCENTAGE);
+                    VM_ABORT_IF(((unsigned) fadeTime) > MAXVOLUMEFADETIME, "music fade time (%d) must be in range [0, %d]", fadeTime, MAXVOLUMEFADETIME);
+
+                    if (fadeTime == 0)
+                        S_DuckMusicVolume(ud.config.MusicVolume, volumePercentage);
+                    else
+                        S_FadeMusicVolume_Start(volumePercentage, fadeTime);
+
+                    dispatch();
+                }
+
             vInstruction(CON_TIP):
                 insptr++;
                 vm.pPlayer->tipincs = GAMETICSPERSEC;

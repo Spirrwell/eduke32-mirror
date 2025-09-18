@@ -4346,7 +4346,7 @@ static int32_t Menu_EntryRangeInt32Modify(MenuEntry_t *entry, int32_t newValue)
     else if (entry == &ME_SOUND_VOLUME_MASTER)
         FX_SetVolume(newValue);
     else if (entry == &ME_SOUND_VOLUME_MUSIC)
-        S_MusicVolume(newValue);
+        S_UpdateMusicVolume(newValue);
     else if (entry == &ME_JOYSTICKAXIS_DEAD)
         JOYSTICK_SetDeadZone(M_JOYSTICKAXES.currentEntry, newValue, *MEO_JOYSTICKAXIS_SATU.variable);
     else if (entry == &ME_JOYSTICKAXIS_SATU)
