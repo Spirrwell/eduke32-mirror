@@ -288,6 +288,7 @@ static tokenmap_t const vm_keywords[] =
     { "getplayervar",           CON_GETPLAYERVAR },
     { "getpname",               CON_GETPNAME },
     { "getprojectile",          CON_GETPROJECTILE },
+    { "getrelativemusicvolume", CON_GETRELATIVEMUSICVOLUME },
     { "getsector",              CON_GETSECTOR },
     { "gettextureceiling",      CON_GETTEXTURECEILING },
     { "gettexturefloor",        CON_GETTEXTUREFLOOR },
@@ -500,6 +501,7 @@ static tokenmap_t const vm_keywords[] =
     { "setplayerangle",         CON_SETPLAYERANGLE },
     { "setplayervar",           CON_SETPLAYERVAR },
     { "setprojectile",          CON_SETPROJECTILE },
+    { "setrelativemusicvolume", CON_SETRELATIVEMUSICVOLUME },
     { "setsector",              CON_SETSECTOR },
     { "setsprite",              CON_SETSPRITE },
     { "setthisprojectile",      CON_SETTHISPROJECTILE },
@@ -3868,6 +3870,7 @@ DO_DEFSTATE:
         case CON_SETGAMEPALETTE:
         case CON_SETMUSICPOSITION:
         case CON_SETPLAYERANGLE:
+        case CON_SETRELATIVEMUSICVOLUME:
         case CON_SHOOT:
         case CON_SOUNDONCE:
         case CON_SOUND:
@@ -3890,6 +3893,7 @@ DO_DEFSTATE:
         case CON_GETCURRADDRESS:
         case CON_GETMUSICPOSITION:
         case CON_GETPLAYERANGLE:
+        case CON_GETRELATIVEMUSICVOLUME:
         case CON_GETTICKS:
         case CON_INV:
         case CON_KLABS:
