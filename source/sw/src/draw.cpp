@@ -862,6 +862,11 @@ analyzesprites(int viewx, int viewy, int viewz, SWBOOL mirror)
                 SET(tsp->cstat, CSTAT_SPRITE_ALIGNMENT_WALL);
             }
 
+        if (tsp->statnum == STAT_FAF_COPY) // see FAF_COPY_FROM_SPRITE
+        {
+            tsp->clipdist = sprite[SpriteNum].clipdist;
+        }
+
         // Call my sprite handler
         // Does autosizing and voxel handling
         JAnalyzeSprites(tsp);
@@ -1531,6 +1536,7 @@ void PrintSpriteInfo(PLAYERp pp)
 }
 
 
+#if 0
 void SpriteSortList2D(int tx, int ty)
 {
     SPRITEp sp;
@@ -1558,6 +1564,7 @@ void SpriteSortList2D(int tx, int ty)
         }
     }
 }
+#endif
 
 int COVERsetgamemode(int mode, int xdim, int ydim, int bpp)
 {
@@ -2056,6 +2063,7 @@ int CopySprite(uspritetype const * tsp, short newsector)
     sp->yvel = tsp->yvel;
     sp->zvel = tsp->zvel;
     sp->shade = tsp->shade;
+    sp->clipdist = tsp->clipdist; // see FAF_COPY_FROM_SPRITE
 
     RESET(sp->cstat, CSTAT_SPRITE_BLOCK|CSTAT_SPRITE_BLOCK_HITSCAN);
 
