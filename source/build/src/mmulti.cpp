@@ -57,7 +57,9 @@ static int GetTickCount(void)
 #endif
 
 #define MAXPLAYERS 16
-#define MAXPAKSIZ 576
+// Note that size is restricted by how much is allowed in a UDP packet.
+#define MAXPAKSIZ 2048
+//#define MAXPAKSIZ 576
 
 
 #define PAKRATE 250  //Packet rate/sec limit ... necessary?
