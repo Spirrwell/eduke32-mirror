@@ -6015,7 +6015,12 @@ KeyMain:
             if (User[pp->PlayerSprite]->WeaponNum > WPN_UZI && User[pp->PlayerSprite]->WeaponNum != WPN_SWORD)
                 break;
 
-            HandleWeaponAutoSwitch(pp, WPN_UZI);
+            // gs.WeaponAutoSwitch is not preventing switch from a single uzi to
+            // the double uzi. These checks aim to prevent a case of the second
+            // uzi coming up and then being brought down in multiplayer games.
+            if (PedanticMode || !CommEnabled ||
+                (gs.WeaponAutoSwitch && User[pp->PlayerSprite]->WeaponNum != WPN_UZI))
+                HandleWeaponAutoSwitch(pp, WPN_UZI);
             break;
 
         case ICON_LG_UZI_AMMO:
