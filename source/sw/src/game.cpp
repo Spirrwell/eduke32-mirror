@@ -5004,7 +5004,7 @@ getinput(SW_PACKET *loc, SWBOOL tied)
     extern SWBOOL MenuButtonAutoRun;
     extern SWBOOL MenuButtonAutoAim;
 
-    if (Prediction && CommEnabled)
+    if (PredictionOn && CommEnabled)
     {
         newpp = ppp;
     }
