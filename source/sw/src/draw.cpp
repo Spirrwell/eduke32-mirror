@@ -2394,7 +2394,7 @@ drawscreen(PLAYERp pp)
     {
         tz += bob_amt;
         tz += PedanticMode ? camerapp->bob_z :
-                             pp->obob_z + mulscale16(pp->bob_z - pp->obob_z, smoothratio);
+                             camerapp->obob_z + mulscale16(camerapp->bob_z - camerapp->obob_z, smoothratio);
 
         // recoil only when not in camera
         //tq16horiz = tq16horiz + fix16_from_int(camerapp->recoil_horizoff);
