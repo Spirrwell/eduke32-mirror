@@ -893,7 +893,7 @@ $$($1_obj)/%.$$o: $$($1_rsrc)/%.c | $$($1_obj)
 	$$(call MKDIR,$$(dir $$@))
 	$$(RECIPE_IF) $$(COMPILER_C) $$($1_cflags) -c $$< -o $$@ $$(RECIPE_RESULT_COMPILE)
 
-$$($1_obj)/%_banner.c: $$($1_rsrc)/%.bmp | $$($1_obj)
+$$($1_obj)/%_banner.c: $$($1_rsrc)/%.png | $$($1_obj)
 	echo "#include \"gtkpixdata_shim.h\"" > $$@
 	gdk-pixbuf-csource --extern --struct --raw --name=startbanner_pixdata $$^ | sed 's/load_inc//' >> $$@
 
