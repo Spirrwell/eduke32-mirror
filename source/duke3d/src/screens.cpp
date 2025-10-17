@@ -1139,9 +1139,11 @@ void G_DisplayRest(int32_t smoothratio)
             {
                 const int32_t a = (ud.screen_size > 0) ? 147 : 179;
                 char const * levelname = g_mapInfo[ud.volume_number*MAXLEVELS + ud.level_number].name;
-                if (G_HaveUserMap())
-                    levelname = boardfilename;
-                else if (!(G_GetLogoFlags() & LOGO_HIDEEPISODE))
+                if (G_HaveUserMap()) {
+                    if (ud.cep)
+                        levelname = cep_map_name;
+                    else levelname = boardfilename;
+                } else if (!(G_GetLogoFlags() & LOGO_HIDEEPISODE))
                     minitext(5, a+6, g_volumeNames[ud.volume_number], 0, 2+8+16+256);
                 minitext(5, a+6+6, levelname, 0, 2+8+16+256);
             }
@@ -1177,7 +1179,7 @@ void G_DisplayRest(int32_t smoothratio)
         {
             char const * const fn = currentboardfilename[0] != 0 &&
                 ud.volume_number == 0 && ud.level_number == 7
-                    ? currentboardfilename
+                    ? (ud.cep ? cep_map_name : currentboardfilename)
                     : g_mapInfo[(ud.volume_number*MAXLEVELS) + ud.level_number].name;
 
             menutext_(160<<16, (90+16+8)<<16, -g_levelTextTime+22/*quotepulseshade*/, fn, o, TEXT_XCENTER);
@@ -2302,9 +2304,14 @@ void G_BonusScreen(int32_t bonusonly)
 
     if (ud.volume_number == 0 && ud.last_level == 8 && boardfilename[0])
     {
-        lastmapname = Bstrrchr(boardfilename, '\\');
-        if (!lastmapname) lastmapname = Bstrrchr(boardfilename, '/');
-        if (!lastmapname) lastmapname = boardfilename;
+         if (ud.cep == 1 && cep_map_name[0] != '\0')
+            lastmapname = cep_map_name;
+        else
+        {
+            lastmapname = Bstrrchr(boardfilename, '\\');
+            if (!lastmapname) lastmapname = Bstrrchr(boardfilename, '/');
+            if (!lastmapname) lastmapname = boardfilename;
+        }
     }
     else
     {
