@@ -13,6 +13,13 @@
 
 extern int32_t maxrefreshfreq;
 
+void engineSetupImGui(void);
+void engineDestroyImGui(void);
+
+#if SDL_MAJOR_VERSION >= 2
+SDL_Window *sdl_get_window();
+#endif
+
 #ifdef _WIN32
 HWND win_gethwnd(void);
 HINSTANCE win_gethinstance(void);
