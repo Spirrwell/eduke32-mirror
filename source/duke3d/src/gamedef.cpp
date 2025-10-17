@@ -94,6 +94,10 @@ static intptr_t *g_caseTablePtr;
 static bool C_ParseCommand(bool loop = false);
 static void C_SetScriptSize(int32_t newsize);
 
+struct _CON_NONDEBUG_LINES *debugLines;
+int32_t num_debugLines = 0;
+int32_t num_allocDebugLines = 8192; 
+
 int32_t g_errorCnt;
 int32_t g_warningCnt;
 int32_t g_numXStrings;
@@ -1380,6 +1384,17 @@ static int C_GetNextKeyword(void) //Returns its code #
         if (i == CON_LEFTBRACE || i == CON_RIGHTBRACE || i == CON_NULLOP)
             scriptWriteValue(i | LINE_NUMBER | VM_IFELSE_MAGIC_BIT);
         else scriptWriteValue(i | LINE_NUMBER);
+
+        if(debugLines[num_debugLines - 1].line != g_lineNumber) {
+            if(num_debugLines == num_allocDebugLines - 2) {
+                num_allocDebugLines += 4096;
+                debugLines = (struct _CON_NONDEBUG_LINES*) Xrealloc(debugLines, num_allocDebugLines * sizeof(struct _CON_NONDEBUG_LINES));
+            }
+
+            debugLines[num_debugLines].line = g_lineNumber;
+            strcpy(debugLines[num_debugLines].filename, g_scriptFileName);
+            num_debugLines++;
+        }
 
         textptr += l;
         if (!(g_errorCnt || g_warningCnt) && g_scriptDebug)
@@ -6734,6 +6749,8 @@ void C_Compile(const char *fileName)
 
     Bstrcpy(g_scriptFileName, fileName);
 
+    debugLines = (struct _CON_NONDEBUG_LINES*) Xmalloc(num_allocDebugLines * sizeof(struct _CON_NONDEBUG_LINES));
+
     C_AddDefaultDefinitions();
     C_ParseCommand(true);
 
@@ -6852,8 +6869,10 @@ err:
     DO_FREE_AND_NULL(apScriptStateEnd);
     DO_FREE_AND_NULL(bitstate);
 
+#ifdef NDEBUG
     for (auto i : tables_free)
         hash_free(i);
+#endif
 
     for (auto i : inttables)
         inthash_free(i);

@@ -74,6 +74,20 @@ int32_t g_structVarIDs   = -1;
 
 GAMEEXEC_STATIC void VM_Execute(int loop = false);
 
+#ifndef NDEBUG 
+bool vm_sandBox = false;
+//inst must finish with CON_ENDS
+void VM_DebugSandBox(intptr_t const *inst) {
+    auto sbptr = insptr;
+    insptr = inst;
+    vm_sandBox = true;
+    VM_Execute(true);
+    vm_sandBox = false;
+    vm.flags &= ~VM_TERMINATE;
+    insptr = sbptr;
+}
+#endif
+
 void VM_ScriptInfo(intptr_t const * const ptr, int const range)
 {
     if (!ptr || (g_currentEvent == -1 && insptr == nullptr))
@@ -1419,9 +1433,84 @@ static void ResizeArray(int const arrayNum, int const newSize)
 #ifdef CON_USE_COMPUTED_GOTO
 # define vInstruction(KEYWORDID) VINST_ ## KEYWORDID
 # define vmErrorCase VINST_CON_OPCODE_END
+#ifndef NDEBUG
+struct _CON_DEBUG_LINES con_debug_lines[MAX_CON_DEBUG_LINES];
+uint8_t con_debug_num_lines;
+
+bool VM_CONCheckDebugLine(int32_t line, const char *filename) {
+    for(int i = 0; i < num_debugLines; i++) {
+        auto dbgL = debugLines[i];
+        if(dbgL.line == line && strcmp(dbgL.filename, filename) == 0)
+            return true;
+    }
+
+    return false;
+}
+
+bool VM_CONSetDebugLine(int32_t line, const char* filename) {
+    if(con_debug_num_lines < MAX_CON_DEBUG_LINES) {
+        con_debug_lines[con_debug_num_lines].line = line;
+        con_debug_lines[con_debug_num_lines].offset = NULL;
+        auto ofs = vmoffset;
+        while(ofs != NULL) {
+            if(strcmp(filename, ofs->fn) == 0) {
+                con_debug_lines[con_debug_num_lines].offset = ofs->offset;
+                break;
+            }
+            ofs = ofs->next;
+        }
+
+        if(con_debug_lines[con_debug_num_lines].offset == NULL)
+            return false;
+        
+        con_debug_num_lines++;
+        return true;
+    }
+
+    return false;
+}
+
+bool VM_CONUnsetDebugLine(int32_t line, const char* filename) {
+    auto ofs = vmoffset;
+    int offset = -1;
+    while(ofs != NULL) {
+        if(strcmp(filename, ofs->fn) == 0) {
+            offset = ofs->offset;
+            break;
+        }
+        ofs = ofs->next;
+    }
+
+    if(offset == -1)
+        return false;
+
+    for(int32_t i = 0; i < con_debug_num_lines; i++) {
+        if(con_debug_lines[i].line == line
+           && con_debug_lines[i].offset == offset) {
+            //Copy contents back
+            int remaining = con_debug_num_lines - i;
+            memcpy(&con_debug_lines[i], &con_debug_lines[i + 1], remaining * sizeof(struct _CON_DEBUG_LINES));
+            con_debug_num_lines--;
+            if(con_debug_num_lines == 0)
+                con_debug_lines[0].line = con_debug_lines[0].offset = 0;
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
+# define eval(INSTRUCTION) { g_tw = tw = *insptr; for(int32_t i = 0; i < con_debug_num_lines; i++) { if(VM_DECODE_LINE_NUMBER(g_tw) == con_debug_lines[i].line && (insptr - apScript) >= con_debug_lines[i].offset ) { debug_break(); break; } } goto *jumpTable[INSTRUCTION]; }
+#else
 # define eval(INSTRUCTION) { goto *jumpTable[INSTRUCTION]; }
+#endif
 # define dispatch_unconditionally(...) { eval((VM_DECODE_INST((g_tw = tw = *insptr)))) }
+#ifndef NDEBUG
+# define dispatch(...) { if(vm_sandBox) return; if (!vm_execution_depth | ((vm.flags & (VM_RETURN|VM_TERMINATE|VM_KILL)) != 0)) return; dispatch_unconditionally(__VA_ARGS__); }
+#else
 # define dispatch(...) { if (!vm_execution_depth | ((vm.flags & (VM_RETURN|VM_TERMINATE|VM_KILL)) != 0)) return; dispatch_unconditionally(__VA_ARGS__); }
+#endif
 # define abort_after_error(...) return
 # define vInstructionPointer(KEYWORDID) &&VINST_ ## KEYWORDID
 # define COMMA ,
@@ -6889,6 +6978,13 @@ breakfor:
                 dispatch();
 
             vmErrorCase: // you're not supposed to be here
+                #ifndef NDEBUG
+                if(vm_sandBox) {
+                    LOG_F(ERROR, "CON VM error. Sandbox failsafe is active");
+                    debug_break();
+                    return;
+                }
+                #endif
                 VM_ScriptInfo(insptr, 64);
                 debug_break();
                 G_GameExit("An error has occurred in the " APPNAME " virtual machine.\n\n"
