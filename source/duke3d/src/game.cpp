@@ -6961,7 +6961,7 @@ int app_main(int argc, char const* const* argv)
 
         videoSetPalette(ud.brightness>>2, myplayer.palette, 0);
         S_SoundStartup();
-        S_MusicStartup();
+        S_MusicStartup(true);
     }
 
     G_InitText();

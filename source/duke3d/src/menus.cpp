@@ -4049,7 +4049,7 @@ static void Menu_EntryLinkActivate(MenuEntry_t *entry)
             ud.config.NumVoices = soundvoices;
 
             S_SoundStartup();
-            S_MusicStartup();
+            S_MusicStartup(false);
 
             S_ClearSoundLocks();
         }
@@ -4073,7 +4073,7 @@ static void Menu_EntryLinkActivate(MenuEntry_t *entry)
             {
                 S_MusicShutdown();
                 ud.config.MusicDevice = musicdevice;
-                S_MusicStartup();
+                S_MusicStartup(false);
             }
 
             S_RestartMusic();
@@ -4346,7 +4346,7 @@ static int32_t Menu_EntryRangeInt32Modify(MenuEntry_t *entry, int32_t newValue)
     else if (entry == &ME_SOUND_VOLUME_MASTER)
         FX_SetVolume(newValue);
     else if (entry == &ME_SOUND_VOLUME_MUSIC)
-        S_MusicVolume(newValue);
+        S_MusicVolume((newValue * g_musicVolumeModifier) / BASEVOLUMEMODIFIER);
     else if (entry == &ME_JOYSTICKAXIS_DEAD)
         JOYSTICK_SetDeadZone(M_JOYSTICKAXES.currentEntry, newValue, *MEO_JOYSTICKAXIS_SATU.variable);
     else if (entry == &ME_JOYSTICKAXIS_SATU)

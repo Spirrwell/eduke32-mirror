@@ -38,6 +38,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 extern "C" {
 #endif
 
+#define BASEVOLUMEMODIFIER 256
+
 #define MAXSOUNDS           16384
 #define MAXSOUNDINSTANCES   8
 #define LOUDESTVOLUME       111
@@ -95,7 +97,7 @@ int32_t S_DefineSound(int sndidx, const char* name, int minpitch, int maxpitch, 
 int32_t S_DefineMusic(const char* ID, const char* name);
 void S_MenuSound(void);
 void S_MusicShutdown(void);
-void S_MusicStartup(void);
+void S_MusicStartup(bool resetVolumeModifier);
 void S_MusicVolume(int32_t volume);
 void S_RestartMusic(void);
 void S_PauseMusic(bool paused);

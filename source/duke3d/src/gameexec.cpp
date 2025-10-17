@@ -3668,6 +3668,24 @@ breakfor:
                     dispatch();
                 }
 
+            vInstruction(CON_GETRELATIVEMUSICVOLUME):
+                insptr++;
+                {
+                    int const out = *insptr++;
+                    Gv_SetVar(out, g_musicVolumeModifier);
+                    dispatch();
+                }
+
+            vInstruction(CON_SETRELATIVEMUSICVOLUME):
+                insptr++;
+                {
+                    int const volumeModifier = Gv_GetVar(*insptr++);
+                    VM_ABORT_IF(((unsigned) volumeModifier) > BASEVOLUMEMODIFIER, "invalid music modifier: %d -- valid range is between 0 and %d (inclusive)", volumeModifier, BASEVOLUMEMODIFIER);
+                    g_musicVolumeModifier = volumeModifier;
+                    S_MusicVolume((ud.config.MusicVolume * g_musicVolumeModifier) / BASEVOLUMEMODIFIER);
+                    dispatch();
+                }
+
             vInstruction(CON_TIP):
                 insptr++;
                 vm.pPlayer->tipincs = GAMETICSPERSEC;
