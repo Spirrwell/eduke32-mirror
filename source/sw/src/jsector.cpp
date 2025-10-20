@@ -798,11 +798,8 @@ JS_DrawMirrors(PLAYERp pp, int tx, int ty, int tz, fix16_t tpq16ang, fix16_t tpq
                     else
                     {
                         if (mirror[cnt].campic == -1)
-                        {
-                            TerminateGame();
-                            LOG_F(ERROR, "Missing campic for mirror %d (Map Coordinates: x = %d, y = %d)", cnt, midx, midy);
-                            exit(0);
-                        }
+                            TerminateWithMsg(0,
+                              "Missing campic for mirror %d (Map Coordinates: x = %d, y = %d)", cnt, midx, midy);
 
                         // BOOL2 = Oscilate camera
                         if (TEST_BOOL2(sp))
