@@ -383,7 +383,7 @@ void CON_InitConsole(void)
             TerminateWithSimpleMsg(0, "CON_InitConsole: Failed to add command contained in pre_commands list.");
     }
 
-    //printf("CON_InitConsole: Command list initialized.\n");
+    //LOG_F(INFO, "CON_InitConsole: Command list initialized.\n");
 }
 
 //

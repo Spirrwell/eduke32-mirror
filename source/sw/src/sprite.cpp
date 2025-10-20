@@ -5071,7 +5071,7 @@ move_actor(short SpriteNum, int xchange, int ychange, int zchange)
 
         if (ActorDrop(SpriteNum, sp->x, sp->y, sp->z, sp->sectnum, u->lo_step))
         {
-            //printf("cancel move 2\n", sp->z, u->loz);
+            //VLOG_F(LOG_DEBUG, "cancel move 2", sp->z, u->loz);
             // cancel move
             sp->x = x;
             sp->y = y;

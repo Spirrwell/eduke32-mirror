@@ -63,7 +63,7 @@ void DebugMoveHit(short /*SpriteNum*/)
 
 #if 0
     if (u->ret == -1)
-        printf("Hit a ledge\n");
+        VLOG_F(LOG_DEBUG, "Hit a ledge");
     else
 #endif
     switch (TEST(u->ret, HIT_MASK))

@@ -3763,7 +3763,7 @@ int32_t app_main(int32_t argc, char const * const * argv)
             if (strlen(argv[cnt]) > 5)
                 {
                 FakeMultiNumPlayers = atoi(&argv[cnt][5]);
-                printf("Adding %d BOT(s) to the game!\n",FakeMultiNumPlayers);
+                LOG_F(INFO, "Adding %d BOT(s) to the game!", FakeMultiNumPlayers);
                 gNet.MultiGameType = MULTI_GAME_AI_BOTS;
                 BotMode = TRUE;
                 }
@@ -4143,7 +4143,7 @@ SinglePlayInput(PLAYERp pp)
             memcpy(pp->temp_pal, palette_data, sizeof(palette_data));
             DoPlayerDivePalette(tp);
             DoPlayerNightVisionPalette(tp);
-//          printf("SingPlayInput set_pal: tp->PlayerSprite = %d\n",tp->PlayerSprite);
+//          VLOG_F(LOG_INPUT, "SingPlayInput set_pal: tp->PlayerSprite = %d", tp->PlayerSprite);
         }
     }
 
@@ -4229,7 +4229,7 @@ SinglePlayInput(PLAYERp pp)
         // Now check for item or pain palette stuff
         // This sets the palette to whatever it is of the player you
         // just chose to view the game through.
-//      printf("SingPlayInput ALT+1-9 set_pal: pp->PlayerSprite = %d\n",pp->PlayerSprite);
+//      VLOG_F(LOG_INPUT, "SingPlayInput ALT+1-9 set_pal: pp->PlayerSprite = %d", pp->PlayerSprite);
         COVERsetbrightness(gs.Brightness,(char *)palette_data); // JBF: figure out what's going on here
 
         DoPlayerNightVisionPalette(pp);
