@@ -2804,6 +2804,7 @@ _Assert(const char *expr, const char *strFile, unsigned uLine)
 }
 
 
+#if 0
 void
 _ErrMsg(const char *strFile, unsigned uLine, const char *format, ...)
 {
@@ -2825,6 +2826,7 @@ _ErrMsg(const char *strFile, unsigned uLine, const char *format, ...)
 
     exit(0);
 }
+#endif
 
 void
 dsprintf(char *str, char *format, ...)
