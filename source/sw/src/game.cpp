@@ -473,11 +473,7 @@ AllocMem(int size)
 
     // Used for debugging, we can remove this at ship time
     if (bp == NULL)
-    {
-        TerminateGame();
-        printf("Memory could NOT be allocated in AllocMem: size = %d\n",size);
-        exit(0);
-    }
+        TerminateWithMsg(0, "Memory could NOT be allocated in AllocMem: size = %d", size);
 
     ASSERT(bp != NULL);
 
@@ -545,11 +541,7 @@ CallocMem(int size, int num)
 
     // Used for debugging, we can remove this at ship time
     if (bp == NULL)
-    {
-        TerminateGame();
-        printf("Memory could NOT be allocated in CallocMem: size = %d, num = %d\n",size,num);
-        exit(0);
-    }
+        TerminateWithMsg(0, "Memory could NOT be allocated in CallocMem: size = %d, num = %d", size, num);
 
     ASSERT(bp != NULL);
 
@@ -691,15 +683,8 @@ LoadLevel(const char *filename)
 {
     int16_t ang;
     if (engineLoadBoard(filename, SW_SHAREWARE ? 1 : 0, &Player[0].pos, &ang, &Player[0].cursectnum) == -1)
-    {
-        TerminateGame();
-#if 1 /* defined RENDERTYPEWIN */
-        wm_msgbox(apptitle, "Level not found: %s", filename);
-#else
-        printf("Level Not Found: %s\n", filename);
-#endif
-        exit(0);
-    }
+        TerminateWithMsg(0, "Level not found: %s", filename);
+
     Player[0].q16ang = fix16_from_int(ang);
 }
 
@@ -707,15 +692,7 @@ void
 LoadImages(const char *filename)
 {
     if (artLoadFiles(filename, 32*1048576) == -1)
-    {
-        TerminateGame();
-#if 1 /* defined RENDERTYPEWIN */
-        wm_msgbox(apptitle, "Art not found. Please check your GRP file.");
-#else
-        printf("Art not found. Please check your GRP file.\n");
-#endif
-        exit(-1);
-    }
+        TerminateWithSimpleMsg(-1, "Art not found. Please check your GRP file.");
 }
 
 void LoadDemoRun(void)

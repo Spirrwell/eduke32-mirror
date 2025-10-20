@@ -380,11 +380,7 @@ void CON_InitConsole(void)
     for (i = &pre_commands[0]; i->command != NULL; i++)
     {
         if (!CON_AddCommand(i->command, i->function))
-        {
-            printf("CON_InitConsole: Failed to add command contained in pre_commands list.\n");
-            TerminateGame();
-            exit(0);
-        }
+            TerminateWithSimpleMsg(0, "CON_InitConsole: Failed to add command contained in pre_commands list.");
     }
 
     //printf("CON_InitConsole: Command list initialized.\n");
