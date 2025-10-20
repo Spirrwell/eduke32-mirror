@@ -2324,7 +2324,6 @@ extern void SetFadeAmt(PLAYERp pp, short damage, unsigned char startcolor);
 extern void DoPaletteFlash(PLAYERp pp);
 extern unsigned char palette_data[256][3];
 extern SWBOOL NightVision;
-#endif
 
 int _PlayerSound(const char *file, int line, int num, int *x, int *y, int *z, Voc3D_Flags flags, PLAYERp pp);
 #define PlayerSound(num, x, y, z, flags, pp) _PlayerSound(__FILE__, __LINE__, (num), (x), (y), (z), (flags), (pp))
@@ -2441,3 +2440,5 @@ extern short QuickLoadNum;
 void LoadSaveMsg(const char *msg);
 SWBOOL DoQuickSave(short save_num);
 SWBOOL DoQuickLoad(void);
+
+#endif
