@@ -66,9 +66,6 @@ void _Assert(const char *expr, const char *strFile, unsigned uLine);
 #endif
 
 #if DEBUG
-void HeapCheck(char *, int);
-#define HEAP_CHECK() HeapCheck(__FILE__, __LINE__)
-
 void dsprintf(char *, char *, ...);
 #define DSPRINTF dsprintf
 
@@ -92,7 +89,6 @@ void dsprintf_null(char *str, const char *format, ...);
 #define DSPRINTF dsprintf_null
 //#define DSPRINTF()
 
-#define HEAP_CHECK()
 #define RANDOM_DEBUG 0
 #endif
 
