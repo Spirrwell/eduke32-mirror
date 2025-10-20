@@ -2799,13 +2799,8 @@ Control(int32_t argc, char const * const * argv)
 void
 _Assert(const char *expr, const char *strFile, unsigned uLine)
 {
-    LOG_F(ERROR, "Assertion failed: %s %s, line %u", expr, strFile, uLine);
     debug_break();
-
-    TerminateGame();
-
-    wm_msgbox(apptitle, "%s", ds);
-    exit(0);
+    TerminateWithMsg(0, "Assertion failed: %s %s, line %u", expr, strFile, uLine);
 }
 
 
