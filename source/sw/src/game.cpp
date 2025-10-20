@@ -431,7 +431,7 @@ ValidPtr(void *ptr)
 
     if (mhp->size == 0 || mhp->checksum == 0)
     {
-        printf("ValidPtr(): Size or Checksum == 0!\n");
+        LOG_F(ERROR, "ValidPtr(): Size or Checksum == 0!");
         return FALSE;
     }
 
@@ -440,7 +440,7 @@ ValidPtr(void *ptr)
     if (mhp->checksum == check[0] + check[1] + check[2] + check[3])
         return TRUE;
 
-    printf("ValidPtr(): Checksum bad!\n");
+    LOG_F(ERROR, "ValidPtr(): Checksum bad!");
     return FALSE;
 }
 

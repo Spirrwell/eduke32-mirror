@@ -1810,7 +1810,7 @@ FindNewAngle(short SpriteNum, signed char dir, int DistToMove)
         }
         break;
     default:
-        printf("FindNewAngle called with dir=%d!\n",dir);
+        LOG_F(ERROR, "FindNewAngle called with dir=%d!", dir);
         return 0;
     }
 

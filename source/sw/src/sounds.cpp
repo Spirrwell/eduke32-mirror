@@ -266,8 +266,8 @@ void CheckSndData(char *file, int line)
 
         if (memcmp(globsndata[i], globvpdata[i], glength[i]) != 0)
         {
-            printf("%s %d\n",file,line);
-            printf("CheckSndData: Data is not the same! num = %d",i);
+            LOG_F(ERROR, "%s %d",file,line);
+            LOG_F(ERROR, "CheckSndData: Data is not the same! num = %d",i);
             exit(0);
         }
     }
@@ -1563,7 +1563,7 @@ Delete3DSounds(void)
             //if(vp->num > DIGI_FIRSTPLAYERVOICE && vp->num < DIGI_LASTPLAYERVOICE)
             if (!vp->vp)
             {
-                printf("Delete3DSounds(): NULL vp->vp\n");
+                LOG_F(ERROR, "Delete3DSounds(): NULL vp->vp");
             }
             else    // JBF: added null check
             if (vp->vp->priority == PRI_PLAYERVOICE || vp->vp->priority == PRI_PLAYERDEATH)
