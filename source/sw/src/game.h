@@ -2355,6 +2355,24 @@ void DrawMenuLevelScreen(void); // game.c
 void DebugWriteString(char *string);    // game.c
 void ManualPlayerInsert(PLAYERp pp);    // game.c
 
+template <typename... Args>
+static FORCE_INLINE void
+TerminateWithMsg(int code, const char *fmt, const Args &... args)
+{
+    TerminateGame();
+
+    LOG_F(ERROR, fmt, args...);
+    wm_msgbox(apptitle, fmt, args...);
+
+    exit(code);
+}
+
+static FORCE_INLINE void
+TerminateWithSimpleMsg(int code, const char *msg)
+{
+    TerminateWithMsg(code, "%s", msg);
+}
+
 void SetRedrawScreen(PLAYERp pp);   // border.c
 void SetupAspectRatio(void);    // border.c
 void ClearStartMost(void);  // border.c
