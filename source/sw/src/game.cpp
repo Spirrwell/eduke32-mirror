@@ -754,14 +754,8 @@ void MultiSharewareCheck(void)
     if (!SW_SHAREWARE) return;
     if (numplayers > 4)
     {
-#if 1 /* defined RENDERTYPEWIN */
         wm_msgbox(apptitle,"To play a Network game with more than 4 players you must purchase "
                   "the full version.  Read the Ordering Info screens for details.");
-#else
-        printf(
-            "\n\nTo play a Network game with more than 4 players you must purchase the\n"
-            "full version.  Read the Ordering Info screens for details.\n\n");
-#endif
         uninitmultiplayers();
         //uninitkeys();
         KB_Shutdown();
@@ -2810,9 +2804,7 @@ _Assert(const char *expr, const char *strFile, unsigned uLine)
 
     TerminateGame();
 
-#if 1 /* defined RENDERTYPEWIN */
     wm_msgbox(apptitle, "%s", ds);
-#endif
     exit(0);
 }
 
@@ -2826,7 +2818,6 @@ _ErrMsg(const char *strFile, unsigned uLine, const char *format, ...)
     //MONO_PRINT(ds);
     TerminateGame();
 
-#if 1 /* defined RENDERTYPEWIN */
     {
         char msg[256], *p;
         Bsnprintf(msg, sizeof(msg), "Error: %s, line %u\n", strFile, uLine);
@@ -2836,13 +2827,6 @@ _ErrMsg(const char *strFile, unsigned uLine, const char *format, ...)
         va_end(arglist);
         wm_msgbox(apptitle, "%s", msg);
     }
-#else
-    printf("Error: %s, line %u\n", strFile, uLine);
-
-    va_start(arglist, format);
-    vprintf(format, arglist);
-    va_end(arglist);
-#endif
 
     exit(0);
 }
@@ -3232,7 +3216,6 @@ int DetectShareware(void)
 void CommandLineHelp(char const * const * /*argv*/)
 {
     int i;
-#if 1 /* defined RENDERTYPEWIN */
     char *str;
     int strl;
 
@@ -3259,21 +3242,6 @@ void CommandLineHelp(char const * const * /*argv*/)
         wm_msgbox("Shadow Warrior Help", "%s", str);
         Xfree(str);
     }
-#else
-    if (SW_SHAREWARE)
-        printf("Usage: %s [options]\n", argv[0]);
-    else
-        printf("Usage: %s [options] [map]\n", argv[0]);
-    printf("options:  ('/' may be used instead of '-', <> text is optional)\n\n");
-
-    for (i = 0; i < (int)SIZ(cli_arg); i++)
-    {
-        if (cli_arg[i].arg_fmt && (!SW_SHAREWARE || (!cli_arg[i].notshareware && SW_SHAREWARE)))
-        {
-            printf(" %-20s   %-30s\n",cli_arg[i].arg_fmt, cli_arg[i].arg_descr);
-        }
-    }
-#endif
 }
 
 int32_t app_main(int32_t argc, char const * const * argv)
@@ -3572,7 +3540,6 @@ int32_t app_main(int32_t argc, char const * const * argv)
 #if DEBUG
         else if (Bstrncasecmp(arg, "debug",5) == 0)
         {
-#if 1 /* defined RENDERTYPEWIN */
             char *str;
             int strl;
 
@@ -3597,17 +3564,6 @@ int32_t app_main(int32_t argc, char const * const * argv)
                 wm_msgbox("Shadow Warrior Debug Help",str);
                 Xfree(str);
             }
-#else
-            printf("Usage: %s [options]\n", argv[0]);
-            printf("options:  ('/' may be used instead of '-', <> text is optional)\n\n");
-            for (i = 0; i < (int)SIZ(cli_dbg_arg); i++)
-            {
-                if (cli_dbg_arg[i].arg_fmt)
-                {
-                    printf(" %-20s   %-30s\n",cli_dbg_arg[i].arg_fmt, cli_dbg_arg[i].arg_descr);
-                }
-            }
-#endif
             swexit(0);
         }
 #endif
