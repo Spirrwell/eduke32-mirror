@@ -1203,7 +1203,11 @@ static mco_result _mco_makectx(mco_coro* co, _mco_ctxbuf* ctx, void* stack_base,
   unsigned int lo = (unsigned int)((size_t)co);
 #if defined(_LP64) || defined(__LP64__)
   unsigned int hi = (unsigned int)(((size_t)co)>>32);
-  makecontext(ctx, (void (*)(void))_mco_wrap_main, 2, lo, hi);
+  #if defined(__e2k__)
+    makecontext_e2k(ctx, (void (*)(void))_mco_wrap_main, 2, lo, hi);
+  #else
+    makecontext(ctx, (void (*)(void))_mco_wrap_main, 2, lo, hi);
+  #endif
 #else
   makecontext(ctx, (void (*)(void))_mco_wrap_main, 1, lo);
 #endif
