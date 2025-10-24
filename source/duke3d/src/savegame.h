@@ -81,7 +81,7 @@ struct savebrief_t
     }
     savebrief_t(char const *n)
     {
-        strncpy(name, n, MAXSAVEGAMENAME);
+        Bstrncpy(name, n, MAXSAVEGAMENAME);
         path[0] = '\0';
     }
 
@@ -123,6 +123,8 @@ struct menusave_t
         flags = 0;
     }
 };
+
+extern char savegame_dir[BMAX_PATH];
 
 extern savebrief_t g_lastautosave, g_lastusersave, g_freshload;
 extern int32_t g_lastAutoSaveArbitraryID;
