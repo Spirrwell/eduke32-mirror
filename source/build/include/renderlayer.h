@@ -8,7 +8,7 @@
 #undef STARTUP_SETUP_WINDOW
 
 #ifdef STARTUP_WINDOW
-#if defined _WIN32 || defined EDUKE32_OSX || defined HAVE_GTK2
+#if defined _WIN32 || defined EDUKE32_OSX || defined HAVE_GTK2 || (RENDERTYPESDL && USE_OPENGL)
 # define STARTUP_SETUP_WINDOW
 #endif
 #endif
