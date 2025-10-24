@@ -141,7 +141,7 @@ void S_SoundShutdown(void)
     }
 }
 
-void S_MusicStartup(void)
+void S_MusicStartup(bool resetVolumeModifier)
 {
     int status;
     if ((status = MUSIC_Init(ud.config.MusicDevice)) == MUSIC_Ok)
@@ -159,7 +159,10 @@ void S_MusicStartup(void)
         return;
     }
 
-    MUSIC_SetVolume(ud.config.MusicVolume);
+    if (resetVolumeModifier)
+        g_musicVolumeModifier = BASEVOLUMEMODIFIER;
+
+    MUSIC_SetVolume((ud.config.MusicVolume * g_musicVolumeModifier) / BASEVOLUMEMODIFIER);
 
     buildvfs_kfd const fil = kopen4load("d3dtimbr.tmb", 0);
     if (fil != buildvfs_kfd_invalid)
@@ -340,6 +343,8 @@ static int S_PlayMusic(const char *fn)
         MusicPtr    = MyMusicPtr;
         g_musicSize = MyMusicSize;
     }
+
+    S_MusicVolume((ud.config.MusicVolume * g_musicVolumeModifier) / BASEVOLUMEMODIFIER);
 
     return 0;
 }

@@ -109,6 +109,7 @@ G_EXTERN int32_t g_maxPlayerHealth;
 G_EXTERN int32_t g_mirrorCount;
 G_EXTERN int32_t g_mostConcurrentPlayers;
 G_EXTERN int32_t g_musicSize;
+G_EXTERN int32_t g_musicVolumeModifier;
 G_EXTERN int32_t g_playerSpawnCnt;
 G_EXTERN int32_t g_scriptDebug;
 G_EXTERN int32_t g_showShareware;

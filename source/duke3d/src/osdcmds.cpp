@@ -410,7 +410,7 @@ static int osdcmd_restartsound(osdcmdptr_t UNUSED(parm))
     S_MusicShutdown();
 
     S_SoundStartup();
-    S_MusicStartup();
+    S_MusicStartup(false);
 
     if (ud.config.MusicToggle)
         S_RestartMusic();
@@ -1431,7 +1431,7 @@ static int osdcmd_cvar_set_game(osdcmdptr_t parm)
             S_SoundShutdown();
 
             S_SoundStartup();
-            S_MusicStartup();
+            S_MusicStartup(false);
 
             S_ClearSoundLocks();
 
@@ -1454,7 +1454,10 @@ static int osdcmd_cvar_set_game(osdcmdptr_t parm)
         }
     }
     else if (!Bstrcasecmp(parm->name, "mus_volume"))
-        S_MusicVolume(Batol(parm->parms[0]));
+    {
+        int32_t newValue = Batol(parm->parms[0]);
+        S_MusicVolume((newValue * g_musicVolumeModifier) / BASEVOLUMEMODIFIER);
+    }
     else if (!Bstrncasecmp(parm->name, prefix_mus, ARRAY_SIZE(prefix_mus)-1))
     {
         if (!MUSIC_WarmedUp())
@@ -1468,7 +1471,7 @@ static int osdcmd_cvar_set_game(osdcmdptr_t parm)
             MUSIC_GetSongPosition(&pos);
 
         S_MusicShutdown();
-        S_MusicStartup();
+        S_MusicStartup(false);
 
         if (ud.config.MusicToggle)
         {
