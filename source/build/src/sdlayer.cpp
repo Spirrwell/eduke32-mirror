@@ -45,6 +45,8 @@
 # include <ogc/lwp_watchdog.h>
 #elif defined _WIN32
 # include "winbits.h"
+#elif defined __EMSCRIPTEN__
+# include <emscripten.h>
 #endif
 
 #include "vfs.h"
@@ -2203,6 +2205,13 @@ void videoShowFrame(int32_t w)
     SDL_Flip(sdl_surface);
 #endif
     MicroProfileFlip();
+#ifdef __EMSCRIPTEN__
+    // Present the just-drawn frame to the browser. Under Asyncify this unwind is
+    // the point at which control returns to the event loop and the browser
+    // composites the canvas; without it the GL frame is drawn but never painted
+    // to the visible canvas (the page stays black even though the engine runs).
+    emscripten_sleep(1);
+#endif
 }
 
 //
@@ -2802,6 +2811,12 @@ int32_t handleevents(void)
 {
 #ifdef __ANDROID__
     if (mobile_halted) return 0;
+#endif
+#ifdef __EMSCRIPTEN__
+    // Yield to the browser from the event pump. Every game/wait loop calls
+    // handleevents(), so this paces busy-waits and keeps the page responsive under
+    // Asyncify; without it a wait loop never returns control and the page freezes.
+    emscripten_sleep(1);
 #endif
 
     int32_t rv;
