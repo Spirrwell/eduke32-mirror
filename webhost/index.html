@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<!--
+  Minimal page that runs the EDuke32 WebAssembly build in a browser.
+
+  Build with `LINK=1 ./build_wasm.sh` (emits eduke32.js / eduke32.wasm here),
+  drop a Duke Nukem 3D group file beside this page as DUKE3D.GRP (the freely
+  redistributable shareware GRP works), and serve over HTTP (file:// will not
+  work). Click the canvas to capture the mouse for mouselook.
+
+  The canvas fills the window. The render resolution is written to eduke32.cfg
+  as the window size before the engine starts, and the engine re-renders at the
+  new size when the window is resized (its normal SDL resize handling), so the
+  view always fills the window.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EDuke32</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  #canvas { display: block; width: 100vw; height: 100vh; image-rendering: pixelated; outline: none; }
+</style>
+</head>
+<body>
+<canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
+<script>
+  var Module = {
+    canvas: document.getElementById('canvas'),
+    arguments: ['-nosetup'],
+    preRun: [function () {
+      // Render at the window size; the engine re-renders on resize via its normal
+      // SDL resize handling. Written to eduke32.cfg before the engine reads it,
+      // so the page picks the resolution rather than the engine imposing one.
+      var w = window.innerWidth & ~1, h = window.innerHeight & ~1;
+      Module.FS.writeFile('/eduke32.cfg',
+        '[Screen Setup]\nScreenMode = 0\nScreenWidth = ' + w + '\nScreenHeight = ' + h + '\nScreenBPP = 8\n');
+
+      // The GRP is served as a static asset next to this page.
+      Module.addRunDependency('grp');
+      fetch('DUKE3D.GRP').then(function (r) { return r.arrayBuffer(); }).then(function (buf) {
+        Module.FS.writeFile('/DUKE3D.GRP', new Uint8Array(buf));
+        Module.removeRunDependency('grp');
+      });
+    }]
+  };
+
+  // Browsers start the Web Audio context suspended until a user gesture; unlock
+  // it on the first gesture (resume + a 1-sample buffer + bounce the output node,
+  // which a ScriptProcessorNode created while suspended can otherwise need).
+  function unlockAudio() {
+    var sdl = Module.SDL2, ctx = sdl && sdl.audioContext;
+    if (!ctx) return;
+    if (ctx.resume) ctx.resume();
+    try {
+      var s = ctx.createBufferSource();
+      s.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+      s.connect(ctx.destination);
+      s.start(0);
+    } catch (e) {}
+    var node = sdl.audio && sdl.audio.scriptProcessorNode;
+    if (node && !unlockAudio.done) {
+      unlockAudio.done = true;
+      try { node.disconnect(); node.connect(ctx.destination); } catch (e) {}
+    }
+  }
+  ['pointerdown', 'keydown', 'touchend'].forEach(function (t) {
+    window.addEventListener(t, unlockAudio);
+  });
+
+  // Mouselook needs relative motion, only delivered under Pointer Lock; grab it
+  // on click.
+  Module.canvas.addEventListener('click', function () {
+    if (document.pointerLockElement !== Module.canvas) Module.canvas.requestPointerLock();
+  });
+</script>
+<script src="eduke32.js"></script>
+</body>
+</html>
