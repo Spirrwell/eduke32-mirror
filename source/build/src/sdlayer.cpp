@@ -96,7 +96,8 @@ static int vsync_unsupported;
 static int32_t vsync_renderlayer;
 int32_t maxrefreshfreq=0;
 int32_t xres=-1, yres=-1, bpp=0, fullscreen=0, bytesperline;
-double refreshfreq = 59.0;
+static constexpr double DEFAULT_REFRESHFREQ = 59.0;
+double refreshfreq = DEFAULT_REFRESHFREQ;
 intptr_t frameplace=0;
 int32_t lockcount=0;
 char modechange=1;
@@ -1755,6 +1756,13 @@ int setvideomode_sdlcommonpost(int32_t x, int32_t y, int32_t c, int32_t fs, int3
                 refreshfreq = newmode.refresh_rate;
         }
     }
+
+    // Emscripten's SDL2 reports the browser display's refresh_rate as 0, which
+    // makes calcFrameDelay() yield a zero frame delay; engineFPSLimit() then
+    // busy-spins without ever yielding and the page hangs. Fall back to the
+    // refreshfreq default when the platform reports no rate.
+    if (refreshfreq <= 0)
+        refreshfreq = DEFAULT_REFRESHFREQ;
 
     static double lastrefreshfreq;
 
