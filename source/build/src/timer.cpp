@@ -29,6 +29,11 @@
 
 EDUKE32_STATIC_ASSERT(CLOCK_FREQ <= 1000000000ULL && CLOCK_FREQ >= 1000000ULL);
 
+#ifdef __EMSCRIPTEN__
+// emscripten's clock_gettime() does not implement CLOCK_MONOTONIC_RAW.
+# undef CLOCK_MONOTONIC_RAW
+#endif
+
 #ifdef CLOCK_MONOTONIC_RAW
 # define CLOCK_TYPE CLOCK_MONOTONIC_RAW
 #else
