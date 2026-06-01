@@ -87,3 +87,10 @@ project.xcworkspace/
 .DS_Store
 ._*
 /source/voidwrap/sdk/
+
+# Emscripten/WebAssembly build artifacts
+/obj-wasm/
+/webhost/eduke32.js
+/webhost/eduke32.wasm
+/webhost/eduke32.data
+/webhost/DUKE3D.GRP
