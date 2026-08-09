@@ -1495,6 +1495,13 @@ static const dataspec_t svgm_udnetw[] =
     { 0, &randomseed, sizeof(randomseed), 1 },
     { 0, &g_globalRandom, sizeof(g_globalRandom), 1 },
 //    { 0, &lockclock_dummy, sizeof(lockclock), 1 },
+    { DS_NOCHK, &ud.cep, sizeof(ud.cep), 1 },
+    { DS_NOCHK, &ud.cep_level, sizeof(ud.cep_level), 1 },
+    { DS_NOCHK, &cep_list[0], BMAX_PATH, 1 },
+    { DS_NOCHK, &current_ep_dir[0], BMAX_PATH, 1 },
+    { DS_NOCHK, &ud.um_music, sizeof(ud.um_music), 1 },
+    { DS_NOCHK, &user_mus, BMAX_PATH, 1 },
+    { DS_NOCHK, &cep_map_name, 32, 1 },
     { DS_END, 0, 0, 0 }
 };
 
@@ -2429,6 +2436,31 @@ static void postloadplayer(int32_t savegamep)
     //2
     screenpeek = myconnectindex;
 
+    if (Menu_HaveUserMap() || G_HaveUserMap())
+    {
+        //Try loading the sound replacements
+        if (ud.cep && cep_list[0] != '\0')
+        {
+            if (load_custom_episode(cep_list))
+                LOG_F(ERROR, "Could not load the custom episode list file for sound replacements");
+        }
+    }
+    else
+    {
+        if (num_usndrpcs > 0)
+        {
+            if (usndrpcs)
+            {
+                if (reloadBackupSounds())
+                    LOG_F(ERROR, "Tried reloading the sounds but nothing was found");
+
+                Bfree(usndrpcs);
+            }
+
+            num_usndrpcs = 0;
+        }
+    }
+
     //2.5
     if (savegamep)
     {
@@ -2461,6 +2493,21 @@ static void postloadplayer(int32_t savegamep)
 
         if (g_player[myconnectindex].ps->jetpack_on)
             A_PlaySound(DUKE_JETPACK_IDLE, g_player[myconnectindex].ps->i);
+
+        if (Menu_HaveUserMap() && G_HaveUserMap() && ud.um_music == 9000)
+        {
+            //S_PlayLevelMusicOrNothing(USERMAPMUSICFAKESLOT);
+            if (user_mus[0] != 0)
+            {
+                 if (S_DefineMusic("E7L1", user_mus) == -1)
+                 {
+                     LOG_F(ERROR, "Invalid music %s", user_mus);
+                     ud.um_music = 0;
+                 }
+                 else
+                     S_PlayLevelMusicOrNothing((6 * MAXLEVELS) + 0);
+            }
+        }
     }
 
     //3

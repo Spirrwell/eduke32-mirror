@@ -89,7 +89,7 @@ int A_CheckAnySoundPlaying(int spriteNum);
 int S_CheckSoundPlaying(int soundNum);
 void S_Cleanup(void);
 void S_ClearSoundLocks(void);
-int32_t S_LoadSound(uint32_t num);
+int32_t S_LoadSound(int num);
 void cacheAllSounds(void);
 int32_t S_DefineSound(int sndidx, const char* name, int minpitch, int maxpitch, int priority, int type, int distance, float volume);
 int32_t S_DefineMusic(const char* ID, const char* name);

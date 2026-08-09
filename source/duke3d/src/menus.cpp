@@ -317,6 +317,9 @@ static const char* MenuCustom = "CVAR";
 #define MAKE_MENURANGE(...) { __VA_ARGS__, }
 #define MAKE_MENUENTRY(...) { __VA_ARGS__, 0, 0, 0, }
 
+static int32_t tracktype = 1;
+static const char ttypes[2][6] = { "*.ogg", "*.mid" };
+static char user_music_title[BMAX_PATH + 32] = { "User Music:" };
 
 #define MAKE_SPACER( EntryName, Height ) \
 static MenuSpacer_t MEO_ ## EntryName = { Height };
@@ -428,6 +431,40 @@ static char const s_Undefined[] = "Undefined";
 static MenuEntry_t ME_SKILL_TEMPLATE = MAKE_MENUENTRY( NULL, &MF_Redfont, &MEF_CenterMenu, &MEO_NULL, Link );
 static MenuEntry_t ME_SKILL[MAXSKILLS];
 static MenuEntry_t *MEL_SKILL[MAXSKILLS];
+
+//User content and User Content Setup (UCS)
+static MenuLink_t MEO_USERMAP = { MENU_USERMAP, MA_Advance, };
+static MenuEntry_t ME_USERMAP = MAKE_MENUENTRY("User Map", &MF_Redfont, &MEF_OptionsMenu, &MEO_USERMAP, Link);
+static MenuLink_t MEO_USEREP = { MENU_USEREPISODE, MA_Advance, };
+static MenuEntry_t ME_USEREP = MAKE_MENUENTRY("User Episode", &MF_Redfont, &MEF_OptionsMenu, &MEO_USEREP, Link);
+
+static MenuEntry_t* MEL_USERCNT[] = {
+    &ME_USERMAP,
+    &ME_USEREP,
+};
+
+static MenuLink_t MEO_EPISODE_USERCNT = { MENU_USERCONTENT, MA_Advance };
+static MenuEntry_t ME_EPISODE_USERCNT = MAKE_MENUENTRY("User Content", &MF_Redfont, &MEF_CenterMenu, &MEO_EPISODE_USERCNT, Link);
+
+static char const* MEOSN_UCS_TRACKTYPE[] = { "ogg", "mid" };
+
+static int32_t MEOSV_UCS_TRACKTYPE[] = { 0, 1 };\
+
+static MenuOptionSet_t MEOS_UCS_TRACKTYPE = MAKE_MENUOPTIONSET(MEOSN_UCS_TRACKTYPE, MEOSV_UCS_TRACKTYPE, 0x00);
+static MenuOption_t MEO_UCS_TRACKTYPE = MAKE_MENUOPTION(&MF_Bluefont, &MEOS_UCS_TRACKTYPE, &tracktype);
+static MenuEntry_t ME_UCS_TRACKTYPE = MAKE_MENUENTRY("Track Type:", &MF_Redfont, &MEF_SmallOptions, &MEO_UCS_TRACKTYPE, Option);
+
+static MenuLink_t MEO_UCS_CUSTOMMUSIC = { MENU_USERMUSIC, MA_Advance, };
+static MenuEntry_t ME_UCS_CUSTOMMUSIC = MAKE_MENUENTRY("Music:", &MF_Redfont, &MEF_SmallOptions, &MEO_UCS_CUSTOMMUSIC, Link);
+
+static MenuLink_t MEO_UCS_PLAY = { MENU_SKILL, MA_Advance, };
+static MenuEntry_t ME_UCS_PLAY = MAKE_MENUENTRY("Play", &MF_Redfont, &MEF_BigOptionsRt, &MEO_UCS_PLAY, Link);
+
+static MenuEntry_t* MEL_UCS[] = {
+    &ME_UCS_TRACKTYPE,
+    &ME_UCS_CUSTOMMUSIC,
+    &ME_UCS_PLAY,
+};
 
 #ifdef EDUKE32_RETAIL_MENU
 static MenuLink_t MEO_GAMESETUP_SAVESETUP = { MENU_SAVESETUP, MA_Advance, };
@@ -1437,7 +1474,8 @@ static MenuEntry_t ME_MACROS_TEMPLATE = MAKE_MENUENTRY( NULL, &MF_Bluefont, &MEF
 static MenuEntry_t ME_MACROS[MAXRIDECULE];
 static MenuEntry_t *MEL_MACROS[MAXRIDECULE];
 
-static char const *MenuUserMap = "User Map";
+//static char const *MenuUserMap = "User Map";
+static char const* MenuUserCnt = "User Content";
 static char const *MenuSkillNone = "None";
 
 static char const *MEOSN_NetGametypes[MAXGAMETYPES];
@@ -1517,6 +1555,9 @@ static MenuMenu_t M_SKILL = MAKE_MENUMENU( "Select Skill", &MMF_Top_Skill, MEL_S
 static MenuMenu_t M_NEWGAMECUSTOM = MAKE_MENUMENU( s_NewGame, &MMF_Top_NewGameCustom, MEL_NEWGAMECUSTOM );
 static MenuMenu_t M_NEWGAMECUSTOMSUB = MAKE_MENUMENU( s_NewGame, &MMF_Top_NewGameCustomSub, MEL_NEWGAMECUSTOMSUB );
 static MenuMenu_t M_NEWGAMECUSTOML3 = MAKE_MENUMENU( s_NewGame, &MMF_Top_NewGameCustomL3, MEL_NEWGAMECUSTOML3 );
+static MenuMenu_t M_USERCNT = MAKE_MENUMENU("User Content", &MMF_Top_Options, MEL_USERCNT );
+static MenuMenu_t M_USERCNTSETUP = MAKE_MENUMENU("Content Setup", &MMF_SmallOptions, MEL_UCS );
+static MenuMenu_t M_USERCNTSETUPINGAME = MAKE_MENUMENU("Next Map setup", &MMF_SmallOptions, MEL_UCS);
 #ifndef EDUKE32_RETAIL_MENU
 static MenuMenu_t M_GAMESETUP = MAKE_MENUMENU( "Game Setup", &MMF_BigOptions, MEL_GAMESETUP );
 #endif
@@ -1607,6 +1648,11 @@ static MenuTextForm_t M_CHEAT_SKILL = { NULL, "Enter Skill #:", 2, 0 };
 static char lastuserdir[BMAX_PATH];
 static MenuFileSelect_t M_USERMAP = MAKE_MENUFILESELECT( "Select A User Map", "/usermaps/", "*.map", boardfilename, lastuserdir);
 
+static char lastuserepdir[BMAX_PATH];
+static MenuFileSelect_t M_USEREP = MAKE_MENUFILESELECT("Select A Custom Episode", "/usercontent/", "*.cep", cep_list, lastuserepdir);
+
+static MenuFileSelect_t M_USERMUS = MAKE_MENUFILESELECT("Select A User Track", "", "*.mid", user_mus, lastuserdir);
+
 #ifndef EDUKE32_RETAIL_MENU
 static char lastsfdir[BMAX_PATH];
 static MenuFileSelect_t M_SOUND_SF2 = MAKE_MENUFILESELECT( "Select Sound Bank", "/", "*.sf2", sf2bankfile, lastsfdir);
@@ -1621,6 +1667,9 @@ static Menu_t Menus[] = {
     { &M_NEWGAMECUSTOM, MENU_NEWGAMECUSTOM, MENU_MAIN, MA_Return, Menu },
     { &M_NEWGAMECUSTOMSUB, MENU_NEWGAMECUSTOMSUB, MENU_NEWGAMECUSTOM, MA_Return, Menu },
     { &M_NEWGAMECUSTOML3, MENU_NEWGAMECUSTOML3, MENU_NEWGAMECUSTOMSUB, MA_Return, Menu },
+    { &M_USERCNT, MENU_USERCONTENT, MENU_EPISODE, MA_Return, Menu },
+    { &M_USEREP, MENU_USEREPISODE, MENU_PREVIOUS, MA_Return, FileSelect},
+    { &M_USERMUS, MENU_USERMUSIC, MENU_USERCONTENTSETUP, MA_Return, FileSelect},
     { &M_SKILL, MENU_SKILL, MENU_PREVIOUS, MA_Return, Menu },
 #ifndef EDUKE32_RETAIL_MENU
     { &M_GAMESETUP, MENU_GAMESETUP, MENU_OPTIONS, MA_Return, Menu },
@@ -1704,6 +1753,8 @@ static Menu_t Menus[] = {
     { &M_NETOPTIONS, MENU_NETOPTIONS, MENU_NETWORK, MA_Return, Menu },
     { &M_USERMAP, MENU_NETUSERMAP, MENU_NETOPTIONS, MA_Return, FileSelect },
     { &M_NETJOIN, MENU_NETJOIN, MENU_NETWORK, MA_Return, Menu },
+    { &M_USERCNTSETUP, MENU_USERCONTENTSETUP, MENU_EPISODE, MA_Return, Menu },
+    { &M_USERCNTSETUPINGAME, MENU_USERCONTENTSETUPINGAME, MENU_QUITTOTITLE, MA_Return, Menu },
 };
 
 static CONSTEXPR const uint16_t numMenus = ARRAY_SIZE(Menus);
@@ -2104,8 +2155,8 @@ void Menu_Init(void)
     M_EPISODE.numEntries = g_volumeCnt+2;
 #if 1 //ifndef EDUKE32_SIMPLE_MENU
     MEL_EPISODE[g_volumeCnt] = &ME_Space4_Redfont;
-    MEL_EPISODE[g_volumeCnt+1] = &ME_EPISODE_USERMAP;
-    MEOSN_NetEpisodes[k] = MenuUserMap;
+    MEL_EPISODE[g_volumeCnt+1] = &ME_EPISODE_USERCNT;
+    MEOSN_NetEpisodes[k] = MenuUserCnt;
     MEOSV_NetEpisodes[k] = MAXVOLUMES;
 #else
     M_EPISODE.numEntries = g_volumeCnt;
@@ -3572,6 +3623,69 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t* entry, const vec2_t origin)
 
         break;
 
+    case MENU_USERCONTENTSETUP:
+    case MENU_USERCONTENTSETUPINGAME:
+        if (user_mus[0] == '\0')
+            Bstrcpy(user_music_title, "none");
+        else
+            Bstrcpy(user_music_title, user_mus);
+
+        vec2_t txtSize;
+        txtSize = G_ScreenTextSize(MF_Bluefont.tilenum, origin.x + M_USERCNTSETUP.format->pos.x + klabs(entry->format->width), origin.y + (entry->getHeight() * 4) + entry->font->get_yoffset(), 48000, 0, user_music_title,
+            2 | 8 | 16, 5, 8, 0, 0, TEXT_CONSTWIDTHNUMS, 0, 0, xdim, ydim);
+
+        G_ScreenText(MF_Bluefont.tilenum, origin.x + M_USERCNTSETUP.format->pos.x + klabs(entry->format->width) - txtSize.x, origin.y + (entry->getHeight() * 4) + entry->font->get_yoffset(), 48000, 0, 0, user_music_title, 0, MF_Bluefont.pal, g_textstat, 0, MF_Bluefont.emptychar.x, MF_Bluefont.emptychar.y, MF_Bluefont.between.x, MF_Bluefont.between.y, MF_Bluefont.textflags, 0, 0, xdim - 1, ydim - 1);
+
+
+
+        if (ud.cep == 1)
+        {
+            int bZoom = MF_Minifont.zoom;
+            MF_Minifont.zoom = 54000;
+            if (cep_author[0] != '\0')
+            {
+                mgametext(origin.x + M_USERCNTSETUP.format->pos.x, (125) << 16, "Author: ");
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), 128 << 16, cep_author, 4);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), 127 << 16, cep_author, 23);
+            }
+
+            if (cep_date[0] != '\0')
+            {
+                mgametext(origin.x + M_USERCNTSETUP.format->pos.x, (125 + 10) << 16, "Date: ");
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), (128 + 10) << 16, cep_date, 4);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), (127 + 10) << 16, cep_date, 23);
+            }
+
+            if (cep_descr[0][0] != '\0')
+            {
+                mgametext(origin.x + M_USERCNTSETUP.format->pos.x, (125 + 20) << 16, "About: ");
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), (128 + 20) << 16, cep_descr[0], 4);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), (127 + 20) << 16, cep_descr[0], 23);
+            }
+
+            if (cep_descr[1][0] != '\0')
+            {
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), (128 + 27) << 16, cep_descr[1], 4);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), (127 + 27) << 16, cep_descr[1], 23);
+            }
+
+            if (cep_descr[2][0] != '\0')
+            {
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), (128 + 34) << 16, cep_descr[2], 4);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), (127 + 34) << 16, cep_descr[2], 23);
+            }
+
+            if (cep_descr[3][0] != '\0')
+            {
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (64 << 16), (128 + 41) << 16, cep_descr[3], 4);
+                mminitext(origin.x + M_USERCNTSETUP.format->pos.x + (63 << 16), (127 + 41) << 16, cep_descr[3], 23);
+            }
+
+            MF_Minifont.zoom = bZoom;
+        }
+
+        break;
+
     default:
         break;
     }
@@ -3966,6 +4080,31 @@ static void Menu_EntryLinkActivate(MenuEntry_t *entry)
             default:
                 Menu_DoCheat(CheatFunctionIDs[cheatFuncID]);
                 break;
+        }
+        break;
+    }
+
+    case MENU_USERCONTENTSETUP:
+    case MENU_USERCONTENTSETUPINGAME:
+    {
+        if (entry == &ME_UCS_CUSTOMMUSIC)
+        {
+            M_USERMUS.pattern = ttypes[tracktype];
+            //Menu_AnimateChange(MENU_USERMUSIC, MA_Advance);
+            //LOG_F(INFO, "test");
+        }
+
+        if (entry == &ME_UCS_PLAY)
+        {
+            if (ud.cep == 2)
+            {
+                auto& p = *g_player[myconnectindex].ps;
+                ud.cep = 1;
+                p.gm = MODE_GAME | MODE_EOL;
+                S_PlaySound(PISTOL_BODYHIT);
+                if (G_EnterLevel(p.gm))
+                    G_BackToMenu();
+            }
         }
         break;
     }
@@ -4872,11 +5011,12 @@ static void Menu_FileSelect(int32_t input)
         {
             ud.m_volume_number = 0;
             ud.m_level_number = 7;
+            ud.cep = 0;
 
-            if (g_maxDefinedSkill > 0)
-                Menu_AnimateChange(MENU_SKILL, MA_Advance);
-            else
-                Menu_StartGameWithoutSkill();
+            //if (g_maxDefinedSkill > 0)
+                Menu_AnimateChange(MENU_USERCONTENTSETUP, MA_Advance);
+            //else
+                //Menu_StartGameWithoutSkill();
         }
         break;
 #ifndef EDUKE32_RETAIL_MENU
@@ -4884,6 +5024,34 @@ static void Menu_FileSelect(int32_t input)
         Menu_AnimateChange(MENU_SOUND_DEVSETUP, MA_Advance);
         break;
 #endif
+    case MENU_USEREPISODE:
+        if (input)
+        {
+            ud.m_volume_number = 0;
+            ud.m_level_number = 7;
+            ud.cep_level = 0;
+            ud.cep = 1;
+
+            MenuFileSelect_t* Object = (MenuFileSelect_t*)m_currentMenu->object;
+            Bstrcpy(current_ep_dir, Object->lastdir);
+            load_custom_episode(cep_list);
+
+            const int len = Bstrlen(user_mus);
+            if (user_mus[len - 1] == 'g' && user_mus[len - 2] == 'g' && user_mus[len - 3] == 'o')
+                tracktype = 0;
+            else tracktype = 1;
+
+            Menu_AnimateChange(MENU_USERCONTENTSETUP, MA_Advance);
+        }
+        break;
+
+    case MENU_USERMUSIC:
+        if (input) {
+            if(ud.cep == 2)
+                Menu_AnimateChange(MENU_USERCONTENTSETUPINGAME, MA_Advance);
+            else Menu_AnimateChange(MENU_USERCONTENTSETUP, MA_Advance);
+        }
+        break;
     default:
         break;
     }
@@ -5138,6 +5306,14 @@ static void Menu_AboutToStartDisplaying(Menu_t * m)
         Menu_PopulateNewGameCustomL3(M_NEWGAMECUSTOM.currentEntry, M_NEWGAMECUSTOMSUB.currentEntry);
         break;
 
+    case MENU_USERCONTENTSETUP:
+        if (ud.cep > 0)
+            M_USERCNTSETUP.title = cep_name;
+        else
+            M_USERCNTSETUP.title = { "Usermap Options" };
+
+        break;
+
     case MENU_LOAD:
         if (FURY)
             M_LOAD.title = (g_player[myconnectindex].ps->gm & MODE_GAME) ? s_LoadGame : s_Continue;
@@ -5299,11 +5475,29 @@ static void Menu_ChangingTo(Menu_t * m)
 {
     switch (m->menuID)
     {
-    case MENU_USERMAP:
-        // terrible hack
-        if (g_previousMenu != MENU_SKILL && g_previousMenu != MENU_USERMAP)
-            m->parentID = g_previousMenu;
+        case MENU_USERMAP:
+            // terrible hack
+            if (g_previousMenu != MENU_SKILL && g_previousMenu != MENU_USERMAP && g_previousMenu != MENU_USERCONTENTSETUP)
+                m->parentID = g_previousMenu;
+            break;
+
+        case MENU_USEREPISODE:
+            // terrible hack
+            if (g_previousMenu != MENU_SKILL && g_previousMenu != MENU_USEREPISODE && g_previousMenu != MENU_USERCONTENTSETUP)
+                m->parentID = g_previousMenu;
         break;
+
+        case MENU_USERMUSIC:
+            // terrible hack
+            if (g_previousMenu != MENU_USERMUSIC && g_previousMenu != MENU_USERCONTENTSETUP)
+                m->parentID = g_previousMenu;
+            break;
+
+        case MENU_USERCONTENTSETUP:
+            // terrible hack
+            if (g_previousMenu != MENU_SKILL && g_previousMenu != MENU_USERCONTENTSETUP && g_previousMenu != MENU_USERMUSIC)
+                m->parentID = g_previousMenu;
+            break;
     }
 
 #ifdef __ANDROID__
@@ -7683,7 +7877,11 @@ static void Menu_RunInput(Menu_t *cm)
 
                 Menu_Verify(0);
 
-                Menu_AnimateChange(cm->parentID, cm->parentAnimation);
+                /*if (g_currentMenu == MENU_QUITTOTITLE && ud.cep == 2)
+                    Menu_AnimateChange(MENU_USERCONTENTSETUP, MA_Advance);
+                else if (g_currentMenu == MENU_USERCONTENTSETUP && ud.cep == 2)
+                    Menu_AnimateChange(MENU_QUITTOTITLE, MA_Advance);
+                else*/ Menu_AnimateChange(cm->parentID, cm->parentAnimation);
 
                 S_PlaySound(EXITMENUSOUND);
             }
@@ -8193,6 +8391,7 @@ void M_DisplayMenus(void)
             else if (m_parentMenu->menuID == MENU_NEWGAMECUSTOML3)
                 ud.returnvar[3] = M_NEWGAMECUSTOMSUB.currentEntry;
         }
+
         VM_OnEventWithReturn(EVENT_DISPLAYINACTIVEMENU, g_player[screenpeek].ps->i, screenpeek, m_parentMenu->menuID);
         origin.x = ud.returnvar[0];
         origin.y = ud.returnvar[1];
@@ -8231,6 +8430,10 @@ void M_DisplayMenus(void)
         else if (g_currentMenu == MENU_NEWGAMECUSTOML3)
             ud.returnvar[3] = M_NEWGAMECUSTOMSUB.currentEntry;
     }
+
+    if ((m_currentMenu->menuID == MENU_USERCONTENTSETUPINGAME || m_currentMenu->menuID == MENU_QUITTOTITLE) && ud.cep == 2)
+        rotatesprite_fs(origin.x + (MENU_MARGIN_CENTER << 16), origin.y + (100 << 16), 65536L, 0, MENUSCREEN, 16, 3, 10 + 64);
+
     VM_OnEventWithReturn(EVENT_DISPLAYMENU, g_player[screenpeek].ps->i, screenpeek, g_currentMenu);
     origin.x = ud.returnvar[0];
     origin.y = ud.returnvar[1];
