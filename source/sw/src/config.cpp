@@ -713,8 +713,10 @@ int32_t CONFIG_ReadSetup(void)
     SCRIPT_GetNumber(scripthandle, "Sound Setup", "MusicToggle",&MusicToggle);
     SCRIPT_GetNumber(scripthandle, "Sound Setup", "FXDevice",&FXDevice);
     SCRIPT_GetNumber(scripthandle, "Sound Setup", "MusicDevice",&MusicDevice);
+    dummy = gs.SoundVolume;
     SCRIPT_GetNumber(scripthandle, "Sound Setup", "FXVolume",&dummy);
     gs.SoundVolume = dummy;
+    dummy = gs.MusicVolume;
     SCRIPT_GetNumber(scripthandle, "Sound Setup", "MusicVolume",&dummy);
     gs.MusicVolume = dummy;
 
@@ -722,6 +724,7 @@ int32_t CONFIG_ReadSetup(void)
     SCRIPT_GetNumber(scripthandle, "Sound Setup", "NumChannels",&NumChannels);
     SCRIPT_GetNumber(scripthandle, "Sound Setup", "NumBits",&NumBits);
     SCRIPT_GetNumber(scripthandle, "Sound Setup", "MixRate",&MixRate);
+    dummy = gs.FlipStereo;
     SCRIPT_GetNumber(scripthandle, "Sound Setup", "ReverseStereo",&dummy);
     gs.FlipStereo = dummy;
     if (gs.FlipStereo) gs.FlipStereo = 1;
