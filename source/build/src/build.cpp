@@ -11223,6 +11223,135 @@ int32_t AutoAlignWalls(int32_t w0, uint32_t flags, int32_t nrecurs)
 
 #define PLAYTEST_MAPNAME "autosave_playtest.map"
 
+void handle_playtest_mapart() {
+
+    char filename[BMAX_PATH];
+    char basename[BMAX_PATH];
+    char mapdir[BMAX_PATH];
+    char mapname[BMAX_PATH];
+    char playtestname[BMAX_PATH];
+    char searchpattern[BMAX_PATH];
+
+    // ------------------------------------------------------------
+    // delete all {PLAYTEST_MAPNAME}_XX.art files in mapster root folder, if any
+    // ------------------------------------------------------------
+
+    Bstrcpy(basename, PLAYTEST_MAPNAME);
+    char *ext = Bstrrchr(basename, '.');
+    if (ext) *ext = '\0';
+    for (int i = 0; i < 100; i++) {
+        Bsprintf(filename, "%s_%02d.art", basename, i);
+        remove(filename);
+    }
+
+    // ------------------------------------------------------------
+    // extract directory and filename from boardfilename
+    // ------------------------------------------------------------
+
+    Bstrcpy(mapdir, boardfilename);
+
+    char *lastslash = Bstrrchr(mapdir, '\\');
+    if (!lastslash) lastslash = Bstrrchr(mapdir, '/');
+
+    if (lastslash) {
+        Bstrcpy(mapname, lastslash + 1);
+        *lastslash = '\0';
+    } else {
+        Bstrcpy(mapname, boardfilename);
+        Bstrcpy(mapdir, ".");
+    }
+
+    // ------------------------------------------------------------
+    // remove .map extension
+    // ------------------------------------------------------------
+
+    ext = Bstrrchr(mapname, '.');
+    if (ext) *ext = '\0';
+
+    // ------------------------------------------------------------
+    // remove .map extension from PLAYTEST_MAPNAME
+    // ------------------------------------------------------------
+
+    Bstrcpy(playtestname, PLAYTEST_MAPNAME);
+    ext = Bstrrchr(playtestname, '.');
+    if (ext) *ext = '\0';
+
+    // ------------------------------------------------------------
+    // search for: <mapdir>\<mapname>_*.art
+    // ------------------------------------------------------------
+
+    Bsprintf(searchpattern, "%s\\%s_*.art", mapdir, mapname);
+    struct _finddata_t fileinfo;
+    intptr_t handle = _findfirst(searchpattern, &fileinfo);
+
+    if (handle == -1) return;
+
+    do {
+
+        // skip if it is a directory
+        if (fileinfo.attrib & _A_SUBDIR) continue;
+
+        // --------------------------------------------------------
+        // get the _XX part from the filename
+        //
+        // test1_00.art -> 00
+        // test1_14.art -> 14
+        // --------------------------------------------------------
+
+        char artname[BMAX_PATH];
+        Bstrcpy(artname, fileinfo.name);
+        char *underscore = Bstrrchr(artname, '_');
+        char *artext = Bstrrchr(artname, '.');
+        if (!underscore || !artext || artext <= underscore + 1) continue;
+        char index[BMAX_PATH];
+        size_t indexlen = (size_t)(artext - (underscore + 1));
+        if (indexlen >= sizeof(index)) continue;
+        Bmemcpy(index, underscore + 1, indexlen);
+        index[indexlen] = '\0';
+
+        // --------------------------------------------------------
+        // source:
+        // <mapdir>\<filename>
+        //
+        // destination:
+        // <mapster>\<PLAYTEST_MAPNAME>_XX.art
+        // --------------------------------------------------------
+
+        char source[BMAX_PATH];
+        char destination[BMAX_PATH];
+        Bsprintf(source, "%s\\%s", mapdir, fileinfo.name);
+        Bsprintf(destination, "%s_%s.art", playtestname, index);
+
+        // --------------------------------------------------------
+        // copy file
+        // --------------------------------------------------------
+
+        FILE *src = fopen(source, "rb");
+        if (!src) continue;
+
+        FILE *dst = fopen(destination, "wb");
+
+        if (!dst) {
+            fclose(src);
+            continue;
+        }
+
+        char buffer[65536];
+        size_t bytes;
+
+        while ((bytes = fread(buffer, 1, sizeof(buffer), src)) > 0) {
+            fwrite(buffer, 1, bytes, dst);
+        }
+
+        fclose(dst);
+        fclose(src);
+
+    } while (_findnext(handle, &fileinfo) == 0);
+
+    _findclose(handle);    
+
+}
+
 void test_map(int32_t mode)
 {
     if (!mode)
@@ -11295,6 +11424,9 @@ void test_map(int32_t mode)
             saveboard(PLAYTEST_MAPNAME, &startpos, startang, startsectnum);
         else
             saveboard(PLAYTEST_MAPNAME, &pos, ang, cursectnum);
+
+        // phcs93 -> here we call the mapart handling function
+        handle_playtest_mapart();
 
         message("Board saved to " PLAYTEST_MAPNAME ". Starting the game...");
         OSD_Printf("...as `%s'\n", fullparam);
