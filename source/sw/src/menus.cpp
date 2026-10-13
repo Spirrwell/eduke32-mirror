@@ -4458,11 +4458,28 @@ SetupMenu(void)
 ////////////////////////////////////////////////
 #define MNU_SENSITIVITY 10              // The menu's mouse sensitivity, should be real low
 
-void MNU_DoMenu(CTLType UNUSED(type))
+void MNU_DoMenu(CTLType type)
 {
     SWBOOL resetitem;
     int zero = 0;
     static int handle2;
+
+   //PODA:  UNPAUSE DEMO WHEN MAIN MENU IS BROUGHT UP.
+
+    if (type == ct_mainmenu)
+    {
+
+        if (isPaused)
+        {
+
+            isPaused = false;
+            timerUninit();
+            timerInit(120);
+
+        }
+
+    }
+
 
     resetitem = TRUE;
 
