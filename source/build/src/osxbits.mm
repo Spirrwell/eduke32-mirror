@@ -30,11 +30,16 @@ void osx_preopen(void)
     // fix for "ld: absolute address to symbol _NSApp in a different linkage unit not supported"
     // (OS X 10.6) when building for PPC
     nsapp = [NSApplication sharedApplication];
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+    // SDL only does this if it creates NSApp itself; unbundled binaries otherwise can't become active and get no keyboard input.
+    [nsapp setActivationPolicy:NSApplicationActivationPolicyRegular];
+#endif
 }
 
 void osx_postopen(void)
 {
     [nsapp finishLaunching];
+    [nsapp activateIgnoringOtherApps:YES];
 }
 
 int osx_msgbox(const char *name, const char *msg)
