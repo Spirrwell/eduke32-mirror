@@ -1791,6 +1791,26 @@ int setvideomode_sdlcommonpost(int32_t x, int32_t y, int32_t c, int32_t fs, int3
     }
 
     SDL_FlushEvent(SDL_WINDOWEVENT);
+
+#ifdef EDUKE32_OSX
+    if (fs)
+    {
+        // The display mode actually set may differ from the requested one (e.g. sdl2-compat picks native pixel modes on HiDPI displays).
+        int w, h;
+#ifdef USE_OPENGL
+        if (!nogl)
+            SDL_GL_GetDrawableSize(sdl_window, &w, &h);
+        else
+#endif
+            SDL_GetWindowSize(sdl_window, &w, &h);
+
+        if (w != x || h != y)
+        {
+            VLOG_F(LOG_GFX, "Fullscreen mode is %dx%d instead of %dx%d, resizing.", w, h, x, y);
+            sdl_resize = { w & ~1, h & ~1 };
+        }
+    }
+#endif
 #endif
 
     videoFadePalette(palfadergb.r, palfadergb.g, palfadergb.b, palfadedelta);
