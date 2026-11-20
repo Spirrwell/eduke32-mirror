@@ -1218,6 +1218,7 @@ int32_t    enginePreInit(void);	// a partial setup of the engine used for launch
 int32_t    engineInit(void);
 int32_t enginePostInit(void);
 void   engineUnInit(void);
+void   engineUnloadGameData(void);
 void   initspritelists(void);
 int32_t engineFatalError(char const * msg);
 
@@ -1241,6 +1242,7 @@ void    artReadManifest(buildvfs_kfd fil, artheader_t * const local);
 void    artPreloadFile(buildvfs_kfd fil, artheader_t * const local);
 int32_t artLoadFiles(const char *filename, int32_t askedsize);
 void    artClearMapArt(void);
+void    artUnloadFiles(void);
 void    artSetupMapArt(const char *filename);
 bool    tileLoad(int16_t tilenume);
 void    tileLoadData(int16_t tilenume, int32_t dasiz, char *buffer);

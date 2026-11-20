@@ -71,6 +71,19 @@ void cache1d::reset(void)
     m_numBlocks = 1;
 }
 
+// Frees every block and zeroes its owner's pointer. The owners must still exist.
+void cache1d::purge(void)
+{
+    if (m_index == nullptr)
+        return;
+
+    for (int i = 0; i < m_numBlocks; i++)
+        if (*m_index[i].lock)
+            *m_index[i].hand = 0;
+
+    reset();
+}
+
 void cache1d::initBuffer(intptr_t dacachestart, uint32_t dacachesize, uint32_t)
 {
     if (!g_cacheInit)
@@ -88,6 +101,9 @@ void cache1d::initBuffer(intptr_t dacachestart, uint32_t dacachesize, uint32_t)
 
     m_baseAddress = ((uintptr_t)dacachestart + 15) & ~(uintptr_t)0xf;
     m_totalSize   = (dacachesize - (((uintptr_t)(dacachestart)) & 0xf)) & ~(uintptr_t)0xf;
+
+    if (m_index)
+        Xaligned_free(m_index);
 
     m_maxBlocks = MAXCACHEOBJECTS;
     m_index     = (cacheindex_t *)Xaligned_alloc(16, m_maxBlocks * sizeof(cacheindex_t));
@@ -365,4 +381,5 @@ void cache1d::allocateBlock(intptr_t *newhandle, int32_t newbytes, char *newlock
 void cache1d::ageBlocks(void) {}
 void cache1d::report(void) {}
 void cache1d::reset(void) {}
+void cache1d::purge(void) {}
 #endif

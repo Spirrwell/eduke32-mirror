@@ -9287,6 +9287,43 @@ int32_t enginePostInit(void)
     return 0;
 }
 
+static void engineFreePalettes(void)
+{
+    paletteloaded = 0;
+
+    for (bssize_t i=0; i<MAXPALOOKUPS; i++)
+        if (i==0 || palookup[i] != palookup[0])
+        {
+            // Take care of handling aliased ^^^ cases!
+            Xaligned_free(palookup[i]);
+        }
+    Bmemset(palookup, 0, sizeof(palookup));
+
+    for (bssize_t i=0; i<MAXBLENDTABS; i++)
+        Xfree(blendtable[i]);
+    Bmemset(blendtable, 0, sizeof(blendtable));
+
+    for (bssize_t i=1; i<MAXBASEPALS; i++)
+        Xfree(basepaltable[i]);
+    Bmemset(basepaltable, 0, sizeof(basepaltable));
+    basepaltable[0] = palette;
+}
+
+static void engineFreeMapHacksAndSkies(void)
+{
+    for (bssize_t i = 0; i < num_usermaphacks; i++)
+    {
+        Xfree(usermaphacks[i].mhkfile);
+        Xfree(usermaphacks[i].title);
+    }
+    DO_FREE_AND_NULL(usermaphacks);
+    num_usermaphacks = 0;
+
+    DO_FREE_AND_NULL(multipsky);
+    DO_FREE_AND_NULL(multipskytile);
+    pskynummultis = 0;
+}
+
 //
 // uninitengine
 //
@@ -9312,43 +9349,48 @@ void engineUnInit(void)
         ALIGNED_FREE_AND_NULL(distrecipcache[i].distrecip);
     Bmemset(distrecipcache, 0, sizeof(distrecipcache));
 
-    paletteloaded = 0;
-
-    for (bssize_t i=0; i<MAXPALOOKUPS; i++)
-        if (i==0 || palookup[i] != palookup[0])
-        {
-            // Take care of handling aliased ^^^ cases!
-            Xaligned_free(palookup[i]);
-        }
-    Bmemset(palookup, 0, sizeof(palookup));
-
-    for (bssize_t i=0; i<MAXBLENDTABS; i++)
-        Xfree(blendtable[i]);
-    Bmemset(blendtable, 0, sizeof(blendtable));
-
-    for (bssize_t i=1; i<MAXBASEPALS; i++)
-        Xfree(basepaltable[i]);
-    Bmemset(basepaltable, 0, sizeof(basepaltable));
-    basepaltable[0] = palette;
+    engineFreePalettes();
 
     DO_FREE_AND_NULL(kpzbuf);
     kpzbufsiz = 0;
 
-    for (bssize_t i = 0; i < num_usermaphacks; i++)
-    {
-        Xfree(usermaphacks[i].mhkfile);
-        Xfree(usermaphacks[i].title);
-    }
-    DO_FREE_AND_NULL(usermaphacks);
-    num_usermaphacks = 0;
-
-    DO_FREE_AND_NULL(multipsky);
-    DO_FREE_AND_NULL(multipskytile);
-    pskynummultis = 0;
+    engineFreeMapHacksAndSkies();
 
     DO_FREE_AND_NULL(g_defNamePtr);
 
     uninitsystem();
+}
+
+// Unload everything loaded from game data (art, palettes, DEF replacements).
+void engineUnloadGameData(void)
+{
+#ifdef USE_OPENGL
+    if (qsetmode)
+    {
+        polymost_glreset();
+        freeallmodels();
+    }
+    hicinit();
+    Bmemset(alphahackarray, 0, sizeof(alphahackarray));
+    Bmemset(palookupfog, 0, sizeof(palookupfog));
+#endif
+
+    for (bssize_t i=0; i<MAXVOXELS; i++)
+        vox_clearid(i);
+    for (bssize_t i=0; i<MAXTILES; i++)
+        tiletovox[i] = -1;
+    nextvoxid = 0;
+    g_haveVoxels = 0;
+
+    artUnloadFiles();
+
+    engineFreePalettes();
+    Bmemset(g_noFloorPal, 0, sizeof(g_noFloorPal));
+    realmaxshade = 0;
+    numalphatabs = 0;
+
+    engineFreeMapHacksAndSkies();
+    globalflags = 0;
 }
 
 

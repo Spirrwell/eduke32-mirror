@@ -898,3 +898,26 @@ void Buninitart(void)
 
     DO_FREE_AND_NULL(g_vm_data);
 }
+
+// Everything artLoadFiles and the cache hold, so other art can be loaded.
+// Anything else using the cache (sounds, for example) must be stopped first.
+void artUnloadFiles(void)
+{
+    artClearMapArt();
+    g_cache.purge();
+
+    for (bssize_t i=0; i<MAXTILES; i++)
+    {
+        DO_FREE_AND_NULL(faketiledata[i]);
+        faketilesize[i] = 0;
+        waloff[i] = 0;
+        walock[i] = CACHE1D_UNLOCKED;
+    }
+    Bmemset(faketile, 0, sizeof(faketile));
+
+    Buninitart();
+
+    artfil = buildvfs_kfd_invalid;
+    artfilnum = -1;
+    artfilplc = 0L;
+}
