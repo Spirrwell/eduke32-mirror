@@ -39,6 +39,7 @@ public:
     void    ageBlocks(void);
     void    report(void);
     void    reset(void);
+    void    purge(void);
 
     int numBlocks(void) { return m_numBlocks; }
     cacheindex_t const * getIndex(void) { return m_index; }
