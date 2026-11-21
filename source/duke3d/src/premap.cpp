@@ -518,9 +518,19 @@ void G_CacheMapData(void)
                 }
             }
 
-            gameHandleEvents();
-            if (KB_KeyPressed(sc_Space))
-                break;
+#ifdef __EMSCRIPTEN__
+            // Under Asyncify, each gameHandleEvents() unwinds and rewinds the whole
+            // call stack and yields >=1ms to the browser. Polling once per cached
+            // tile then dominates load time (seconds of pure yield overhead for a
+            // few ms of real decoding). Poll periodically instead; Space-to-skip
+            // stays responsive. Native polls every tile as before.
+            if ((cnt & 63) == 0)
+#endif
+            {
+                gameHandleEvents();
+                if (KB_KeyPressed(sc_Space))
+                    break;
+            }
         }
         i++;
 

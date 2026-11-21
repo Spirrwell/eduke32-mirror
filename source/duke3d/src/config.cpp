@@ -248,7 +248,17 @@ void CONFIG_SetDefaults(void)
 
     ud.setup.forcesetup       = 1;
     ud.setup.noautoload       = 1;
+#ifdef __EMSCRIPTEN__
+    // Default to WINDOWED in the browser. A fullscreen default makes SDL request
+    // the HTML5 Fullscreen API, which can only engage after a user gesture; until
+    // then the canvas is never presented and the page stays black. Windowed mode
+    // renders immediately at the canvas size the host page chose (xdim/ydim above,
+    // taken from the canvas via SDL_GetDesktopDisplayMode), so the page controls
+    // the resolution rather than the engine imposing one.
+    ud.setup.fullscreen       = 0;
+#else
     ud.setup.fullscreen       = 1;
+#endif
     ud.setup.usemouse         = 1;
 
     ud.althud                 = 1;
