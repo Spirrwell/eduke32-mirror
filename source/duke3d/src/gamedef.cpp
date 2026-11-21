@@ -249,6 +249,7 @@ static tokenmap_t const vm_keywords[] =
     { "eventloadactor",         CON_EVENTLOADACTOR },
     { "exit",                   CON_EXIT },
     { "ezshootvar",             CON_EZSHOOT },
+    { "fademusicvolume",        CON_FADEMUSICVOLUME },
     { "fall",                   CON_FALL },
     { "findnearactor3dvar",     CON_FINDNEARACTOR3D },
     { "findnearactorvar",       CON_FINDNEARACTOR },
@@ -3907,6 +3908,7 @@ DO_DEFSTATE:
         case CON_CHANGESPRITESECT:
         case CON_CHANGESPRITESTAT:
         case CON_EZSHOOT:
+        case CON_FADEMUSICVOLUME:
         case CON_GETPNAME:
         case CON_PRELOADTRACKSLOTFORSWAP:
         case CON_QGETSYSSTR:

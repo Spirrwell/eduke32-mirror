@@ -44,6 +44,9 @@ extern "C" {
 #define MUSIC_ID            -65536
 #define MAXVOICES           128
 
+#define MAXVOLUMEPERCENTAGE          100
+#define MAXVOLUMEFADETIME            300
+
 typedef struct
 {
     int16_t  owner;
@@ -96,7 +99,10 @@ int32_t S_DefineMusic(const char* ID, const char* name);
 void S_MenuSound(void);
 void S_MusicShutdown(void);
 void S_MusicStartup(void);
-void S_MusicVolume(int32_t volume);
+void S_DuckMusicVolume(int32_t configVolume, int32_t modifier);
+void S_FadeMusicVolume_Start(int32_t modifier, int32_t increment);
+void S_FadeMusicVolume_Step(int32_t configVolume);
+void S_UpdateMusicVolume(int32_t volume);
 void S_RestartMusic(void);
 void S_PauseMusic(bool paused);
 void S_PauseSounds(bool paused);

@@ -1454,7 +1454,7 @@ static int osdcmd_cvar_set_game(osdcmdptr_t parm)
         }
     }
     else if (!Bstrcasecmp(parm->name, "mus_volume"))
-        S_MusicVolume(Batol(parm->parms[0]));
+        S_UpdateMusicVolume(Batol(parm->parms[0]));
     else if (!Bstrncasecmp(parm->name, prefix_mus, ARRAY_SIZE(prefix_mus)-1))
     {
         if (!MUSIC_WarmedUp())
