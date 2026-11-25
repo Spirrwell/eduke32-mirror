@@ -145,7 +145,8 @@ void Allocator::CreateThreadCache(CacheWarmupOptions warmupOptions, std::initial
         uint32_t* localStack = (uint32_t*)GenericAllocator::Alloc(gAllocator, elementsNum * sizeof(uint32_t), 64);
 
         // initialize
-        GetTlsBucket(i)->Init(localStack, elementsNum, warmupOptions, this, i);
+        auto bucket = &tlsCacheBuckets[i];
+        bucket->Init(localStack, elementsNum, warmupOptions, this, i);
 
         i++;
     }
@@ -159,7 +160,8 @@ void Allocator::DestroyThreadCache()
 #endif
     for (size_t i = 0; i < SMM_MAX_BUCKET_COUNT; i++)
     {
-        uint32_t* p = GetTlsBucket(i)->Destroy();
+        auto bucket = &tlsCacheBuckets[i];
+        uint32_t* p = bucket->Destroy();
         GenericAllocator::Free(gAllocator, p);
     }
 }
@@ -270,3 +272,5 @@ void Allocator::Init(uint32_t _bucketsCount, size_t _bucketSizeInBytes)
 }
 
 } // namespace sm
+
+thread_local sm::internal::TlsPoolBucket tlsCacheBuckets[SMM_MAX_BUCKET_COUNT];

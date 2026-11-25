@@ -327,7 +327,6 @@
     <ClCompile Include="..\..\source\build\src\smalltextfont.cpp" />
     <ClCompile Include="..\..\source\build\src\smmalloc.cpp" />
     <ClCompile Include="..\..\source\build\src\smmalloc_generic.cpp" />
-    <ClCompile Include="..\..\source\build\src\smmalloc_tls.cpp" />
     <ClCompile Include="..\..\source\build\src\softsurface.cpp" />
     <ClCompile Include="..\..\source\build\src\texcache.cpp" />
     <ClCompile Include="..\..\source\build\src\textfont.cpp" />
