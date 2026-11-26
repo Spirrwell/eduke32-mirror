@@ -27,6 +27,14 @@ thread_local sm::internal::TlsPoolBucket tlsCacheBuckets[SMM_MAX_BUCKET_COUNT];
 namespace sm
 {
 
-sm::internal::TlsPoolBucket* GetTlsBucket(size_t index) { return &tlsCacheBuckets[index]; }
+sm::internal::TlsPoolBucket* GetTlsBucket(size_t index)
+{
+    sm::internal::TlsPoolBucket* p = &tlsCacheBuckets[index];
+#ifdef __GNUC__
+    // GCC LTO otherwise rebuilds inlined TLS addresses from the variable's static address (.refptr), missing the thread's copy.
+    __asm__("" : "+r"(p));
+#endif
+    return p;
+}
 
 } // namespace sm
