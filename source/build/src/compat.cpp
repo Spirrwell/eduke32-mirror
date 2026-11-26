@@ -129,9 +129,15 @@ char *Bgethomedir(void)
     char const *e;
     if ((e = getenv("HOME")) == NULL || e[0] == '\0')
     {
+#ifndef __EMSCRIPTEN__
         auto const pw = getpwuid(getuid());
         if (pw == NULL || (e = pw->pw_dir) == NULL || e[0] == '\0')
             return NULL;
+#else
+        // emscripten has no passwd database (getpwuid is undeclared); $HOME is
+        // the only home directory available.
+        return NULL;
+#endif
     }
     return Xstrdup(e);
 #endif
