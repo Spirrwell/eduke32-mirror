@@ -128,6 +128,8 @@ namespace internal
 struct TlsPoolBucket;
 }
 
+internal::TlsPoolBucket* GetTlsBucket(size_t index);
+
 INLINE bool IsAligned(size_t v, size_t alignment)
 {
     size_t lowBits = v & (alignment - 1);
@@ -385,8 +387,7 @@ class Allocator
         if (bucketIndex < bucketsCount)
         {
             // try to handle allocation using local thread cache
-            auto bucket = &tlsCacheBuckets[bucketIndex];
-            void* pRes = AllocFromCache(bucket);
+            void* pRes = AllocFromCache(GetTlsBucket(bucketIndex));
             if (pRes)
             {
 #ifdef SMMALLOC_STATS_SUPPORT
@@ -464,8 +465,7 @@ class Allocator
             buckets[bucketIndex].stats.freeCount.fetch_add(1, std::memory_order_relaxed);
 #endif
 
-            auto bucket = &tlsCacheBuckets[bucketIndex];
-            if (ReleaseToCache<true>(bucket, p))
+            if (ReleaseToCache<true>(GetTlsBucket(bucketIndex), p))
             {
                 return;
             }
@@ -768,9 +768,6 @@ template <bool useCacheL0> INLINE bool Allocator::ReleaseToCache(internal::TlsPo
 }
 
 } // namespace sm
-
-extern thread_local sm::internal::TlsPoolBucket tlsCacheBuckets[SMM_MAX_BUCKET_COUNT];
-
 
 #define SMMALLOC_CSTYLE_FUNCS
 
