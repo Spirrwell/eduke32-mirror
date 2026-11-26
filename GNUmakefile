@@ -547,6 +547,7 @@ duke3d_excl := \
     m32structures.cpp \
     mdump.cpp \
     startgtk.game.cpp \
+    startimgui.game.cpp \
     startwin.game.cpp \
     $(duke3d_common_editor_objs) \
     $(duke3d_editor_objs) \
@@ -597,10 +598,14 @@ ifeq ($(PLATFORM),WINDOWS)
     endif
 endif
 
-ifeq (11,$(HAVE_GTK2)$(STARTUP_WINDOW))
-    duke3d_game_objs += startgtk.game.cpp
-    duke3d_game_gen_objs += game_banner.c
-    duke3d_editor_gen_objs += build_banner.c
+ifeq (1,$(STARTUP_WINDOW))
+    ifeq (1,$(HAVE_GTK2))
+        duke3d_game_objs += startgtk.game.cpp
+        duke3d_game_gen_objs += game_banner.c
+        duke3d_editor_gen_objs += build_banner.c
+    else
+        duke3d_game_objs += startimgui.game.cpp
+    endif
 endif
 ifeq ($(RENDERTYPE),SDL)
     duke3d_game_rsrc_objs += game_icon.c
