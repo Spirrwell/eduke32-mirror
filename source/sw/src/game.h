@@ -114,6 +114,9 @@ int krand1(void);
 
 extern SWBOOL PedanticMode;
 
+// Demo pause 
+extern bool isPaused;
+
 //
 // Map directions/degrees
 //

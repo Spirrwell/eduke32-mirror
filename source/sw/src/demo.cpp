@@ -64,7 +64,7 @@ SW_PACKET DemoBuffer[DEMO_BUFFER_MAX];
 int DemoRecCnt = 0;                    // Can only record 1-player game
 
 SWBOOL DemoDone;
-
+bool isPaused = false;
 void DemoWriteHeader(void);
 void DemoReadHeader(void);
 void DemoReadBuffer(void);
@@ -446,7 +446,57 @@ DemoPlayBack(void)
 
     while (TRUE)
     {
-        timerUpdateClock();
+        //PODA:  UNCOMMENTED DEBUG CODE TO ALLOW FAST FORWARD AND SLO-MO.  FIXED IT UP A BIT
+		//AND ADDED A PAUSE FUNCTION.
+		//Mawxiwtz: Only kept the pause from Poda's implementation, fast forward/slo-mo implementation is kept original.
+		//Also rebound it to Q so it would be closer to default demo controls.
+		
+		if (isPaused)
+            {
+
+                if (timerGetClockRate() != 0)
+                {
+                
+                    timerUninit();
+                    timerInit(0);
+
+                }
+
+                handleevents();
+                OSD_DispatchQueued();
+                CONTROL_GetInput(&info);
+                MNU_CheckForMenus();           
+        
+            }
+    
+            if (KEY_PRESSED(KEYSC_Q))
+            {
+
+                KEY_PRESSED(KEYSC_Q) = 0;
+                isPaused = !isPaused;
+
+
+                if (isPaused)
+                {
+
+                    timerUninit();
+                    timerInit(0);
+
+                }
+
+                else
+                {
+
+                    timerUninit();
+                    timerInit(120);
+
+                }
+
+            }
+
+        
+		
+		timerUpdateClock();
 
         // makes code run at the same rate
         while (totalclock > totalsynctics)
@@ -486,7 +536,7 @@ DemoPlayBack(void)
             MNU_CheckForMenus();
 
             // fast forward and slow mo
-            if (DemoEdit)
+            if (TRUE)
             {
                 if (KEY_PRESSED(KEYSC_F))
                 {

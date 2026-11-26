@@ -615,7 +615,18 @@ setup2dscreen(void)
 void
 TerminateGame(void)
 {
-    DemoTerm();
+   //PODA:  UNPAUSE GAME WHEN TERMINATING.
+
+    if (isPaused)
+    {
+
+        isPaused = false;
+        timerUninit();
+        timerInit(120);
+
+    } 
+	
+	DemoTerm();
 
     ErrorCorrectionQuit();
 
