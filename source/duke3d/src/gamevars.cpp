@@ -1814,6 +1814,7 @@ static void Gv_AddSystemVars(void)
     Gv_NewVar("cameray",               (intptr_t)&ud.camerapos.y,               GAMEVAR_SYSTEM | GAMEVAR_INT32PTR);
     Gv_NewVar("cameraz",               (intptr_t)&ud.camerapos.z,               GAMEVAR_SYSTEM | GAMEVAR_INT32PTR);
     Gv_NewVar("current_menu",          (intptr_t)&g_currentMenu,                GAMEVAR_SYSTEM | GAMEVAR_INT32PTR | GAMEVAR_READONLY);
+    Gv_NewVar("currentmusicvolume",    (intptr_t)&g_currentMusicVolume,         GAMEVAR_SYSTEM | GAMEVAR_INT32PTR | GAMEVAR_READONLY);
     Gv_NewVar("currentweapon",         (intptr_t)&hudweap.cur,                  GAMEVAR_SYSTEM | GAMEVAR_INT32PTR);
     Gv_NewVar("display_mirror",        (intptr_t)&display_mirror,               GAMEVAR_SYSTEM | GAMEVAR_INT32PTR);
     Gv_NewVar("framerate",             (intptr_t)&g_frameRate,                  GAMEVAR_SYSTEM | GAMEVAR_INT32PTR | GAMEVAR_READONLY);

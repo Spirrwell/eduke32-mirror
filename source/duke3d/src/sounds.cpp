@@ -29,6 +29,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include <atomic>
 
+// DB64: Volume modifier has this scale to allow for finegrained fading control.
+#define BASEVOLUMEMODIFIER  65536
+#define BASEFADEINCREMENT   1024
+
 int32_t g_numEnvSoundsPlaying, g_highestSoundIdx;
 static bool g_dukeTalk;
 
@@ -119,7 +123,7 @@ void S_SoundStartup(void)
     }
 
     FX_SetVolume(ud.config.MasterVolume);
-    //S_MusicVolume(ud.config.MusicVolume);
+    //S_UpdateMusicVolume(ud.config.MusicVolume);
 
 #ifdef ASS_REVERSESTEREO
     FX_SetReverseStereo(ud.config.ReverseStereo);
@@ -141,6 +145,23 @@ void S_SoundShutdown(void)
     }
 }
 
+static int32_t S_ComputeDuckedVolume(int32_t volume)
+{
+    if (volume == 0 || g_currentMusicVolumeInternal == BASEVOLUMEMODIFIER)
+        return volume;
+
+    return (volume * g_currentMusicVolumeInternal) / BASEVOLUMEMODIFIER;
+}
+
+static int32_t S_MusicVolumeToPercent(int32_t volume)
+{
+    int32_t perc = (volume * MAXVOLUMEPERCENTAGE) / BASEVOLUMEMODIFIER;
+    if (perc == 0 && volume != 0) {
+        return 1;
+    }
+    return perc;
+}
+
 void S_MusicStartup(void)
 {
     int status;
@@ -159,7 +180,10 @@ void S_MusicStartup(void)
         return;
     }
 
-    MUSIC_SetVolume(ud.config.MusicVolume);
+    g_currentMusicVolumeInternal = g_targetMusicVolumeInternal = BASEVOLUMEMODIFIER;
+    g_currentMusicVolume = MAXVOLUMEPERCENTAGE;
+    g_musicFadeIncrement = BASEFADEINCREMENT;
+    MUSIC_SetVolume(S_ComputeDuckedVolume(ud.config.MusicVolume));
 
     buildvfs_kfd const fil = kopen4load("d3dtimbr.tmb", 0);
     if (fil != buildvfs_kfd_invalid)
@@ -222,14 +246,44 @@ void S_PauseSounds(bool paused)
     }
 }
 
-
-void S_MusicVolume(int32_t volume)
+void S_DuckMusicVolume(int32_t configVolume, int32_t volumePercent)
 {
-    if (MusicIsWaveform && MusicVoice >= 0)
-        FX_SetPan(MusicVoice, volume, volume, volume);
-
-    MUSIC_SetVolume(volume);
+    g_targetMusicVolumeInternal = (volumePercent * BASEVOLUMEMODIFIER) / MAXVOLUMEPERCENTAGE;
+    g_currentMusicVolumeInternal = g_targetMusicVolumeInternal;
+    g_currentMusicVolume = S_MusicVolumeToPercent(g_currentMusicVolumeInternal);
+    S_UpdateMusicVolume(configVolume);
 }
+
+// DB64: Note, fadeTime is in 100ms per unit.
+void S_FadeMusicVolume_Start(int32_t volumePercent, int32_t fadeTime)
+{
+    g_targetMusicVolumeInternal = (volumePercent * BASEVOLUMEMODIFIER) / MAXVOLUMEPERCENTAGE;
+    int32_t volumeDiff = klabs(g_targetMusicVolumeInternal - g_currentMusicVolumeInternal);
+    g_musicFadeIncrement = max(1, (volumeDiff * 10)/(REALGAMETICSPERSEC * clamp(fadeTime, 0, MAXVOLUMEFADETIME)));
+}
+
+void S_FadeMusicVolume_Step(int32_t configVolume)
+{
+    if (g_currentMusicVolumeInternal != g_targetMusicVolumeInternal)
+    {
+        int32_t diff = g_targetMusicVolumeInternal - g_currentMusicVolumeInternal;
+        g_currentMusicVolumeInternal += clamp(diff, -g_musicFadeIncrement, g_musicFadeIncrement);
+        g_currentMusicVolume = S_MusicVolumeToPercent(g_currentMusicVolumeInternal);
+
+        // DLOG_F(INFO, "Music Fade -- Current: %d ; Target: %d", g_currentMusicVolumeInternal, g_targetMusicVolumeInternal);
+        S_UpdateMusicVolume(configVolume);
+    }
+}
+
+void S_UpdateMusicVolume(int32_t volume)
+{
+    int32_t duckedVolume = S_ComputeDuckedVolume(volume);
+    if (MusicIsWaveform && MusicVoice >= 0)
+        FX_SetPan(MusicVoice, duckedVolume, duckedVolume, duckedVolume);
+
+    MUSIC_SetVolume(duckedVolume);
+}
+
 
 void S_RestartMusic(void)
 {

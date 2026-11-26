@@ -7127,6 +7127,7 @@ MAIN_LOOP_RESTART:
                         g_frameJustDrawn = false;
                         Net_GetPackets();
                         G_DoMoveThings();
+                        S_FadeMusicVolume_Step(ud.config.MusicVolume);
                     }
 
                 }
