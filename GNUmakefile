@@ -258,6 +258,7 @@ engine_tools_objs := \
     pragmas.cpp \
     smmalloc.cpp \
     smmalloc_generic.cpp \
+    smmalloc_tls.cpp \
     vfs.cpp \
 
 engine_excl := \
