@@ -381,6 +381,11 @@ static void G_DoLoadScreen(const char *statustext, int percent)
     {
         menutext_center(90, "Loading User Map");
         gametext_center_shade_pal(90+10, boardfilename, 14, 2);
+
+        if(ud.cep == 1 && cep_map_name[0] != '\0')
+            menutext_center(90 + 16 + 8, cep_map_name);
+        else
+            gametext_center_shade_pal(90+10, boardfilename, 14, 2);
     }
     else
     {
@@ -1936,9 +1941,42 @@ int G_EnterLevel(int gameMode)
 
             boardfilename[0] = 0;
         }
+
+        if (ud.um_music == 9000)
+        {
+            LOG_F(INFO, "Loading custom music: %s", user_mus);
+            if (user_mus[0] != 0)
+            {
+                if (S_DefineMusic("E7L1", user_mus) == -1)
+                {
+                    LOG_F(ERROR, "Invalid music %s", user_mus);
+                    ud.um_music = 0;
+                }
+            }
+        }
     }
     else
+    {
         boardfilename[0] = '\0';
+        ud.cep = 0;
+        ud.cep_level = 0;
+        user_mus[0] = '\0';
+        cep_list[0] = '\0';
+
+        if (num_usndrpcs > 0)
+        {
+            if (usndrpcs)
+            {
+                if (reloadBackupSounds())
+                    LOG_F(ERROR, "Tried reloading the sounds but nothing was found");
+
+                Xfree(usndrpcs);
+                usndrpcs = nullptr;
+            }
+
+            num_usndrpcs = 0;
+        }
+    }
 
     int const mapidx = (ud.volume_number * MAXLEVELS) + ud.level_number;
 
@@ -2024,9 +2062,12 @@ int G_EnterLevel(int gameMode)
 
     if (ud.recstat != 2)
     {
-        if (Menu_HaveUserMap())
+        if (Menu_HaveUserMap() || G_HaveUserMap())
         {
-            S_PlayLevelMusicOrNothing(USERMAPMUSICFAKESLOT);
+            if(!ud.um_music)
+                S_PlayLevelMusicOrNothing(USERMAPMUSICFAKESLOT);
+            else
+                S_PlayLevelMusicOrNothing((6 * MAXLEVELS) + 0);
         }
         else if (g_mapInfo[g_musicIndex].musicfn == NULL || m.musicfn == NULL ||
             strcmp(g_mapInfo[g_musicIndex].musicfn, m.musicfn) || g_musicSize == 0 || ud.last_level == -1)
